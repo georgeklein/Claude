@@ -113,12 +113,33 @@ pub fn handler(
         msg!("🛡️  Anti-sniper active: max {} tokens", max_trade_amount);
     }
 
-    // Calculate output amount using correct reserves
+    // CRITICAL FEE LOGIC: Take fee "off the cuff" BEFORE swap
+    // This prevents liquidity degradation by not extracting fees from reserves
+
+    // Calculate fee from user's input amount
+    let fee_in_quote = if current_fee_bps > 0 {
+        let fee = (quote_amount as u128)
+            .checked_mul(current_fee_bps as u128)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(10000)
+            .ok_or(ErrorCode::MathOverflow)? as u64;
+        std::cmp::max(fee, 1) // Minimum 1 lamport if fee enabled
+    } else {
+        0
+    };
+
+    // Calculate swap amount (quote_amount minus fee)
+    let swap_amount = quote_amount
+        .checked_sub(fee_in_quote)
+        .ok_or(ErrorCode::MathOverflow)?;
+
+    // Calculate output based on SWAP AMOUNT (not full quote_amount)
+    // This maintains x*y=k invariant because only swap_amount enters reserves
     let base_output = pool.calculate_output(
-        quote_amount,
+        swap_amount,
         quote_reserve,
         base_reserve,
-        current_fee_bps,
+        0, // No fee here - already extracted above
     )?;
 
     // Slippage protection (CRITICAL SECURITY FIX from PumpSwap)
@@ -134,30 +155,20 @@ pub fn handler(
         ErrorCode::OutputTooSmall
     );
 
-    // Calculate protocol fee
-    let base_output_before_fee = pool.calculate_output(
-        quote_amount,
-        quote_reserve,
-        base_reserve,
-        0, // Calculate without fee to get fee amount
-    )?;
+    // Transfer 1: Fee goes directly to creator (if any)
+    if fee_in_quote > 0 {
+        let fee_cpi_accounts = Transfer {
+            from: ctx.accounts.user_quote_account.to_account_info(),
+            to: ctx.accounts.fee_recipient_account.to_account_info(),
+            authority: ctx.accounts.user.to_account_info(),
+        };
+        token::transfer(
+            CpiContext::new(ctx.accounts.token_program.to_account_info(), fee_cpi_accounts),
+            fee_in_quote,
+        )?;
+    }
 
-    let fee_amount = base_output_before_fee
-        .checked_sub(base_output)
-        .ok_or(ErrorCode::MathOverflow)?;
-
-    // Convert fee to quote token equivalent for accounting
-    // Add precision buffer to prevent rounding to zero
-    let fee_in_quote = std::cmp::max(
-        (fee_amount as u128)
-            .checked_mul(quote_reserve as u128)
-            .ok_or(ErrorCode::MathOverflow)?
-            .checked_div(base_reserve as u128)
-            .ok_or(ErrorCode::MathOverflow)? as u64,
-        if fee_amount > 0 { 1 } else { 0 } // Minimum 1 lamport fee if fee > 0
-    );
-
-    // Transfer quote tokens from user to pool
+    // Transfer 2: Swap amount goes to pool vault (NOT full quote_amount)
     let cpi_accounts = Transfer {
         from: ctx.accounts.user_quote_account.to_account_info(),
         to: ctx.accounts.quote_vault.to_account_info(),
@@ -165,10 +176,10 @@ pub fn handler(
     };
     token::transfer(
         CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
-        quote_amount,
+        swap_amount, // Only swap amount, not full quote_amount
     )?;
 
-    // Transfer base tokens from pool to user
+    // Transfer 3: Base tokens from pool to user
     let pool_seeds = &[
         b"pool",
         pool.base_mint.as_ref(),
@@ -190,30 +201,15 @@ pub fn handler(
         base_output,
     )?;
 
-    // Transfer protocol fee to fee recipient (in CRX)
-    let fee_cpi_accounts = Transfer {
-        from: ctx.accounts.quote_vault.to_account_info(),
-        to: ctx.accounts.fee_recipient_account.to_account_info(),
-        authority: pool.to_account_info(),
-    };
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            fee_cpi_accounts,
-            signer,
-        ),
-        fee_in_quote,
-    )?;
-
     // Update reserves based on phase
+    // CRITICAL: Only swap_amount enters vault (fee already went to creator)
+    // This maintains x*y=k perfectly - no degradation!
     if matches!(pool.current_phase, CurvePhase::Graduated) {
-        // GRADUATED PHASE: Constant product AMM with ongoing fees
-        // Fees already transferred to creator (line 199-206)
-        // Update real reserves to reflect actual vault balances (after fee extraction)
+        // GRADUATED PHASE: Pure constant product with fees taken "off the cuff"
+        // Fee went directly to creator, swap_amount to vault
+        // Reserves updated with swap_amount only - k is maintained!
         pool.real_quote_reserves = pool.real_quote_reserves
-            .checked_add(quote_amount)
-            .ok_or(ErrorCode::MathOverflow)?
-            .checked_sub(fee_in_quote)  // Fee extracted to creator
+            .checked_add(swap_amount)  // Only swap amount, not full quote_amount
             .ok_or(ErrorCode::MathOverflow)?;
         pool.real_base_reserves = pool.real_base_reserves
             .checked_sub(base_output)
@@ -221,19 +217,18 @@ pub fn handler(
         // Virtual reserves frozen at graduation (no longer used for pricing)
     } else {
         // PRE-BONDING PHASE: Update VIRTUAL reserves for bonding curve
-        // CRITICAL: Must use before-fee amounts to maintain x*y=k invariant
+        // Swap calculated with swap_amount, so add swap_amount to reserves
         pool.virtual_quote_reserves = pool.virtual_quote_reserves
-            .checked_add(quote_amount)
+            .checked_add(swap_amount)
             .ok_or(ErrorCode::MathOverflow)?;
         pool.virtual_base_reserves = pool.virtual_base_reserves
-            .checked_sub(base_output_before_fee)  // FIX: Use before-fee amount
+            .checked_sub(base_output)
             .ok_or(ErrorCode::MathOverflow)?;
 
-        // Update real reserves (tracking actual vault balances with fees extracted)
+        // Update real reserves (tracking actual vault balances)
+        // Real reserves only track what's actually in vaults
         pool.real_quote_reserves = pool.real_quote_reserves
-            .checked_add(quote_amount)
-            .ok_or(ErrorCode::MathOverflow)?
-            .checked_sub(fee_in_quote)
+            .checked_add(swap_amount)  // Only swap amount went to vault
             .ok_or(ErrorCode::MathOverflow)?;
         pool.real_base_reserves = pool.real_base_reserves
             .checked_sub(base_output)
@@ -321,9 +316,10 @@ pub fn handler(
     });
 
     msg!("✅ Buy executed!");
-    msg!("   Quote In: {} CRX", quote_amount);
+    msg!("   Quote In: {} CRX (total paid by user)", quote_amount);
+    msg!("   Swap Amount: {} CRX (after {} bps fee)", swap_amount, current_fee_bps);
     msg!("   Base Out: {} tokens", base_output);
-    msg!("   Fee: {} tokens ({} bps)", fee_amount, current_fee_bps);
+    msg!("   Fee to Creator: {} CRX", fee_in_quote);
 
     let (new_quote_res, new_base_res) = pool.get_pricing_reserves();
     msg!("   New Price: {} CRX per token",
