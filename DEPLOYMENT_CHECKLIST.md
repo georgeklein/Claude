@@ -1,5 +1,7 @@
 # Scale AMM - Deployment Checklist
 
+**Pre-mainnet requirements: DEPLOYER_PUBKEY, tests, security audit, CU limits**
+
 ## 🚨 CRITICAL: Before ANY Deployment
 
 ### 1. Update DEPLOYER_PUBKEY (BLOCKER)
