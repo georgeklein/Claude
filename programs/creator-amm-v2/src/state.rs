@@ -438,7 +438,7 @@ impl UserPosition {
     /// - T2: 750 slots (~5min) - 1% fee
     /// - T3: 4500 slots (~30min) - 0% fee
     #[inline]
-    pub fn calculate_extra_sell_fee_bps(&self, current_slot: u64) -> u64 {
+    pub fn calculate_extra_sell_fee_bps(&self, current_slot: u64) -> Result<u64> {
         // Constants
         const T1: u64 = 75;       // ~30 seconds
         const T2: u64 = 750;      // ~5 minutes
@@ -456,7 +456,7 @@ impl UserPosition {
 
         // Piecewise linear decay - optimized with early returns
         if age <= T1 {
-            return F1; // 0-30s: full 10% fee
+            return Ok(F1); // 0-30s: full 10% fee
         }
 
         if age <= T2 {
@@ -465,24 +465,25 @@ impl UserPosition {
             let time_remaining = T2.saturating_sub(age);
             let decay_component = DECAY_RANGE
                 .checked_mul(time_remaining)
-                .unwrap_or(0)
+                .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(TIME_RANGE_1)
-                .unwrap_or(0);
-            return F2.saturating_add(decay_component);
+                .ok_or(ErrorCode::MathOverflow)?;
+            return Ok(F2.saturating_add(decay_component));
         }
 
         if age <= T3 {
             // 5m-30m: decay from 1% → 0%
             // extra = F2 * (T3 - age) / (T3 - T2)
             let time_remaining = T3.saturating_sub(age);
-            return F2
+            let fee = F2
                 .checked_mul(time_remaining)
-                .unwrap_or(0)
+                .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(TIME_RANGE_2)
-                .unwrap_or(0);
+                .ok_or(ErrorCode::MathOverflow)?;
+            return Ok(fee);
         }
 
-        0 // 30m+: no extra fee
+        Ok(0) // 30m+: no extra fee
     }
 }
 
