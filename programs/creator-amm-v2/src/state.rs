@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-/// Global configuration for the Creator AMM v2
+/// Global configuration for Scale AMM
 #[account]
 pub struct Config {
     /// Protocol authority
