@@ -1,6 +1,9 @@
 # Scale AMM - Project Context
 
-**Production Solana bonding curve protocol powering $CRX**
+**AI assistant context for Scale AMM development**
+Production Solana bonding curve protocol powering $CRX
+
+Includes: Mission, tech stack, coding conventions, security requirements, git workflow
 
 ---
 
