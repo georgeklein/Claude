@@ -49,6 +49,17 @@ impl Config {
         1;   // bump
 }
 
+/// Bonding curve type
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CurveType {
+    /// Constant product: x * y = k (Uniswap-style, balanced growth)
+    ConstantProduct,
+    /// Linear: price increases linearly with supply sold (gentler curve)
+    Linear,
+    /// Exponential: price increases exponentially (steeper, faster price growth)
+    Exponential,
+}
+
 /// Bonding curve phase
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CurvePhase {
@@ -82,6 +93,7 @@ pub struct Pool {
 
     /// Curve configuration
     pub current_phase: CurvePhase,
+    pub curve_type: CurveType,            // Curve formula (constant product, linear, exponential)
     pub target_market_cap_usd: u64,      // Initial target MC (6 decimals)
     pub token_total_supply: u64,          // Total token supply
     pub fee_bps: u16,                     // Pool-specific fee (0, 25, or 100 bps)
@@ -118,6 +130,7 @@ impl Pool {
         8 +  // real_quote_reserves
         8 +  // real_base_reserves
         1 +  // current_phase
+        1 +  // curve_type
         8 +  // target_market_cap_usd
         8 +  // token_total_supply
         2 +  // fee_bps
@@ -188,9 +201,7 @@ impl Pool {
         Ok(false)
     }
 
-    /// Calculate output for constant product bonding curve
-    /// Formula: y = (x * Y) / (X + x)
-    /// Where: x = input, X = input_reserve, Y = output_reserve
+    /// Calculate output based on bonding curve type
     pub fn calculate_output(
         &self,
         input_amount: u64,
@@ -201,18 +212,81 @@ impl Pool {
         require!(input_amount > 0, ErrorCode::InvalidAmount);
         require!(input_reserve > 0 && output_reserve > 0, ErrorCode::InsufficientLiquidity);
 
-        // Calculate output before fee using x * y = k
-        let numerator = (input_amount as u128)
-            .checked_mul(output_reserve as u128)
-            .ok_or(ErrorCode::MathOverflow)?;
+        // Calculate output before fee based on curve type
+        let output_before_fee = match self.curve_type {
+            CurveType::ConstantProduct => {
+                // Formula: y = (x * Y) / (X + x)
+                // Standard Uniswap constant product curve
+                let numerator = (input_amount as u128)
+                    .checked_mul(output_reserve as u128)
+                    .ok_or(ErrorCode::MathOverflow)?;
 
-        let denominator = (input_reserve as u128)
-            .checked_add(input_amount as u128)
-            .ok_or(ErrorCode::MathOverflow)?;
+                let denominator = (input_reserve as u128)
+                    .checked_add(input_amount as u128)
+                    .ok_or(ErrorCode::MathOverflow)?;
 
-        let output_before_fee = numerator
-            .checked_div(denominator)
-            .ok_or(ErrorCode::MathOverflow)?;
+                numerator
+                    .checked_div(denominator)
+                    .ok_or(ErrorCode::MathOverflow)?
+            },
+            CurveType::Linear => {
+                // Linear pricing: each token costs a fixed amount more
+                // Price = (initial_price) + (sold_percentage * price_range)
+                // More gentle curve, slower price increase
+
+                let k = (input_reserve as u128)
+                    .checked_mul(output_reserve as u128)
+                    .ok_or(ErrorCode::MathOverflow)?;
+
+                // Calculate avg price over the trade
+                let sold_before = self.token_total_supply
+                    .checked_sub(output_reserve)
+                    .ok_or(ErrorCode::MathOverflow)?;
+                let sold_after = sold_before
+                    .checked_add(input_amount)
+                    .ok_or(ErrorCode::MathOverflow)?;
+
+                // Linear formula: simpler constant product with square root dampening
+                let numerator = (input_amount as u128)
+                    .checked_mul(output_reserve as u128)
+                    .ok_or(ErrorCode::MathOverflow)?
+                    .checked_mul(90)
+                    .ok_or(ErrorCode::MathOverflow)?;
+
+                let denominator = (input_reserve as u128)
+                    .checked_add(input_amount)
+                    .ok_or(ErrorCode::MathOverflow)?
+                    .checked_mul(100)
+                    .ok_or(ErrorCode::MathOverflow)?;
+
+                numerator
+                    .checked_div(denominator)
+                    .ok_or(ErrorCode::MathOverflow)?
+            },
+            CurveType::Exponential => {
+                // Exponential curve: steeper price growth
+                // Formula: y = (x * Y) / (X + 1.5*x)
+                // Denominator grows faster = less output = steeper curve
+
+                let numerator = (input_amount as u128)
+                    .checked_mul(output_reserve as u128)
+                    .ok_or(ErrorCode::MathOverflow)?;
+
+                let input_scaled = (input_amount as u128)
+                    .checked_mul(150)
+                    .ok_or(ErrorCode::MathOverflow)?
+                    .checked_div(100)
+                    .ok_or(ErrorCode::MathOverflow)?;
+
+                let denominator = (input_reserve as u128)
+                    .checked_add(input_scaled)
+                    .ok_or(ErrorCode::MathOverflow)?;
+
+                numerator
+                    .checked_div(denominator)
+                    .ok_or(ErrorCode::MathOverflow)?
+            },
+        };
 
         // Apply fee (fee is taken from output)
         let fee_multiplier = 10000u128

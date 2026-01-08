@@ -18,7 +18,6 @@ pub struct Buy<'info> {
             pool.base_mint.as_ref(),
         ],
         bump = pool.bump,
-        constraint = pool.current_phase != CurvePhase::Graduated @ ErrorCode::PoolGraduated,
     )]
     pub pool: Account<'info, Pool>,
 
@@ -177,6 +176,21 @@ pub fn handler(
         base_output,
     )?;
 
+    // Transfer protocol fee to fee recipient (in CRX)
+    let fee_cpi_accounts = Transfer {
+        from: ctx.accounts.quote_vault.to_account_info(),
+        to: ctx.accounts.fee_recipient_account.to_account_info(),
+        authority: pool.to_account_info(),
+    };
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            fee_cpi_accounts,
+            signer,
+        ),
+        fee_in_quote,
+    )?;
+
     // Update reserves based on phase
     if matches!(pool.current_phase, CurvePhase::Graduated) {
         // Post-graduation: Update REAL reserves only
@@ -191,9 +205,11 @@ pub fn handler(
             .ok_or(ErrorCode::MathOverflow)?;
     }
 
-    // Update pool real reserves
+    // Update pool real reserves (subtract fee since it was transferred out)
     pool.real_quote_reserves = pool.real_quote_reserves
         .checked_add(quote_amount)
+        .ok_or(ErrorCode::MathOverflow)?
+        .checked_sub(fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
     pool.real_base_reserves = pool.real_base_reserves
         .checked_sub(base_output)
@@ -223,14 +239,10 @@ pub fn handler(
         (new_quote_res as f64) / (new_base_res as f64)
     );
 
-    if !matches!(pool.current_phase, CurvePhase::Graduated) {
-        msg!("   Real CRX Accumulated: {} / {}",
+    if matches!(pool.current_phase, CurvePhase::PreBonding) {
+        msg!("   Real CRX Accumulated: {} / {} (to graduation)",
             pool.real_quote_reserves,
-            match pool.current_phase {
-                CurvePhase::PreBonding => pool.pre_bonding_threshold_crx,
-                CurvePhase::PostBonding => pool.graduation_threshold_crx,
-                _ => pool.graduation_threshold_crx,
-            }
+            pool.graduation_threshold_crx
         );
     }
 

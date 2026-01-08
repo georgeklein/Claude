@@ -18,7 +18,6 @@ pub struct Sell<'info> {
             pool.base_mint.as_ref(),
         ],
         bump = pool.bump,
-        constraint = pool.current_phase != CurvePhase::Graduated @ ErrorCode::PoolGraduated,
     )]
     pub pool: Account<'info, Pool>,
 
@@ -159,6 +158,21 @@ pub fn handler(
             signer,
         ),
         quote_output,
+    )?;
+
+    // Transfer protocol fee to fee recipient (in CRX)
+    let fee_cpi_accounts = Transfer {
+        from: ctx.accounts.quote_vault.to_account_info(),
+        to: ctx.accounts.fee_recipient_account.to_account_info(),
+        authority: pool.to_account_info(),
+    };
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            fee_cpi_accounts,
+            signer,
+        ),
+        fee_amount,
     )?;
 
     // Update reserves based on phase

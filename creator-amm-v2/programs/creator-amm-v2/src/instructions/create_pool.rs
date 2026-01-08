@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
-use crate::state::{Config, Pool, CurvePhase};
+use crate::state::{Config, Pool, CurvePhase, CurveType};
 use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd, calculate_crx_thresholds, calculate_virtual_reserves_for_market_cap};
 use crate::errors::ErrorCode;
 
@@ -89,6 +89,7 @@ pub fn handler(
     target_market_cap_usd: u64,    // e.g., 50_000_000_000 = $50k (6 decimals)
     token_supply: u64,              // e.g., 1_000_000_000_000 = 1M tokens (6 decimals)
     fee_bps: u16,                   // Fee: 0, 25, or 100 bps (0%, 0.25%, or 1%)
+    curve_type: CurveType,          // Curve: ConstantProduct, Linear, or Exponential
 ) -> Result<()> {
     // Validate fee is one of the allowed values
     require!(
@@ -96,7 +97,17 @@ pub fn handler(
         ErrorCode::InvalidFee
     );
     // Validation
-    require!(target_market_cap_usd > 0, ErrorCode::InvalidMarketCap);
+    const MIN_MARKET_CAP_USD: u64 = 1_000_000_000; // $1k minimum with 6 decimals
+    const MAX_MARKET_CAP_USD: u64 = 1_000_000_000_000; // $1M maximum with 6 decimals
+
+    require!(
+        target_market_cap_usd >= MIN_MARKET_CAP_USD,
+        ErrorCode::InvalidMarketCap
+    );
+    require!(
+        target_market_cap_usd <= MAX_MARKET_CAP_USD,
+        ErrorCode::InvalidMarketCap
+    );
     require!(token_supply > 0, ErrorCode::InvalidTokenSupply);
 
     let config = &ctx.accounts.config;
@@ -154,6 +165,7 @@ pub fn handler(
     pool.real_base_reserves = token_supply; // All tokens deposited
 
     pool.current_phase = CurvePhase::PreBonding;
+    pool.curve_type = curve_type;
     pool.target_market_cap_usd = target_market_cap_usd;
     pool.token_total_supply = token_supply;
     pool.fee_bps = fee_bps;
@@ -194,6 +206,7 @@ pub fn handler(
         virtual_base_reserves
     );
     msg!("🎯 Phase: PreBonding (Fee: {} bps)", fee_bps);
+    msg!("📈 Curve Type: {:?}", curve_type);
 
     Ok(())
 }
