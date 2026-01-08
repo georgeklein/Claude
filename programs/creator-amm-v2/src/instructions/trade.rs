@@ -67,9 +67,9 @@ pub fn calculate_base_fee(
         .checked_div(10000)
         .ok_or(ErrorCode::MathOverflow)? as u64;
 
-    // Optimized: Use bitwise OR to ensure minimum 1 lamport (saves ~100 CU vs cmp::max)
-    // If fee is 0, this sets it to 1. If fee > 0, no change.
-    Ok(fee | 1)
+    // Return calculated fee (may be 0 for small amounts)
+    // Respects mathematical precision - no forced minimums
+    Ok(fee)
 }
 
 /// Slippage protection check
