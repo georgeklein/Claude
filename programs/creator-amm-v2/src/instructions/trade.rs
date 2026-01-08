@@ -11,14 +11,11 @@ pub enum TradeDirection {
     Sell,
 }
 
-/// Shared trade validation - checks protocol pause and amount validity
+/// Shared trade validation - checks amount validity
 #[inline(always)]
 pub fn validate_trade_preconditions(
-    config: &Config,
     amount: u64,
 ) -> Result<()> {
-    // CRITICAL: Check if protocol is paused (emergency stop)
-    require!(!config.is_paused, ErrorCode::ProtocolPaused);
     require!(amount > 0, ErrorCode::InvalidAmount);
     Ok(())
 }

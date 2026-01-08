@@ -119,8 +119,6 @@ pub fn handler(
     config.approved_quote_tokens = approved_quote_tokens;
     config.approved_quote_count = approved_quote_count;
 
-    config.is_paused = false; // Start unpaused
-
     config.bump = ctx.bumps.config;
 
     // Emit event for indexers

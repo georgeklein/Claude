@@ -177,16 +177,16 @@ const pool = await scale.createPool({
 ## Summary
 
 ### Emergency Pause
-- **Current:** Centralized kill switch exists
-- **Recommended:** Launch with it, revoke at Day 90
-- **Result:** Temporary safety → full decentralization
+- **Previous:** Centralized kill switch existed
+- **Decision:** REMOVED (Option A chosen)
+- **Result:** Fully permissionless - no centralized control possible
 
 ### WAA Optional
-- **Current:** Always enabled
+- **Previous:** Always enabled
 - **Now:** Optional per pool (default: enabled)
 - **Result:** Creators choose their own permissionless level
 
-Both changes move toward **progressive decentralization** while maintaining safety during risky launch period.
+Both changes achieve **full decentralization** and creator optionality.
 
 ---
 
@@ -197,19 +197,21 @@ Both changes move toward **progressive decentralization** while maintaining safe
 - SDK updated
 - Sell logic updated
 
-⏳ **Emergency Pause:** Still exists
-- Decision needed: Keep, remove, or timeline to remove
-- No code changes yet (waiting on decision)
+✅ **Emergency Pause:** REMOVED
+- All pause checks deleted from code
+- `is_paused` field removed from Config struct
+- `set_paused` instruction removed
+- Protocol is now fully permissionless - cannot be paused
 
 ---
 
-## Questions to Answer
+## Decisions Made
 
-1. **Emergency pause:** Keep, remove, or progressive decentralization?
-2. **Timeline:** If progressive, what's the revocation date?
-3. **Communication:** How to explain to users?
-4. **Default for WAA:** Keep `false` (enabled) or make creators opt-in?
+1. **Emergency pause:** ✅ REMOVED (Option A)
+2. **WAA optional:** ✅ IMPLEMENTED (default enabled, opt-out available)
+3. **Communication:** "Fully permissionless - no centralized control"
+4. **Default for WAA:** `false` (enabled by default, creators can opt-out with `disableWaa: true`)
 
-**Recommendation:**
-- Progressive decentralization for pause (revoke Day 90)
-- WAA default `false` (enabled by default, opt-out for pure permissionless)
+**Result:**
+- Fully decentralized protocol - no pause capability
+- Creator flexibility - choose WAA protection level per pool

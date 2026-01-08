@@ -87,8 +87,8 @@ pub fn handler(
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
 
-    // Shared validation: protocol pause and amount check
-    trade::validate_trade_preconditions(config, quote_amount)?;
+    // Shared validation: amount check
+    trade::validate_trade_preconditions(quote_amount)?;
 
     // Get current phase parameters
     let current_fee_bps = pool.get_current_fee_bps();

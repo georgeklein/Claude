@@ -159,27 +159,7 @@
 
 ---
 
-### 8. Emergency Pause
-
-**What it does:**
-- Protocol authority can halt all trading
-- Used for critical bugs or exploits
-
-**How it works:**
-- Authority calls `update_config` with `is_paused = true`
-- All buy/sell transactions check `!config.is_paused`
-- If paused, all trades revert immediately
-
-**What happens:**
-1. Critical bug discovered
-2. Authority pauses protocol (< 1 min)
-3. All trading stops
-4. Team investigates and fixes
-5. Authority unpauses when safe
-
----
-
-### 9. Two-Tier Quote Token System
+### 8. Two-Tier Quote Token System
 
 **What it does:**
 - Allows CRX pairs (permissionless)
@@ -203,7 +183,7 @@
 
 ---
 
-### 10. Rugpull Protection
+### 9. Rugpull Protection
 
 **What it does:**
 - Prevents token creator from inflating supply
@@ -370,9 +350,9 @@ Market Cap (USD) = mc_crx × crx_price_usd
 ✅ **Vault Validation** - Post-trade balance checks (reserves = vault)
 ✅ **Rugpull Prevention** - Mint/freeze authorities must be revoked
 ✅ **Slippage Protection** - User-defined minimum outputs
-✅ **Emergency Pause** - Protocol-wide kill switch
 ✅ **Anti-Sniper** - Size limits + WAA fees
 ✅ **PDA Security** - Deterministic account derivation
+✅ **Permissionless** - No centralized pause or kill switch
 
 ---
 

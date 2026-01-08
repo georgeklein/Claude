@@ -51,6 +51,7 @@ pub mod creator_amm_v2 {
         fee_bps: u16,
         curve_type: state::CurveType,
         graduation_threshold_usd: u64,
+        disable_waa: bool,
     ) -> Result<()> {
         instructions::create_pool::handler(
             ctx,
@@ -59,6 +60,7 @@ pub mod creator_amm_v2 {
             fee_bps,
             curve_type,
             graduation_threshold_usd,
+            disable_waa,
         )
     }
 
@@ -87,13 +89,5 @@ pub mod creator_amm_v2 {
         approved_quote_count: u8,
     ) -> Result<()> {
         instructions::update_approved_quotes::handler(ctx, approved_quote_tokens, approved_quote_count)
-    }
-
-    /// Emergency pause/unpause protocol (Admin only)
-    pub fn set_paused(
-        ctx: Context<SetPaused>,
-        paused: bool,
-    ) -> Result<()> {
-        instructions::set_paused::handler(ctx, paused)
     }
 }

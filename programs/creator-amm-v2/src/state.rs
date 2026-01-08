@@ -36,9 +36,6 @@ pub struct Config {
     pub approved_quote_tokens: [Pubkey; 5], // Whitelisted quote tokens (SOL, USDC, USDT, etc.)
     pub approved_quote_count: u8,           // How many slots are actually used (0-5)
 
-    /// Emergency pause flag - stops all trading when true
-    pub is_paused: bool,
-
     pub bump: u8,
 }
 
@@ -58,7 +55,6 @@ impl Config {
         8 +  // oracle_max_confidence_bps
         160 + // approved_quote_tokens (32 * 5 = 160 bytes)
         1 +  // approved_quote_count
-        1 +  // is_paused
         1;   // bump
 }
 
