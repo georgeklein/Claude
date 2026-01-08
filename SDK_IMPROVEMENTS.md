@@ -1,6 +1,8 @@
 # SDK Improvement Roadmap
 
-**Path to SDK perfection for Scale AMM**
+**Path to Stripe-level quality: retry logic, rate limiting, caching, real-time feeds**
+
+Roadmap for perfecting the Scale AMM SDK
 
 ---
 
