@@ -12,12 +12,58 @@
  * ```
  */
 
-import { Connection, PublicKey, Transaction, Keypair, TransactionSignature } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, Keypair, TransactionSignature, ComputeBudgetProgram, ConfirmOptions } from '@solana/web3.js';
 import { Program, AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import { getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { CreatorAmmV2 } from './types/creator_amm_v2';
 import { IDL } from './types/creator_amm_v2';
 import { ScaleError, ErrorCode } from './errors';
+
+// ============================================================================
+// INTERNAL TYPES (TypeScript Type Safety)
+// ============================================================================
+
+/** Parsed mint account info from getParsedAccountInfo */
+interface ParsedMintInfo {
+  decimals: number;
+  mintAuthority: string | null;
+  supply: string;
+  isInitialized: boolean;
+  freezeAuthority: string | null;
+}
+
+/** Pool account data from on-chain fetch */
+interface PoolData {
+  baseMint: PublicKey;
+  quoteMint: PublicKey;
+  creator: PublicKey;
+  quoteVault: PublicKey;
+  baseVault: PublicKey;
+
+  virtualQuoteReserves: BN;
+  virtualBaseReserves: BN;
+  realQuoteReserves: BN;
+  realBaseReserves: BN;
+
+  currentPhase: { preBonding: {} } | { graduated: {} };
+  curveType: { constantProduct: {} } | { exponential: {} };
+
+  feeBps: number;
+  graduationThresholdCrx: BN;
+  targetMarketCapUsd: BN;
+  lastCrxPriceUsd: BN;
+  tokenTotalSupply: BN;
+  totalQuoteVolume: BN;
+  createdAtSlot: BN;
+}
+
+/** Transaction confirmation configuration */
+interface ConfirmationConfig {
+  maxRetries?: number;          // Default: 4
+  baseDelayMs?: number;          // Default: 2000 (2 seconds)
+  maxDelayMs?: number;           // Default: 16000 (16 seconds)
+  commitment?: 'processed' | 'confirmed' | 'finalized'; // Default: 'confirmed'
+}
 
 // ============================================================================
 // TYPES
@@ -52,12 +98,16 @@ export interface BuyParams {
   crxAmount: number;                   // CRX to spend
   slippage?: number;                   // % slippage (default: 0.5)
   minTokens?: number;                  // Alternative to slippage
+  priorityFee?: number;                // Micro-lamports per CU (e.g., 10000 = 0.00001 SOL per CU)
+  computeUnits?: number;               // Compute unit limit (default: 200000)
 }
 
 export interface SellParams {
   tokenAmount: number;                 // Tokens to sell
   slippage?: number;                   // % slippage (default: 0.5)
   minCrx?: number;                     // Alternative to slippage
+  priorityFee?: number;                // Micro-lamports per CU
+  computeUnits?: number;               // Compute unit limit (default: 200000)
 }
 
 export interface PoolInfo {
@@ -177,6 +227,110 @@ export class ScaleAMM {
     this.program = new Program<CreatorAmmV2>(IDL, this.programId, provider);
     this.listeners = new Map();
     this.nextListenerId = 1;
+  }
+
+  // ==========================================================================
+  // TRANSACTION HELPERS (Confirmation & Retry)
+  // ==========================================================================
+
+  /**
+   * Confirm transaction with exponential backoff retry
+   * Retries on network failures up to 4 times (2s, 4s, 8s, 16s delays)
+   *
+   * @internal
+   */
+  private async confirmTransactionWithRetry(
+    signature: TransactionSignature,
+    config?: ConfirmationConfig
+  ): Promise<void> {
+    const maxRetries = config?.maxRetries ?? 4;
+    const baseDelayMs = config?.baseDelayMs ?? 2000;
+    const maxDelayMs = config?.maxDelayMs ?? 16000;
+    const commitment = config?.commitment ?? 'confirmed';
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const confirmation = await this.connection.confirmTransaction(
+          signature,
+          commitment
+        );
+
+        if (confirmation.value.err) {
+          throw new ScaleError(
+            'TRANSACTION_FAILED',
+            `Transaction failed: ${JSON.stringify(confirmation.value.err)}`
+          );
+        }
+
+        // Success!
+        return;
+      } catch (error) {
+        lastError = error as Error;
+
+        // Don't retry on transaction errors (only network errors)
+        if (error instanceof ScaleError && error.code === 'TRANSACTION_FAILED') {
+          throw error;
+        }
+
+        // If this was the last attempt, throw
+        if (attempt === maxRetries) {
+          break;
+        }
+
+        // Calculate delay with exponential backoff
+        const delayMs = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
+
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+
+    // All retries exhausted
+    throw new ScaleError(
+      'CONFIRMATION_TIMEOUT',
+      `Failed to confirm transaction after ${maxRetries + 1} attempts: ${lastError?.message}`
+    );
+  }
+
+  /**
+   * Add priority fee instructions to transaction builder
+   *
+   * @internal
+   */
+  private addPriorityFee(
+    instructions: any[],
+    priorityFee?: number,
+    computeUnits?: number
+  ): void {
+    if (computeUnits) {
+      instructions.unshift(
+        ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnits })
+      );
+    }
+
+    if (priorityFee) {
+      instructions.unshift(
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFee })
+      );
+    }
+  }
+
+  /**
+   * Get mint decimals from parsed account info
+   *
+   * @internal
+   */
+  private async getMintDecimals(mint: PublicKey): Promise<number> {
+    const mintInfo = await this.connection.getParsedAccountInfo(mint);
+
+    if (!mintInfo.value || !('parsed' in mintInfo.value.data)) {
+      throw new ScaleError('INVALID_MINT', `Failed to parse mint account: ${mint.toBase58()}`);
+    }
+
+    const parsedData = mintInfo.value.data as { parsed: { info: ParsedMintInfo } };
+    return parsedData.parsed.info.decimals;
   }
 
   // ==========================================================================
@@ -317,8 +471,7 @@ export class ScaleAMM {
       }
 
       // Get token decimals
-      const mintInfo = await this.connection.getParsedAccountInfo(params.baseMint);
-      const decimals = (mintInfo.value?.data as any).parsed.info.decimals;
+      const decimals = await this.getMintDecimals(params.baseMint);
 
       // Convert human-readable to on-chain format
       const tokenSupply = new BN(params.supply * Math.pow(10, decimals));
@@ -400,24 +553,22 @@ export class ScaleAMM {
       const slippage = params.slippage ?? 0.5;
 
       // Fetch pool state
-      const poolData = await this.program.account.pool.fetch(pool);
+      const poolData = await this.program.account.pool.fetch(pool) as PoolData;
 
       // Get token decimals
-      const mintInfo = await this.connection.getParsedAccountInfo(poolData.quoteMint);
-      const decimals = (mintInfo.value?.data as any).parsed.info.decimals;
+      const quoteDecimals = await this.getMintDecimals(poolData.quoteMint);
+      const baseDecimals = await this.getMintDecimals(poolData.baseMint);
 
       // Convert CRX to lamports
-      const quoteAmount = new BN(params.crxAmount * Math.pow(10, decimals));
+      const quoteAmount = new BN(params.crxAmount * Math.pow(10, quoteDecimals));
 
       // Estimate output for slippage calculation
       let minBaseAmount: BN;
       if (params.minTokens !== undefined) {
-        const baseMintInfo = await this.connection.getParsedAccountInfo(poolData.baseMint);
-        const baseDecimals = (baseMintInfo.value?.data as any).parsed.info.decimals;
         minBaseAmount = new BN(params.minTokens * Math.pow(10, baseDecimals));
       } else {
         const estimated = await this.estimateBuyInternal(poolData, params.crxAmount);
-        minBaseAmount = new BN(estimated.output * (1 - slippage / 100) * Math.pow(10, decimals));
+        minBaseAmount = new BN(estimated.output * (1 - slippage / 100) * Math.pow(10, baseDecimals));
       }
 
       // Derive PDAs
@@ -449,8 +600,8 @@ export class ScaleAMM {
         configData.feeRecipient
       );
 
-      // Execute buy
-      const tx = await this.program.methods
+      // Build transaction with priority fees if specified
+      const tx = this.program.methods
         .buy(quoteAmount, minBaseAmount)
         .accounts({
           config: configPda,
@@ -462,11 +613,25 @@ export class ScaleAMM {
           feeRecipientAccount: feeRecipientAccount.address,
           user: this.wallet.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .rpc();
+        });
+
+      // Add priority fees if specified
+      if (params.priorityFee || params.computeUnits) {
+        const computeUnits = params.computeUnits ?? 200000;
+        tx.preInstructions([
+          ...(params.priorityFee ? [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: params.priorityFee })] : []),
+          ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnits }),
+        ]);
+      }
+
+      // Execute and get signature
+      const signature = await tx.rpc();
+
+      // Confirm with retry logic
+      await this.confirmTransactionWithRetry(signature);
 
       // Parse result from transaction
-      return await this.parseTradeResult(tx, true);
+      return await this.parseTradeResult(signature, true);
     } catch (error) {
       throw this.translateError(error);
     }
@@ -489,11 +654,11 @@ export class ScaleAMM {
       const slippage = params.slippage ?? 0.5;
 
       // Fetch pool state
-      const poolData = await this.program.account.pool.fetch(pool);
+      const poolData = await this.program.account.pool.fetch(pool) as PoolData;
 
       // Get token decimals
-      const baseMintInfo = await this.connection.getParsedAccountInfo(poolData.baseMint);
-      const baseDecimals = (baseMintInfo.value?.data as any).parsed.info.decimals;
+      const baseDecimals = await this.getMintDecimals(poolData.baseMint);
+      const quoteDecimals = await this.getMintDecimals(poolData.quoteMint);
 
       // Convert tokens to lamports
       const baseAmount = new BN(params.tokenAmount * Math.pow(10, baseDecimals));
@@ -501,13 +666,9 @@ export class ScaleAMM {
       // Estimate output for slippage calculation
       let minQuoteAmount: BN;
       if (params.minCrx !== undefined) {
-        const quoteMintInfo = await this.connection.getParsedAccountInfo(poolData.quoteMint);
-        const quoteDecimals = (quoteMintInfo.value?.data as any).parsed.info.decimals;
         minQuoteAmount = new BN(params.minCrx * Math.pow(10, quoteDecimals));
       } else {
         const estimated = await this.estimateSellInternal(poolData, params.tokenAmount);
-        const quoteMintInfo = await this.connection.getParsedAccountInfo(poolData.quoteMint);
-        const quoteDecimals = (quoteMintInfo.value?.data as any).parsed.info.decimals;
         minQuoteAmount = new BN(estimated.output * (1 - slippage / 100) * Math.pow(10, quoteDecimals));
       }
 
@@ -540,8 +701,8 @@ export class ScaleAMM {
         configData.feeRecipient
       );
 
-      // Execute sell
-      const tx = await this.program.methods
+      // Build transaction with priority fees if specified
+      const tx = this.program.methods
         .sell(baseAmount, minQuoteAmount)
         .accounts({
           config: configPda,
@@ -553,11 +714,25 @@ export class ScaleAMM {
           feeRecipientAccount: feeRecipientAccount.address,
           user: this.wallet.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .rpc();
+        });
+
+      // Add priority fees if specified
+      if (params.priorityFee || params.computeUnits) {
+        const computeUnits = params.computeUnits ?? 200000;
+        tx.preInstructions([
+          ...(params.priorityFee ? [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: params.priorityFee })] : []),
+          ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnits }),
+        ]);
+      }
+
+      // Execute and get signature
+      const signature = await tx.rpc();
+
+      // Confirm with retry logic
+      await this.confirmTransactionWithRetry(signature);
 
       // Parse result from transaction
-      return await this.parseTradeResult(tx, false);
+      return await this.parseTradeResult(signature, false);
     } catch (error) {
       throw this.translateError(error);
     }
@@ -580,7 +755,7 @@ export class ScaleAMM {
   async getPool(baseMint: PublicKey): Promise<PoolInfo> {
     try {
       const [poolPda] = this.derivePoolPda(baseMint);
-      const poolData = await this.program.account.pool.fetch(poolPda);
+      const poolData = await this.program.account.pool.fetch(poolPda) as PoolData;
 
       // Calculate derived values
       const price = this.calculatePrice(poolData);
@@ -588,11 +763,11 @@ export class ScaleAMM {
       const graduationProgress = this.calculateGraduationProgress(poolData);
 
       // Format phase and curve type
-      const phase = 'currentPhase' in poolData && poolData.currentPhase.graduated
+      const phase = 'graduated' in poolData.currentPhase
         ? 'Graduated' as const
         : 'PreBonding' as const;
 
-      const curveType = 'curveType' in poolData && poolData.curveType.exponential
+      const curveType = 'exponential' in poolData.curveType
         ? 'Exponential' as const
         : 'ConstantProduct' as const;
 
@@ -638,11 +813,11 @@ export class ScaleAMM {
    */
   async getPrice(pool: PublicKey): Promise<PriceInfo> {
     try {
-      const poolData = await this.program.account.pool.fetch(pool);
+      const poolData = await this.program.account.pool.fetch(pool) as PoolData;
       const price = this.calculatePrice(poolData);
       const marketCapUsd = this.calculateMarketCapUsd(poolData, price);
 
-      const phase = 'currentPhase' in poolData && poolData.currentPhase.graduated
+      const phase = 'graduated' in poolData.currentPhase
         ? 'Graduated' as const
         : 'PreBonding' as const;
 
@@ -669,7 +844,7 @@ export class ScaleAMM {
    */
   async estimateBuy(pool: PublicKey, crxAmount: number): Promise<EstimateResult> {
     try {
-      const poolData = await this.program.account.pool.fetch(pool);
+      const poolData = await this.program.account.pool.fetch(pool) as PoolData;
       return await this.estimateBuyInternal(poolData, crxAmount);
     } catch (error) {
       throw this.translateError(error);
@@ -687,7 +862,7 @@ export class ScaleAMM {
    */
   async estimateSell(pool: PublicKey, tokenAmount: number): Promise<EstimateResult> {
     try {
-      const poolData = await this.program.account.pool.fetch(pool);
+      const poolData = await this.program.account.pool.fetch(pool) as PoolData;
       return await this.estimateSellInternal(poolData, tokenAmount);
     } catch (error) {
       throw this.translateError(error);
@@ -812,8 +987,8 @@ export class ScaleAMM {
     );
   }
 
-  private calculatePrice(poolData: any): number {
-    const phase = poolData.currentPhase.graduated ? 'Graduated' : 'PreBonding';
+  private calculatePrice(poolData: PoolData): number {
+    const phase = 'graduated' in poolData.currentPhase ? 'Graduated' : 'PreBonding';
 
     if (phase === 'Graduated') {
       return poolData.realQuoteReserves.toNumber() / poolData.realBaseReserves.toNumber();
@@ -822,21 +997,21 @@ export class ScaleAMM {
     }
   }
 
-  private calculateMarketCapUsd(poolData: any, price: number): number {
+  private calculateMarketCapUsd(poolData: PoolData, price: number): number {
     const marketCapCrx = price * poolData.tokenTotalSupply.toNumber();
     const marketCapUsd = (marketCapCrx * poolData.lastCrxPriceUsd.toNumber()) / 1_000_000;
     return marketCapUsd / 1_000_000; // Convert to human-readable
   }
 
-  private calculateGraduationProgress(poolData: any): number {
+  private calculateGraduationProgress(poolData: PoolData): number {
     const progress = (poolData.realQuoteReserves.toNumber() / poolData.graduationThresholdCrx.toNumber()) * 100;
     return Math.min(progress, 100);
   }
 
-  private async estimateBuyInternal(poolData: any, crxAmount: number): Promise<EstimateResult> {
+  private async estimateBuyInternal(poolData: PoolData, crxAmount: number): Promise<EstimateResult> {
     // Implement bonding curve math here
     // This is a simplified version - actual implementation should match Rust logic
-    const phase = poolData.currentPhase.graduated ? 'Graduated' : 'PreBonding';
+    const phase = 'graduated' in poolData.currentPhase ? 'Graduated' : 'PreBonding';
     const reserves = phase === 'Graduated'
       ? { quote: poolData.realQuoteReserves, base: poolData.realBaseReserves }
       : { quote: poolData.virtualQuoteReserves, base: poolData.virtualBaseReserves };
@@ -859,9 +1034,9 @@ export class ScaleAMM {
     };
   }
 
-  private async estimateSellInternal(poolData: any, tokenAmount: number): Promise<EstimateResult> {
+  private async estimateSellInternal(poolData: PoolData, tokenAmount: number): Promise<EstimateResult> {
     // Similar to estimateBuyInternal but reversed
-    const phase = poolData.currentPhase.graduated ? 'Graduated' : 'PreBonding';
+    const phase = 'graduated' in poolData.currentPhase ? 'Graduated' : 'PreBonding';
     const reserves = phase === 'Graduated'
       ? { quote: poolData.realQuoteReserves, base: poolData.realBaseReserves }
       : { quote: poolData.virtualQuoteReserves, base: poolData.virtualBaseReserves };
@@ -894,15 +1069,18 @@ export class ScaleAMM {
     };
   }
 
-  private translateError(error: any): ScaleError {
+  private translateError(error: unknown): ScaleError {
     // Map Anchor error codes to friendly messages
     // This is a simplified version
     if (error instanceof ScaleError) {
       return error;
     }
 
+    // Type guard for error-like objects
+    const errorObj = error as { code?: string; error?: { errorCode?: { code?: string } }; message?: string };
+
     // Extract Anchor error code if present
-    const errorCode = error?.code || error?.error?.errorCode?.code;
+    const errorCode = errorObj.code || errorObj.error?.errorCode?.code;
 
     const errorMap: { [key: string]: { code: ErrorCode; message: string } } = {
       '6001': { code: 'SLIPPAGE_EXCEEDED', message: 'Price moved beyond your slippage tolerance' },
@@ -911,11 +1089,11 @@ export class ScaleAMM {
       // ... map all error codes
     };
 
-    const mapped = errorMap[errorCode];
+    const mapped = errorCode ? errorMap[errorCode] : undefined;
     if (mapped) {
       return new ScaleError(mapped.code, mapped.message);
     }
 
-    return new ScaleError('UNKNOWN', error?.message || 'Unknown error occurred');
+    return new ScaleError('UNKNOWN', errorObj.message || 'Unknown error occurred');
   }
 }
