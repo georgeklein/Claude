@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
-use crate::state::{Config, Pool, CurvePhase, UserPosition};
+use crate::state::{Config, Pool, CurvePhase};
 use crate::errors::ErrorCode;
 use crate::events::{TradeExecuted, PoolGraduated, PhaseTransition};
 
@@ -43,7 +43,8 @@ pub fn check_anti_sniper_protection(
             ErrorCode::AntiSniperActive
         );
 
-        msg!("Anti-sniper active: max {} tokens", max_trade_amount);
+        // NOTE: msg!() removed for CU optimization
+        // Anti-sniper status is included in TradeExecuted event
     }
     Ok(())
 }
@@ -197,6 +198,7 @@ pub fn update_statistics(
 /// Returns true if transition occurred
 pub fn handle_phase_transition(
     pool: &mut Pool,
+    pool_key: Pubkey,
     clock: &Clock,
 ) -> Result<bool> {
     // Capture pre-transition state
@@ -214,7 +216,7 @@ pub fn handle_phase_transition(
         let slots_to_graduate = clock.slot.saturating_sub(pool.created_at_slot);
 
         emit!(PoolGraduated {
-            pool: pool.key(),
+            pool: pool_key,
             base_mint: pool.base_mint,
             creator: pool.creator,
             graduation_slot: clock.slot,
@@ -233,7 +235,7 @@ pub fn handle_phase_transition(
         });
 
         emit!(PhaseTransition {
-            pool: pool.key(),
+            pool: pool_key,
             base_mint: pool.base_mint,
             from_phase: phase_before,
             to_phase: pool.current_phase,
@@ -248,6 +250,7 @@ pub fn handle_phase_transition(
 /// Emit trade executed event
 pub fn emit_trade_event(
     pool: &Pool,
+    pool_key: Pubkey,
     user: Pubkey,
     direction: TradeDirection,
     input_amount: u64,
@@ -263,7 +266,7 @@ pub fn emit_trade_event(
     let anti_sniper_active = pool.is_anti_sniper_active(clock.slot, config.anti_sniper_window_slots);
 
     emit!(TradeExecuted {
-        pool: pool.key(),
+        pool: pool_key,
         user,
         base_mint: pool.base_mint,
         is_buy: direction == TradeDirection::Buy,

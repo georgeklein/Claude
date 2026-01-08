@@ -210,11 +210,12 @@ pub fn handler(
     user_position.update_on_buy(base_output, clock.slot)?;
 
     // Shared phase transition handling with event emission
-    let transitioned = trade::handle_phase_transition(pool, &clock)?;
+    let transitioned = trade::handle_phase_transition(pool, ctx.accounts.pool.key(), &clock)?;
 
     // Shared trade event emission
     trade::emit_trade_event(
         pool,
+        ctx.accounts.pool.key(),
         ctx.accounts.user.key(),
         TradeDirection::Buy,
         quote_amount,
@@ -225,11 +226,9 @@ pub fn handler(
         &clock,
     )?;
 
-    msg!("Buy executed!");
-
-    if transitioned {
-        msg!("Phase transition occurred!");
-    }
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
 
     // NOTE: Vault validation removed for CU optimization (saves ~5k CU)
     // Reserve accounting is enforced by:

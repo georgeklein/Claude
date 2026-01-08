@@ -84,9 +84,17 @@ pub fn handler(
     let config = &ctx.accounts.config;
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Shared validation: protocol pause and amount check
     trade::validate_trade_preconditions(config, base_amount)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Get current phase parameters
     let current_fee_bps = pool.get_current_fee_bps();
@@ -102,6 +110,10 @@ pub fn handler(
         base_reserve,
         clock.slot,
     )?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // CRITICAL FEE LOGIC: Calculate output first, then extract fee from output
     // This maintains consistency with buy.rs and prevents token mint mismatch
@@ -113,30 +125,58 @@ pub fn handler(
         quote_reserve,
         0, // No fee in calculation
     )?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Shared base fee calculation from OUTPUT (in quote tokens)
     let base_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, current_fee_bps)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Calculate WAA-based extra sell fee (anti-sniper)
     let user_position = &ctx.accounts.user_position;
     let extra_fee_bps = user_position.calculate_extra_sell_fee_bps(clock.slot);
     let extra_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, extra_fee_bps)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Total fee (base + extra)
     let total_fee_in_quote = base_fee_in_quote
         .checked_add(extra_fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Final output to user (after total fee)
     let quote_output = quote_output_before_fee
         .checked_sub(total_fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Shared slippage protection
     trade::validate_slippage(quote_output, min_quote_amount)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Shared minimum output validation
     trade::validate_minimum_output(quote_output)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Transfer 1: All base tokens from user to pool vault
     trade::transfer_tokens(
@@ -147,6 +187,10 @@ pub fn handler(
         base_amount,
         None,
     )?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Setup pool signer for outgoing transfers
     let pool_seeds = &[
@@ -165,6 +209,10 @@ pub fn handler(
         quote_output,
         Some(signer),
     )?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Transfer 3: Total fee (base + WAA) in QUOTE tokens from pool to creator
     if total_fee_in_quote > 0 {
@@ -176,6 +224,10 @@ pub fn handler(
             total_fee_in_quote,
             Some(signer),
         )?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
     }
 
     // Shared reserve update logic
@@ -191,6 +243,10 @@ pub fn handler(
         base_amount,       // Full amount enters reserves
         total_quote_out,   // Total output leaves reserves
     )?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Shared statistics update
     trade::update_statistics(
@@ -200,14 +256,26 @@ pub fn handler(
         quote_output,
         total_fee_in_quote,  // Track total fees (base + WAA) in CRX
     )?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Update user position - reduce tracked amount after sell
     let user_position = &mut ctx.accounts.user_position;
     user_position.update_on_sell(base_amount)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Shared phase transition handling with event emission
     // Note: Phase transitions on sells are less common but still checked
     let transitioned = trade::handle_phase_transition(pool, &clock)?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
+
 
     // Calculate effective fee bps (base + WAA) for event
     let effective_fee_bps = current_fee_bps
@@ -226,12 +294,12 @@ pub fn handler(
         config,
         &clock,
     )?;
+    // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
+    // Trade execution confirmed via TradeExecuted event
+    // Phase transitions confirmed via PhaseTransition event
 
-    msg!("Sell executed!");
 
-    if transitioned {
-        msg!("Phase transition occurred!");
-    }
+
 
     // NOTE: Vault validation removed for CU optimization (saves ~5k CU)
     // Reserve accounting is enforced by:
