@@ -38,11 +38,31 @@ grep "11111111111111111111111111111111" programs/creator-amm-v2/src/instructions
 # Install Solana CLI
 sh -c "$(curl -sSfL https://release.solana.com/v1.17.0/install)"
 
-# Configure for mainnet
-solana config set --url https://api.mainnet-beta.solana.com
+# Configure for your target network
+solana config set --url devnet      # For devnet testing
+solana config set --url mainnet-beta # For mainnet deployment
 
-# Check your wallet balance (need ~5 SOL for deployment)
+# Check your wallet address
+solana address
+
+# Check your wallet balance
 solana balance
+```
+
+**Wallet Setup & Funding (REQUIRED):**
+```bash
+# Your wallet must already exist and be funded before deployment
+
+# For Devnet (testing):
+solana airdrop 2 --url devnet
+# You may need to run this multiple times to get 2+ SOL
+
+# For Testnet (pre-production):
+solana airdrop 2 --url testnet
+
+# For Mainnet (production):
+# Purchase SOL and send to your wallet address
+# Required: 5+ SOL for deployment + initialization
 ```
 
 **Anchor CLI:**
@@ -63,6 +83,7 @@ anchor --version  # Should show: anchor-cli 0.29.0
 solana --version   # Should be 1.17.x
 anchor --version   # Should be 0.29.0
 cargo --version    # Should be 1.70+
+solana balance     # Should show 2+ SOL (devnet) or 5+ SOL (mainnet)
 ```
 
 ---

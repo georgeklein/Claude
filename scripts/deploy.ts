@@ -6,8 +6,17 @@
  * Handles both program deployment and initialization in one command.
  * Works for devnet, testnet, and mainnet.
  *
+ * PREREQUISITES:
+ * 1. Wallet keypair must already exist (default: ~/.config/solana/id.json)
+ * 2. Wallet must be funded with SOL:
+ *    - Devnet: 2+ SOL (get from faucet: solana airdrop 2 --url devnet)
+ *    - Testnet: 2+ SOL (get from faucet: solana airdrop 2 --url testnet)
+ *    - Mainnet: 5+ SOL (purchase and send to wallet)
+ * 3. Environment variables configured in .env file
+ *
  * Usage:
  *   npm run deploy:devnet
+ *   npm run deploy:testnet
  *   npm run deploy:mainnet
  *
  * Or directly:
@@ -175,7 +184,13 @@ class DeploymentManager {
     const keypairPath = this.config.deployerKeypair.replace("~", process.env.HOME || "");
 
     if (!fs.existsSync(keypairPath)) {
-      throw new Error(`Deployer keypair not found at: ${keypairPath}`);
+      throw new Error(
+        `Deployer keypair not found at: ${keypairPath}\n\n` +
+        `Please ensure your Solana wallet is configured:\n` +
+        `  1. Generate a keypair: solana-keygen new\n` +
+        `  2. Or specify path in .env: DEPLOYER_KEYPAIR=/path/to/keypair.json\n` +
+        `  3. Fund the wallet with SOL before deploying\n`
+      );
     }
 
     const secretKey = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
@@ -190,10 +205,22 @@ class DeploymentManager {
 
     console.log(`   Balance: ${balanceSol.toFixed(4)} SOL`);
 
-    const requiredSol = this.config.cluster === "mainnet-beta" ? 5 : 10;
+    // Required SOL for deployment
+    const requiredSol = this.config.cluster === "mainnet-beta" ? 5 : 2;
+
     if (balanceSol < requiredSol) {
+      const fundingInstructions = this.config.cluster === "devnet"
+        ? "\n   Get devnet SOL: solana airdrop 2 --url devnet"
+        : this.config.cluster === "testnet"
+        ? "\n   Get testnet SOL: solana airdrop 2 --url testnet"
+        : "\n   Purchase mainnet SOL and send to your wallet";
+
       throw new Error(
-        `Insufficient balance! Need at least ${requiredSol} SOL, have ${balanceSol.toFixed(4)} SOL`
+        `Insufficient balance!\n` +
+        `   Required: ${requiredSol} SOL\n` +
+        `   Current: ${balanceSol.toFixed(4)} SOL\n` +
+        `   Wallet: ${this.wallet.publicKey.toBase58()}\n` +
+        fundingInstructions
       );
     }
 
