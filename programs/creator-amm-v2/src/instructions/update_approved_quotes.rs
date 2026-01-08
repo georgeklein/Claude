@@ -39,7 +39,7 @@ pub fn handler(
     config.approved_quote_tokens = approved_quote_tokens;
     config.approved_quote_count = approved_quote_count;
 
-    msg!("✅ Approved quote tokens updated by authority");
+    msg!("Approved quote tokens updated by authority");
     msg!("   Active slots: {}/5", approved_quote_count);
 
     // Log each active whitelist entry for transparency
