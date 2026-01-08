@@ -29,6 +29,13 @@ pub struct Config {
     pub oracle_max_age_seconds: i64,        // e.g., 60 seconds
     pub oracle_max_confidence_bps: u64,     // e.g., 100 = 1% max deviation
 
+    /// Whitelist for premium quote tokens (Tier 2 - Permissioned)
+    /// Tier 1 (Permissionless): CRX pairs - always allowed for anyone
+    /// Tier 2 (Permissioned): SOL/USDC/USDT pairs - whitelist only
+    /// Fixed array of 5 slots to avoid dynamic Vec complexity
+    pub approved_quote_tokens: [Pubkey; 5], // Whitelisted quote tokens (SOL, USDC, USDT, etc.)
+    pub approved_quote_count: u8,           // How many slots are actually used (0-5)
+
     pub bump: u8,
 }
 
@@ -46,6 +53,8 @@ impl Config {
         2 +  // anti_sniper_max_trade_bps
         8 +  // oracle_max_age_seconds
         8 +  // oracle_max_confidence_bps
+        160 + // approved_quote_tokens (32 * 5 = 160 bytes)
+        1 +  // approved_quote_count
         1;   // bump
 }
 

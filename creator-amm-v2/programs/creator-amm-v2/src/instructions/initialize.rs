@@ -48,7 +48,15 @@ pub fn handler(
     anti_sniper_max_trade_bps: u16,
     oracle_max_age_seconds: i64,
     oracle_max_confidence_bps: u64,
+    approved_quote_tokens: [Pubkey; 5],
+    approved_quote_count: u8,
 ) -> Result<()> {
+    // Validate approved quote token count
+    require!(
+        approved_quote_count <= 5,
+        ErrorCode::InvalidQuoteTokenCount
+    );
+
     // Validate fees
     require!(pre_bonding_fee_bps <= 10000, ErrorCode::InvalidFee);
     require!(post_bonding_fee_bps <= 10000, ErrorCode::InvalidFee);
@@ -85,6 +93,9 @@ pub fn handler(
 
     config.oracle_max_age_seconds = oracle_max_age_seconds;
     config.oracle_max_confidence_bps = oracle_max_confidence_bps;
+
+    config.approved_quote_tokens = approved_quote_tokens;
+    config.approved_quote_count = approved_quote_count;
 
     config.bump = ctx.bumps.config;
 
@@ -124,6 +135,7 @@ pub fn handler(
         oracle_max_age_seconds,
         oracle_max_confidence_bps
     );
+    msg!("Approved quote tokens: {} slots configured", approved_quote_count);
 
     Ok(())
 }

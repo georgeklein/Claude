@@ -82,4 +82,10 @@ pub enum ErrorCode {
 
     #[msg("Output amount too small (dust trade)")]
     OutputTooSmall,
+
+    #[msg("Quote token not approved - must be CRX (permissionless) or whitelisted token like SOL/USDC/USDT (permissioned)")]
+    QuoteTokenNotApproved,
+
+    #[msg("Invalid quote token count - must be between 0 and 5")]
+    InvalidQuoteTokenCount,
 }

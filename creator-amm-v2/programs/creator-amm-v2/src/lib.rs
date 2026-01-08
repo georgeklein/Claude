@@ -16,7 +16,7 @@ pub mod creator_amm_v2 {
 
     /// Initialize the Creator AMM v2 global configuration
     ///
-    /// Sets up oracle integration, fee structures, and phase thresholds
+    /// Sets up oracle integration, fee structures, phase thresholds, and quote token whitelist
     ///
     /// # Arguments
     /// * `pre_bonding_fee_bps` - Fee during phase 1 (e.g., 300 = 3%)
@@ -27,6 +27,8 @@ pub mod creator_amm_v2 {
     /// * `anti_sniper_max_trade_bps` - Max trade size during window (e.g., 500 = 5%)
     /// * `oracle_max_age_seconds` - Max oracle price age (e.g., 60 seconds)
     /// * `oracle_max_confidence_bps` - Max oracle confidence deviation (e.g., 100 = 1%)
+    /// * `approved_quote_tokens` - Array of 5 pubkeys for whitelisted quote tokens (Tier 2)
+    /// * `approved_quote_count` - How many of the 5 slots are used (0-5)
     pub fn initialize(
         ctx: Context<Initialize>,
         pre_bonding_fee_bps: u16,
@@ -37,6 +39,8 @@ pub mod creator_amm_v2 {
         anti_sniper_max_trade_bps: u16,
         oracle_max_age_seconds: i64,
         oracle_max_confidence_bps: u64,
+        approved_quote_tokens: [Pubkey; 5],
+        approved_quote_count: u8,
     ) -> Result<()> {
         instructions::initialize::handler(
             ctx,
@@ -48,6 +52,8 @@ pub mod creator_amm_v2 {
             anti_sniper_max_trade_bps,
             oracle_max_age_seconds,
             oracle_max_confidence_bps,
+            approved_quote_tokens,
+            approved_quote_count,
         )
     }
 
@@ -137,5 +143,39 @@ pub mod creator_amm_v2 {
         min_quote_amount: u64,
     ) -> Result<()> {
         instructions::sell::handler(ctx, base_amount, min_quote_amount)
+    }
+
+    /// Update approved quote token whitelist (Admin only - Tier 2 permissioning)
+    ///
+    /// **TWO-TIER QUOTE TOKEN SYSTEM:**
+    /// - Tier 1 (Permissionless): CRX pairs - always allowed for anyone
+    /// - Tier 2 (Permissioned): SOL/USDC/USDT pairs - whitelist only
+    ///
+    /// This allows the protocol to:
+    /// 1. Start with CRX-only pairs (default: approved_quote_count = 0)
+    /// 2. Add premium quote tokens later (SOL, USDC, USDT) for vetted teams
+    /// 3. Control which tokens can be used as quote currency
+    ///
+    /// **Security:**
+    /// - Only protocol authority can call this
+    /// - Existing pools are unaffected
+    /// - New pools must check against updated whitelist
+    ///
+    /// # Arguments
+    /// * `approved_quote_tokens` - Array of 5 pubkeys for whitelisted tokens
+    /// * `approved_quote_count` - How many slots are active (0-5)
+    ///
+    /// # Example
+    /// ```
+    /// // Add SOL and USDC to whitelist
+    /// approved_quote_tokens = [SOL_MINT, USDC_MINT, Pubkey::default(), Pubkey::default(), Pubkey::default()]
+    /// approved_quote_count = 2
+    /// ```
+    pub fn update_approved_quotes(
+        ctx: Context<UpdateApprovedQuotes>,
+        approved_quote_tokens: [Pubkey; 5],
+        approved_quote_count: u8,
+    ) -> Result<()> {
+        instructions::update_approved_quotes::handler(ctx, approved_quote_tokens, approved_quote_count)
     }
 }

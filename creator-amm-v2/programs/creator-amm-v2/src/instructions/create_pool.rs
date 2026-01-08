@@ -25,11 +25,11 @@ pub struct CreatePool<'info> {
     )]
     pub pool: Account<'info, Pool>,
 
-    /// CRX token mint (quote token)
-    /// 🔒 PERMISSIONED: Must be CRX - enforces all pools use CRX as quote
-    #[account(
-        constraint = quote_mint.key() == config.crx_mint @ ErrorCode::MustUseCrxQuote
-    )]
+    /// Quote token mint (CRX or approved tokens like SOL/USDC/USDT)
+    /// 🔒 TWO-TIER PERMISSIONING:
+    /// Tier 1 (Permissionless): CRX pairs - anyone can create
+    /// Tier 2 (Permissioned): SOL/USDC/USDT pairs - whitelist only
+    /// Validation happens in handler (see below)
     pub quote_mint: Account<'info, Mint>,
 
     /// Base token mint (the new token being launched)
@@ -93,6 +93,28 @@ pub fn handler(
     curve_type: CurveType,            // Curve: ConstantProduct, Exponential, or Custom
     graduation_threshold_usd: u64,    // e.g., 40_000_000_000 = $40k (6 decimals) - dynamic per pool
 ) -> Result<()> {
+    let config = &ctx.accounts.config;
+    let quote_mint_key = ctx.accounts.quote_mint.key();
+
+    // 🔒 TWO-TIER QUOTE TOKEN VALIDATION
+    // Tier 1 (Permissionless): CRX pairs - anyone can create
+    let is_crx = quote_mint_key == config.crx_mint;
+
+    // Tier 2 (Permissioned): SOL/USDC/USDT pairs - whitelist only
+    let is_approved = config.approved_quote_tokens[..config.approved_quote_count as usize]
+        .contains(&quote_mint_key);
+
+    require!(
+        is_crx || is_approved,
+        ErrorCode::QuoteTokenNotApproved
+    );
+
+    if is_crx {
+        msg!("✅ Quote token: CRX (Tier 1 - Permissionless)");
+    } else {
+        msg!("✅ Quote token: Approved whitelist token (Tier 2 - Permissioned)");
+    }
+
     // Validate fee is one of the allowed values
     require!(
         fee_bps == 0 || fee_bps == 25 || fee_bps == 100,
@@ -143,7 +165,6 @@ pub fn handler(
         ErrorCode::FreezeAuthorityNotRevoked
     );
 
-    let config = &ctx.accounts.config;
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
 
