@@ -175,45 +175,69 @@ fn update_position(pos: &mut UserPosition, amount: u64, slot: u64) {
 
 ---
 
-### 🟢 Minor Issue #5: Constants Should Be Configurable
+### 🟢 Critical: Full Configuration System Required
 
-Hardcoded slot thresholds are fine for v1, but consider:
+**This is permissionless DeFi - we can't iterate post-launch.** All options must be baked in from day 1.
+
+See **[POOL_CONFIGURATION.md](./POOL_CONFIGURATION.md)** for the complete specification.
+
+Key requirements:
+1. **WAA on/off switch** per pool (some pools don't need it)
+2. **Configurable decay curve** (thresholds, fees, shape)
+3. **Multiple decay types** (linear, exponential, step, cliff)
+4. **Untracked token policy** (how to handle transfers)
+5. **Whitelist support** (exempt aggregators, known contracts)
+6. **Grace period** (initial LP adds without penalty)
+7. **Pool presets** (MemeToken, StablePair, FairLaunch, etc.)
 
 ```rust
-pub struct PoolConfig {
-    // ... existing fields
+pub struct WaaConfig {
+    pub enabled: bool,              // ← THE ON/OFF SWITCH
+    pub sell_only: bool,
+    pub decay_type: DecayType,
+    pub t1_slots: u64,              // 75 (~30s)
+    pub t2_slots: u64,              // 750 (~5m)
+    pub t3_slots: u64,              // 4500 (~30m)
+    pub f1_bps: u16,                // 10%
+    pub f2_bps: u16,                // 1%
+    pub f3_bps: u16,                // 0%
+    pub min_tracked_amount: u64,
+    pub untracked_policy: UntrackedPolicy,
+    pub grace_period_slots: u64,
+    pub whitelist_enabled: bool,
+}
 
-    // Anti-snipe config (optional, defaults shown)
-    pub snipe_t1_slots: u64,        // default: 75
-    pub snipe_t2_slots: u64,        // default: 750
-    pub snipe_t3_slots: u64,        // default: 4500
-    pub snipe_f1_bps: u16,          // default: 1000 (10%)
-    pub snipe_f2_bps: u16,          // default: 100  (1%)
-    pub snipe_enabled: bool,        // default: true for meme pools
+pub enum DecayType {
+    PiecewiseLinear,  // Current design
+    Exponential,      // Smoother decay
+    StepFunction,     // Discrete steps
+    Cliff,            // Binary: max fee until T3, then 0
 }
 ```
 
-This allows:
-- Different pools to have different decay rates
-- Disabling the feature for non-meme pools (e.g., CRX/USDC stable pair)
-- Governance-controlled parameter updates
+Pool creators pick their config at creation. Once live, WAA can only be **disabled** (never re-enabled) to prevent rug scenarios.
 
 ---
 
 ## Implementation Priority
 
-### Phase 1: MVP (Ship This)
-- [x] Basic WAA tracking on buys
-- [x] Piecewise linear fee decay
-- [x] Fixed 50/30/20 fee routing (LP/treasury/burn)
-- [x] Option B for transfer handling (untracked = current slot)
-- [x] Minimum position threshold
+### Ship This (All Required for v1 - No Iteration Possible)
+- [ ] Full `WaaConfig` struct with all options
+- [ ] On/off switch (`enabled: bool`)
+- [ ] All decay types (Linear, Exponential, Step, Cliff)
+- [ ] Untracked token policies (TreatAsNew, TreatAsOld, Blend, Block)
+- [ ] Pool presets (MemeToken, StablePair, FairLaunch, Custom)
+- [ ] Whitelist PDA for exempt addresses
+- [ ] Grace period support
+- [ ] Fee routing configuration
+- [ ] Minimum tracked amount threshold
+- [ ] Admin controls (pause, disable WAA, manage whitelist)
 
-### Phase 2: Refinements
-- [ ] Configurable pool parameters
-- [ ] Optimized decay curve based on data
+### Future Additions (Requires New Program Version)
 - [ ] Token-2022 transfer hook integration
-- [ ] Analytics dashboard for fee collection
+- [ ] Additional decay curve types
+- [ ] Dynamic fee integration with WAA
+- [ ] Cross-pool WAA tracking
 
 ---
 
