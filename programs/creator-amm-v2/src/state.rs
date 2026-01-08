@@ -353,4 +353,121 @@ impl Pool {
     }
 }
 
+/// User position for tracking weighted average entry slot (WAA)
+/// Used for decaying sell fees to prevent snipers from instant exit
+#[account]
+pub struct UserPosition {
+    /// The pool this position belongs to
+    pub pool: Pubkey,
+
+    /// The user who owns this position
+    pub user: Pubkey,
+
+    /// Weighted average entry slot (tracks when user acquired tokens)
+    pub avg_entry_slot: u64,
+
+    /// Amount of tokens represented by avg_entry_slot
+    /// Used to calculate weighted average when buying more
+    pub tracked_amount: u64,
+
+    /// PDA bump
+    pub bump: u8,
+}
+
+impl UserPosition {
+    pub const LEN: usize = 8 + // discriminator
+        32 + // pool
+        32 + // user
+        8 +  // avg_entry_slot
+        8 +  // tracked_amount
+        1;   // bump
+
+    /// Update WAA when user buys tokens
+    /// Formula: new_avg = (old_amount * old_avg + new_amount * now) / (old_amount + new_amount)
+    pub fn update_on_buy(&mut self, buy_amount: u64, current_slot: u64) -> Result<()> {
+        if self.tracked_amount == 0 {
+            // First buy or position was fully closed
+            self.avg_entry_slot = current_slot;
+            self.tracked_amount = buy_amount;
+        } else {
+            // Calculate weighted average using u128 to prevent overflow
+            let numerator = (self.tracked_amount as u128)
+                .checked_mul(self.avg_entry_slot as u128)
+                .ok_or(ErrorCode::MathOverflow)?
+                .checked_add(
+                    (buy_amount as u128)
+                        .checked_mul(current_slot as u128)
+                        .ok_or(ErrorCode::MathOverflow)?
+                )
+                .ok_or(ErrorCode::MathOverflow)?;
+
+            let denominator = (self.tracked_amount as u128)
+                .checked_add(buy_amount as u128)
+                .ok_or(ErrorCode::MathOverflow)?;
+
+            self.avg_entry_slot = (numerator / denominator) as u64;
+            self.tracked_amount = self.tracked_amount
+                .checked_add(buy_amount)
+                .ok_or(ErrorCode::MathOverflow)?;
+        }
+
+        Ok(())
+    }
+
+    /// Reduce tracked amount when user sells tokens
+    pub fn update_on_sell(&mut self, sell_amount: u64) -> Result<()> {
+        self.tracked_amount = self.tracked_amount.saturating_sub(sell_amount);
+
+        // If fully sold, reset entry slot
+        if self.tracked_amount == 0 {
+            self.avg_entry_slot = 0;
+        }
+
+        Ok(())
+    }
+
+    /// Calculate extra sell fee based on hold time
+    /// Decays from 10% (1000 bps) → 1% (100 bps) → 0% over time
+    ///
+    /// Time thresholds (assuming ~400ms/slot):
+    /// - T1: 75 slots (~30s) - 10% fee
+    /// - T2: 750 slots (~5min) - 1% fee
+    /// - T3: 4500 slots (~30min) - 0% fee
+    pub fn calculate_extra_sell_fee_bps(&self, current_slot: u64) -> u64 {
+        // Constants
+        const T1: u64 = 75;      // ~30 seconds
+        const T2: u64 = 750;     // ~5 minutes
+        const T3: u64 = 4500;    // ~30 minutes
+        const F1: u64 = 1000;    // 10.00%
+        const F2: u64 = 100;     // 1.00%
+
+        // Calculate age in slots
+        let age = current_slot.saturating_sub(self.avg_entry_slot);
+
+        // Piecewise linear decay
+        if age <= T1 {
+            // 0-30s: full 10% fee
+            F1
+        } else if age <= T2 {
+            // 30s-5m: decay from 10% → 1%
+            // extra = F2 + (F1 - F2) * (T2 - age) / (T2 - T1)
+            let decay_range = F1 - F2;
+            let time_remaining = T2 - age;
+            let time_range = T2 - T1;
+
+            F2 + (decay_range * time_remaining) / time_range
+        } else if age <= T3 {
+            // 5m-30m: decay from 1% → 0%
+            // extra = F2 * (T3 - age) / (T3 - T2)
+            let time_remaining = T3 - age;
+            let time_range = T3 - T2;
+
+            (F2 * time_remaining) / time_range
+        } else {
+            // 30m+: no extra fee
+            0
+        }
+    }
+}
+
 use crate::errors::ErrorCode;
