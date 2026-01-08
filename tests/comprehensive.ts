@@ -13,7 +13,7 @@ import {
 } from "@solana/spl-token";
 import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
-describe("Creator AMM v2 - Comprehensive Test Suite", () => {
+describe("Scale AMM - Comprehensive Test Suite", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   const program = anchor.workspace.CreatorAmmV2 as Program<CreatorAmmV2>;

@@ -27,7 +27,7 @@ import {
 } from "@solana/spl-token";
 import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
-describe("Creator AMM v2 - Advanced Test Coverage", () => {
+describe("Scale AMM - Advanced Test Coverage", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   const program = anchor.workspace.CreatorAmmV2 as Program<CreatorAmmV2>;
