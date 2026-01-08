@@ -1,0 +1,8 @@
+<svg width="400" height="120" viewBox="0 0 400 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- S-shaped lightning bolt -->
+  <path d="M30 20 L70 20 L50 60 L90 60 L50 100 L70 60 L30 60 Z" fill="#9AFF4D"/>
+  <path d="M50 20 L90 20 L70 60 L110 60 L70 100 L90 60 L50 60 Z" fill="#7FD936"/>
+
+  <!-- "scale" text -->
+  <text x="130" y="85" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="white">scale</text>
+</svg>
