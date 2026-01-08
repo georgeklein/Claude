@@ -257,7 +257,7 @@ class PoolCreator {
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
-          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+          // Removed: rent sysvar (Anchor 0.29+ handles rent exemption automatically)
         })
         .rpc();
 

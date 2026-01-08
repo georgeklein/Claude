@@ -82,7 +82,7 @@ pub struct CreatePool<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
+    // Removed: rent sysvar (Anchor 0.29+ handles rent exemption automatically in init)
 }
 
 pub fn handler(
