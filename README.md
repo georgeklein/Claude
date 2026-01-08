@@ -294,10 +294,10 @@ Result:
 
 ## Documentation
 
-- **[GETTING_STARTED.md](GETTING_STARTED.md)** - 5-minute setup guide
+- **[WHAT_IT_DOES.md](WHAT_IT_DOES.md)** - Complete protocol explanation
 - **[sdk/README.md](sdk/README.md)** - Complete API reference
 - **[WHAT_IT_DOES.md](WHAT_IT_DOES.md)** - Protocol deep dive
-- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** - Pre-mainnet requirements
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide & checklist
 
 ---
 
