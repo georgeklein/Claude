@@ -7,43 +7,43 @@
 
 ## CRITICAL - BLOCKERS (Cannot deploy without fixing)
 
-- [ ] **CRIT-1: Division by zero in oracle** - If CRX price oracle returns 0, all pool creations fail. Location: `oracle.rs:32-37`
+- [x] **CRIT-1: Division by zero in oracle** - ✅ FIXED: Added `require!(price_feed.price > 0)` check. Location: `oracle.rs:25`
 
-- [ ] **CRIT-2: Negative price overflow** - Casting negative i64 price to u128 wraps to astronomical number, corrupts all calculations. Location: `oracle.rs:45-60`
+- [x] **CRIT-2: Negative price overflow** - ✅ FIXED: Same check prevents negative prices. Location: `oracle.rs:25`
 
-- [ ] **CRIT-3: Oracle exponent overflow** - Exponents outside [-38, 38] cause `10^expo` to overflow. Location: `oracle.rs:48, 54`
+- [x] **CRIT-3: Oracle exponent overflow** - ✅ FIXED: Added exponent range validation [-38, 38]. Location: `oracle.rs:27-34`
 
-- [ ] **CRIT-4: get_spot_price() always uses virtual reserves** - After graduation, spot price frozen at graduation moment, not real price. UIs show wrong price forever. Location: `state.rs:307-317`
+- [x] **CRIT-4: get_spot_price() always uses virtual reserves** - ✅ ALREADY FIXED: Uses `get_pricing_reserves()`. Location: `state.rs:309`
 
 ---
 
 ## HIGH - SHOULD FIX (Significant bugs)
 
-- [ ] **HIGH-1: Anti-sniper uses hardcoded virtual reserves in sell** - Bypasses anti-sniper limits if pool graduates during sniper window. Location: `sell.rs:88-101`
+- [x] **HIGH-1: Anti-sniper uses hardcoded virtual reserves in sell** - ✅ ALREADY FIXED: Uses `get_pricing_reserves()`. Location: `sell.rs:89`
 
-- [ ] **HIGH-2: CRX price never refreshed** - `last_crx_price_usd` set once at creation, USD market cap becomes increasingly wrong. Location: `state.rs:122-124`
+- [ ] **HIGH-2: CRX price never refreshed** - `last_crx_price_usd` set once at creation, USD market cap becomes increasingly wrong. Location: `state.rs:122-124` *(Design decision - documented)*
 
-- [ ] **HIGH-3: No liquidity check before transfer** - In PreBonding, virtual reserves >> real reserves; user can request output that vault can't fulfill. Location: `sell.rs:107-112`, `buy.rs:116`
+- [x] **HIGH-3: No liquidity check before transfer** - ✅ FIXED: Added `require!(output <= real_reserves)` checks. Location: `sell.rs:128-134`, `buy.rs:137-143`
 
-- [ ] **HIGH-4: Misleading graduation log** - Logs "Fee remains: 100 bps" but actual fee is 0 after graduation. Location: `state.rs:201`
+- [x] **HIGH-4: Misleading graduation log** - ✅ FIXED: Now shows "Trading fees removed: X bps → 0 bps". Location: `state.rs:201`
 
-- [ ] **HIGH-5: Config existence not explicitly validated** - Anchor handles it, but explicit check is clearer. Location: `create_pool.rs:8-13`
+- [ ] **HIGH-5: Config existence not explicitly validated** - Anchor handles it, but explicit check is clearer. Location: `create_pool.rs:8-13` *(Low priority - Anchor validates)*
 
 ---
 
 ## MEDIUM - CONSIDER FIXING (Improvements)
 
-- [ ] **MED-1: Zero-amount fee transfers waste gas** - In Graduated phase, fee is 0 but CPI still called. Location: `buy.rs:193-205`, `sell.rs:172-185`
+- [x] **MED-1: Zero-amount fee transfers waste gas** - ✅ FIXED: Added `if fee > 0` check before CPI. Location: `buy.rs:203-217`, `sell.rs:183-197`
 
-- [ ] **MED-2: Unused Config fields waste rent** - `pre_bonding_fee_bps`, `post_bonding_fee_bps`, `pre_bonding_threshold_usd`, `graduation_threshold_usd` never used. Location: `state.rs:16-22`
+- [ ] **MED-2: Unused Config fields waste rent** - `pre_bonding_fee_bps`, `post_bonding_fee_bps`, `pre_bonding_threshold_usd`, `graduation_threshold_usd` never used. Location: `state.rs:16-22` *(Technical debt - requires migration)*
 
-- [ ] **MED-3: No pool pause mechanism** - Can't stop trading if exploit discovered. Missing feature.
+- [x] **MED-3: No pool pause mechanism** - ✅ FIXED: Added `is_paused` field and `PoolPaused` error. Location: `state.rs:127`, `buy.rs:78-79`, `sell.rs:78-79`
 
-- [ ] **MED-4: No max trade size after anti-sniper** - Flash loan / MEV attacks possible after window. Design decision. Location: `buy.rs:92-113`
+- [ ] **MED-4: No max trade size after anti-sniper** - Flash loan / MEV attacks possible after window. Design decision. Location: `buy.rs:92-113` *(Permissionless by design)*
 
-- [ ] **MED-5: Hardcoded 6-decimal assumption** - `MIN_OUTPUT_AMOUNT: u64 = 1000` assumes 6 decimals. Location: `buy.rs:130`
+- [ ] **MED-5: Hardcoded 6-decimal assumption** - `MIN_OUTPUT_AMOUNT: u64 = 1000` assumes 6 decimals. Location: `buy.rs:130` *(Document as requirement)*
 
-- [ ] **MED-6: Phase transition timing not documented** - Transition happens after reserve updates, could surprise users. Location: `buy.rs:252`
+- [ ] **MED-6: Phase transition timing not documented** - Transition happens after reserve updates, could surprise users. Location: `buy.rs:252` *(Correct behavior - document it)*
 
 ---
 
@@ -51,7 +51,7 @@
 
 - [ ] **LOW-1: Floating point in log messages** - Could differ from integer calculations. Display only. Multiple locations.
 
-- [ ] **LOW-2: No Anchor events emitted** - Hard to index protocol activity. All instruction handlers.
+- [x] **LOW-2: No Anchor events emitted** - ✅ ALREADY FIXED: Events exist (TradeExecuted, PoolCreated, PoolGraduated, PhaseTransition).
 
 - [ ] **LOW-3: unique_traders field never incremented** - Wasted 8 bytes. Location: `state.rs:117`
 
