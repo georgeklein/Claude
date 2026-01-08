@@ -21,6 +21,9 @@ pub fn get_crx_price_usd(
 ) -> Result<u64> {
     let clock = Clock::get()?;
 
+    // CRITICAL: Reject negative or zero prices (prevents division by zero and negative cast bugs)
+    require!(price_feed.price > 0, ErrorCode::InvalidCrxPrice);
+
     // Check price freshness
     let price_age = clock.unix_timestamp - price_feed.publish_time;
     require!(
@@ -28,8 +31,8 @@ pub fn get_crx_price_usd(
         ErrorCode::OraclePriceStale
     );
 
-    // Check confidence interval
-    let price_abs = price_feed.price.abs() as u64;
+    // Check confidence interval (safe now - price guaranteed > 0)
+    let price_abs = price_feed.price as u64;
     let confidence_bps = (price_feed.conf as u128)
         .checked_mul(10000)
         .ok_or(ErrorCode::MathOverflow)?

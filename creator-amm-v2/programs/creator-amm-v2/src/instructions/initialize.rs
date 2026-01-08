@@ -1,9 +1,14 @@
 use anchor_lang::prelude::*;
 use crate::state::Config;
 use crate::errors::ErrorCode;
+use crate::events::ConfigInitialized;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
+    /// Global protocol configuration (PDA)
+    /// CRITICAL SECURITY: This can only be initialized ONCE due to PDA.
+    /// The deployer MUST call initialize() immediately after program deployment
+    /// to prevent front-running attacks where a malicious actor becomes the authority.
     #[account(
         init,
         payer = authority,
@@ -13,6 +18,8 @@ pub struct Initialize<'info> {
     )]
     pub config: Account<'info, Config>,
 
+    /// Protocol authority (becomes config.authority)
+    /// SECURITY NOTE: First caller wins! Deploy and initialize atomically.
     #[account(mut)]
     pub authority: Signer<'info>,
 
@@ -80,6 +87,25 @@ pub fn handler(
     config.oracle_max_confidence_bps = oracle_max_confidence_bps;
 
     config.bump = ctx.bumps.config;
+
+    // Emit event for indexers
+    let clock = Clock::get()?;
+    emit!(ConfigInitialized {
+        authority: config.authority,
+        fee_recipient: config.fee_recipient,
+        crx_mint: config.crx_mint,
+        crx_price_oracle: config.crx_price_oracle,
+        pre_bonding_fee_bps,
+        pre_bonding_threshold_usd,
+        post_bonding_fee_bps,
+        graduation_threshold_usd,
+        anti_sniper_window_slots,
+        anti_sniper_max_trade_bps,
+        oracle_max_age_seconds,
+        oracle_max_confidence_bps,
+        slot: clock.slot,
+        timestamp: clock.unix_timestamp,
+    });
 
     msg!("✅ Creator AMM v2 initialized!");
     msg!("Pre-bonding: {} bps fee, ${} threshold",

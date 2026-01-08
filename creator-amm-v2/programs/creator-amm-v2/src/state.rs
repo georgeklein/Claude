@@ -304,13 +304,16 @@ impl Pool {
     }
 
     /// Get current spot price (quote per base token)
+    /// Uses correct reserves based on phase (virtual in PreBonding, real in Graduated)
     pub fn get_spot_price(&self) -> Result<u64> {
-        require!(self.virtual_base_reserves > 0, ErrorCode::InvalidReserves);
+        let (quote_reserves, base_reserves) = self.get_pricing_reserves();
 
-        let price = (self.virtual_quote_reserves as u128)
+        require!(base_reserves > 0, ErrorCode::InvalidReserves);
+
+        let price = (quote_reserves as u128)
             .checked_mul(1_000_000_000) // 9 decimals for precision
             .ok_or(ErrorCode::MathOverflow)?
-            .checked_div(self.virtual_base_reserves as u128)
+            .checked_div(base_reserves as u128)
             .ok_or(ErrorCode::MathOverflow)?;
 
         Ok(price as u64)

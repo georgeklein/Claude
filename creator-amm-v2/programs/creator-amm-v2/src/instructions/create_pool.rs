@@ -3,6 +3,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use crate::state::{Config, Pool, CurvePhase, CurveType};
 use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd, calculate_crx_thresholds, calculate_virtual_reserves_for_market_cap};
 use crate::errors::ErrorCode;
+use crate::events::PoolCreated;
 
 #[derive(Accounts)]
 pub struct CreatePool<'info> {
@@ -226,6 +227,31 @@ pub fn handler(
     let cpi_program = ctx.accounts.token_program.to_account_info();
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     token::transfer(cpi_ctx, token_supply)?;
+
+    // Calculate initial price and market cap for event
+    let initial_price = pool.get_spot_price()?;
+    let initial_market_cap_usd = pool.get_market_cap_usd()?;
+
+    // Emit event for indexers
+    emit!(PoolCreated {
+        pool: pool.key(),
+        base_mint: pool.base_mint,
+        quote_mint: pool.quote_mint,
+        creator: pool.creator,
+        curve_type: pool.curve_type,
+        target_market_cap_usd,
+        token_supply,
+        fee_bps,
+        graduation_threshold_usd,
+        graduation_threshold_crx,
+        virtual_quote_reserves,
+        virtual_base_reserves,
+        crx_price_at_creation: crx_price_usd,
+        initial_price,
+        initial_market_cap_usd,
+        created_at_slot: clock.slot,
+        timestamp: clock.unix_timestamp,
+    });
 
     msg!("🚀 Pool created successfully!");
     msg!("💰 Target Market Cap: ${}", target_market_cap_usd as f64 / 1_000_000.0);

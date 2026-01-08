@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::state::{Config, Pool, CurvePhase};
 use crate::errors::ErrorCode;
+use crate::events::{TradeExecuted, PoolGraduated, PhaseTransition};
 
 #[derive(Accounts)]
 pub struct Buy<'info> {
@@ -248,8 +249,74 @@ pub fn handler(
         .checked_add(fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
 
+    // Capture pre-transition state for event
+    let phase_before = pool.current_phase;
+    let virtual_quote_before = pool.virtual_quote_reserves;
+    let virtual_base_before = pool.virtual_base_reserves;
+
     // Check for phase transition (DUAL-PHASE BONDING CURVE INNOVATION)
     let transitioned = pool.check_phase_transition()?;
+
+    // Emit graduation events if transition occurred
+    if transitioned {
+        let price_at_graduation = pool.get_spot_price()?;
+        let market_cap_at_graduation = pool.get_market_cap_usd()?;
+        let slots_to_graduate = clock.slot.saturating_sub(pool.created_at_slot);
+
+        emit!(PoolGraduated {
+            pool: pool.key(),
+            base_mint: pool.base_mint,
+            creator: pool.creator,
+            graduation_slot: clock.slot,
+            total_crx_accumulated: pool.real_quote_reserves,
+            graduation_threshold_crx: pool.graduation_threshold_crx,
+            final_virtual_quote_reserves: virtual_quote_before,
+            final_virtual_base_reserves: virtual_base_before,
+            starting_real_quote_reserves: pool.real_quote_reserves,
+            starting_real_base_reserves: pool.real_base_reserves,
+            price_at_graduation,
+            market_cap_usd_at_graduation: market_cap_at_graduation,
+            total_volume_crx: pool.total_quote_volume,
+            total_fees_collected: pool.total_fees_collected,
+            slots_to_graduate,
+            timestamp: clock.unix_timestamp,
+        });
+
+        emit!(PhaseTransition {
+            pool: pool.key(),
+            base_mint: pool.base_mint,
+            from_phase: phase_before,
+            to_phase: pool.current_phase,
+            transition_slot: clock.slot,
+            timestamp: clock.unix_timestamp,
+        });
+    }
+
+    // Emit trade event
+    let (quote_reserves_after, base_reserves_after) = pool.get_pricing_reserves();
+    let price_after = pool.get_spot_price()?;
+    let market_cap_usd = pool.get_market_cap_usd()?;
+    let anti_sniper_active = pool.is_anti_sniper_active(clock.slot, config.anti_sniper_window_slots);
+
+    emit!(TradeExecuted {
+        pool: pool.key(),
+        user: ctx.accounts.user.key(),
+        base_mint: pool.base_mint,
+        is_buy: true,
+        input_amount: quote_amount,
+        output_amount: base_output,
+        fee_amount: fee_in_quote,
+        fee_bps: current_fee_bps,
+        phase: pool.current_phase,
+        price_after,
+        quote_reserves_after,
+        base_reserves_after,
+        real_crx_accumulated: pool.real_quote_reserves,
+        market_cap_usd,
+        anti_sniper_active,
+        slot: clock.slot,
+        timestamp: clock.unix_timestamp,
+    });
 
     msg!("✅ Buy executed!");
     msg!("   Quote In: {} CRX", quote_amount);
