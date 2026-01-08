@@ -59,7 +59,7 @@ pub mod creator_amm_v2 {
 
     /// Create a new bonding curve pool with dynamic virtual liquidity
     ///
-    /// **🚀 CORE INNOVATION:** Calculates virtual reserves based on:
+    /// **CORE INNOVATION:** Calculates virtual reserves based on:
     /// - Target market cap in USD
     /// - Live CRX price from oracle
     /// - Token supply
