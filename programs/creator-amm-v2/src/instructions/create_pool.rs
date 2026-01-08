@@ -92,6 +92,7 @@ pub fn handler(
     fee_bps: u16,                     // Fee: 0, 25, or 100 bps (0%, 0.25%, or 1%)
     curve_type: CurveType,            // Curve: ConstantProduct, Exponential, or Custom
     graduation_threshold_usd: u64,    // e.g., 40_000_000_000 = $40k (6 decimals) - dynamic per pool
+    disable_waa: bool,                // If true, pure permissionless (no WAA anti-dump fees)
 ) -> Result<()> {
     let config = &ctx.accounts.config;
     let quote_mint_key = ctx.accounts.quote_mint.key();
@@ -227,6 +228,8 @@ pub fn handler(
 
     pool.last_crx_price_usd = crx_price_usd;
     pool.last_price_update_slot = clock.slot;
+
+    pool.disable_waa = disable_waa;
 
     pool.bump = ctx.bumps.pool;
 

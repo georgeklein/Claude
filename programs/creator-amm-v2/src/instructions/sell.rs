@@ -123,9 +123,14 @@ pub fn handler(
     let base_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, current_fee_bps)?;
 
     // Calculate WAA-based extra sell fee (anti-sniper)
-    let user_position = &ctx.accounts.user_position;
-    let extra_fee_bps = user_position.calculate_extra_sell_fee_bps(clock.slot)?;
-    let extra_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, extra_fee_bps as u16)?;
+    // Skip if pool has WAA disabled (pure permissionless mode)
+    let extra_fee_in_quote = if pool.disable_waa {
+        0 // No WAA fees - pure permissionless trading
+    } else {
+        let user_position = &ctx.accounts.user_position;
+        let extra_fee_bps = user_position.calculate_extra_sell_fee_bps(clock.slot)?;
+        trade::calculate_base_fee(quote_output_before_fee, extra_fee_bps as u16)?
+    };
 
     // Total fee (base + extra)
     let total_fee_in_quote = base_fee_in_quote

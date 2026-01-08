@@ -55,6 +55,7 @@ interface PoolData {
   tokenTotalSupply: BN;
   totalQuoteVolume: BN;
   createdAtSlot: BN;
+  disableWaa: boolean;
 }
 
 /** Transaction confirmation configuration */
@@ -92,6 +93,7 @@ export interface CreatePoolParams {
   // Optional
   feeBps?: number;                     // 0, 25, or 100 (default: 0)
   curveType?: 'ConstantProduct' | 'Exponential'; // default: ConstantProduct
+  disableWaa?: boolean;                // If true, skip WAA anti-dump fees (pure permissionless, default: false)
 }
 
 export interface BuyParams {
@@ -464,6 +466,7 @@ export class ScaleAMM {
       // Apply defaults
       const feeBps = params.feeBps ?? 0;
       const curveType = params.curveType ?? 'ConstantProduct';
+      const disableWaa = params.disableWaa ?? false;
 
       // Validate fee
       if (![0, 25, 100].includes(feeBps)) {
@@ -507,7 +510,8 @@ export class ScaleAMM {
           tokenSupply,
           feeBps,
           curveTypeEnum,
-          graduationThresholdUsd
+          graduationThresholdUsd,
+          disableWaa
         )
         .accounts({
           config: configPda,

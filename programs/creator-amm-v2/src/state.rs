@@ -128,6 +128,9 @@ pub struct Pool {
     pub last_crx_price_usd: u64,          // 6 decimals
     pub last_price_update_slot: u64,
 
+    /// Feature flags
+    pub disable_waa: bool,                // If true, skip WAA anti-dump fees (pure permissionless)
+
     pub bump: u8,
 }
 
@@ -156,6 +159,7 @@ impl Pool {
         32 + // creator
         8 +  // last_crx_price_usd
         8 +  // last_price_update_slot
+        1 +  // disable_waa
         1;   // bump
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
