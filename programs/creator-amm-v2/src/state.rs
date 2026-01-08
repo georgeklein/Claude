@@ -362,40 +362,46 @@ impl UserPosition {
 
     /// Update WAA when user buys tokens
     /// Formula: new_avg = (old_amount * old_avg + new_amount * now) / (old_amount + new_amount)
+    #[inline]
     pub fn update_on_buy(&mut self, buy_amount: u64, current_slot: u64) -> Result<()> {
         if self.tracked_amount == 0 {
-            // First buy or position was fully closed
+            // First buy or position was fully closed - fast path
             self.avg_entry_slot = current_slot;
             self.tracked_amount = buy_amount;
-        } else {
-            // Calculate weighted average using u128 to prevent overflow
-            let numerator = (self.tracked_amount as u128)
-                .checked_mul(self.avg_entry_slot as u128)
-                .ok_or(ErrorCode::MathOverflow)?
-                .checked_add(
-                    (buy_amount as u128)
-                        .checked_mul(current_slot as u128)
-                        .ok_or(ErrorCode::MathOverflow)?
-                )
-                .ok_or(ErrorCode::MathOverflow)?;
-
-            let denominator = (self.tracked_amount as u128)
-                .checked_add(buy_amount as u128)
-                .ok_or(ErrorCode::MathOverflow)?;
-
-            // CRITICAL: Use checked_div to prevent division by zero panic
-            self.avg_entry_slot = (numerator
-                .checked_div(denominator)
-                .ok_or(ErrorCode::MathOverflow)?) as u64;
-            self.tracked_amount = self.tracked_amount
-                .checked_add(buy_amount)
-                .ok_or(ErrorCode::MathOverflow)?;
+            return Ok(());
         }
+
+        // Calculate weighted average using u128 to prevent overflow
+        let old_weighted = (self.tracked_amount as u128)
+            .checked_mul(self.avg_entry_slot as u128)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        let new_weighted = (buy_amount as u128)
+            .checked_mul(current_slot as u128)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        let numerator = old_weighted
+            .checked_add(new_weighted)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        let denominator = (self.tracked_amount as u128)
+            .checked_add(buy_amount as u128)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // CRITICAL: Use checked_div to prevent division by zero panic
+        self.avg_entry_slot = (numerator
+            .checked_div(denominator)
+            .ok_or(ErrorCode::MathOverflow)?) as u64;
+
+        self.tracked_amount = self.tracked_amount
+            .checked_add(buy_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
 
         Ok(())
     }
 
     /// Reduce tracked amount when user sells tokens
+    #[inline(always)]
     pub fn update_on_sell(&mut self, sell_amount: u64) -> Result<()> {
         self.tracked_amount = self.tracked_amount.saturating_sub(sell_amount);
 
@@ -414,44 +420,43 @@ impl UserPosition {
     /// - T1: 75 slots (~30s) - 10% fee
     /// - T2: 750 slots (~5min) - 1% fee
     /// - T3: 4500 slots (~30min) - 0% fee
+    #[inline]
     pub fn calculate_extra_sell_fee_bps(&self, current_slot: u64) -> u64 {
         // Constants
-        const T1: u64 = 75;      // ~30 seconds
-        const T2: u64 = 750;     // ~5 minutes
-        const T3: u64 = 4500;    // ~30 minutes
-        const F1: u64 = 1000;    // 10.00%
-        const F2: u64 = 100;     // 1.00%
+        const T1: u64 = 75;       // ~30 seconds
+        const T2: u64 = 750;      // ~5 minutes
+        const T3: u64 = 4500;     // ~30 minutes
+        const F1: u64 = 1000;     // 10.00%
+        const F2: u64 = 100;      // 1.00%
+
+        // Pre-computed constants for optimization
+        const DECAY_RANGE: u64 = F1 - F2;   // 900
+        const TIME_RANGE_1: u64 = T2 - T1;  // 675
+        const TIME_RANGE_2: u64 = T3 - T2;  // 3750
 
         // Calculate age in slots
         let age = current_slot.saturating_sub(self.avg_entry_slot);
 
-        // Piecewise linear decay
+        // Piecewise linear decay - optimized with early returns
         if age <= T1 {
-            // 0-30s: full 10% fee
-            F1
-        } else if age <= T2 {
+            return F1; // 0-30s: full 10% fee
+        }
+
+        if age <= T2 {
             // 30s-5m: decay from 10% → 1%
             // extra = F2 + (F1 - F2) * (T2 - age) / (T2 - T1)
-            let decay_range = F1 - F2;
             let time_remaining = T2 - age;
-            let time_range = T2 - T1;
+            return F2 + (DECAY_RANGE * time_remaining) / TIME_RANGE_1;
+        }
 
-            // CRITICAL: Use saturating operations to prevent panic on division
-            // time_range is constant (T2 - T1 = 675), so division is safe, but use saturating for safety
-            F2 + (decay_range.saturating_mul(time_remaining)).saturating_div(time_range.max(1))
-        } else if age <= T3 {
+        if age <= T3 {
             // 5m-30m: decay from 1% → 0%
             // extra = F2 * (T3 - age) / (T3 - T2)
             let time_remaining = T3 - age;
-            let time_range = T3 - T2;
-
-            // CRITICAL: Use saturating division to prevent panic
-            // time_range is constant (T3 - T2 = 3750), so division is safe, but use saturating for safety
-            (F2.saturating_mul(time_remaining)).saturating_div(time_range.max(1))
-        } else {
-            // 30m+: no extra fee
-            0
+            return (F2 * time_remaining) / TIME_RANGE_2;
         }
+
+        0 // 30m+: no extra fee
     }
 }
 
