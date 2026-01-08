@@ -6,6 +6,7 @@ pub mod instructions;
 pub mod state;
 pub mod utils;
 
+pub use events::*;
 use instructions::*;
 
 declare_id!("CReamVLMa2dFi8RmKJQAYWn8Jy2yN5qvSu8gKFCxfp3");
@@ -137,5 +138,22 @@ pub mod creator_amm_v2 {
         min_quote_amount: u64,
     ) -> Result<()> {
         instructions::sell::handler(ctx, base_amount, min_quote_amount)
+    }
+
+    /// Pause or unpause a pool (emergency only)
+    ///
+    /// **Emergency Feature:**
+    /// - Only the protocol authority (config.authority) can call this
+    /// - Prevents trading when paused (both buy and sell)
+    /// - Can be toggled on/off as needed
+    /// - Does not affect existing pool state (reserves, fees, etc.)
+    ///
+    /// # Arguments
+    /// * `paused` - true to pause, false to unpause
+    pub fn pause_pool(
+        ctx: Context<PausePool>,
+        paused: bool,
+    ) -> Result<()> {
+        instructions::pause_pool::handler(ctx, paused)
     }
 }

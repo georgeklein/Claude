@@ -143,6 +143,12 @@ pub fn handler(
         ErrorCode::FreezeAuthorityNotRevoked
     );
 
+    // Validate token decimals (required for MIN_OUTPUT_AMOUNT constant in buy/sell)
+    require!(
+        ctx.accounts.base_mint.decimals == 6,
+        ErrorCode::InvalidTokenDecimals
+    );
+
     let config = &ctx.accounts.config;
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
@@ -215,6 +221,8 @@ pub fn handler(
 
     pool.last_crx_price_usd = crx_price_usd;
     pool.last_price_update_slot = clock.slot;
+
+    pool.is_paused = false; // Pools start active
 
     pool.bump = ctx.bumps.pool;
 

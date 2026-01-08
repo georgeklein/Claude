@@ -25,14 +25,14 @@ pub struct Sell<'info> {
     #[account(
         mut,
         constraint = quote_vault.key() == pool.quote_vault,
-        constraint = quote_vault.authority == pool.key() @ ErrorCode::Unauthorized,
+        constraint = quote_vault.owner == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub quote_vault: Account<'info, TokenAccount>,
 
     #[account(
         mut,
         constraint = base_vault.key() == pool.base_vault,
-        constraint = base_vault.authority == pool.key() @ ErrorCode::Unauthorized,
+        constraint = base_vault.owner == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub base_vault: Account<'info, TokenAccount>,
 
@@ -74,6 +74,9 @@ pub fn handler(
     require!(base_amount > 0, ErrorCode::InvalidAmount);
 
     let pool = &mut ctx.accounts.pool;
+
+    // Emergency pause check
+    require!(!pool.is_paused, ErrorCode::PoolPaused);
     let config = &ctx.accounts.config;
     let clock = Clock::get()?;
 
@@ -111,6 +114,13 @@ pub fn handler(
         quote_reserve,
         current_fee_bps,
     )?;
+
+    // Upfront liquidity check: Ensure pool has enough CRX to pay out
+    // CRITICAL: Prevents calculating output larger than vault balance in PreBonding
+    require!(
+        quote_output <= pool.real_quote_reserves,
+        ErrorCode::InsufficientLiquidity
+    );
 
     // Slippage protection (CRITICAL SECURITY FIX from PumpSwap)
     require!(
@@ -171,19 +181,22 @@ pub fn handler(
     )?;
 
     // Transfer protocol fee to fee recipient (in CRX)
-    let fee_cpi_accounts = Transfer {
-        from: ctx.accounts.quote_vault.to_account_info(),
-        to: ctx.accounts.fee_recipient_account.to_account_info(),
-        authority: pool.to_account_info(),
-    };
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            fee_cpi_accounts,
-            signer,
-        ),
-        fee_amount,
-    )?;
+    // Skip transfer if fee is 0 (Graduated phase) to save gas
+    if fee_amount > 0 {
+        let fee_cpi_accounts = Transfer {
+            from: ctx.accounts.quote_vault.to_account_info(),
+            to: ctx.accounts.fee_recipient_account.to_account_info(),
+            authority: pool.to_account_info(),
+        };
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                fee_cpi_accounts,
+                signer,
+            ),
+            fee_amount,
+        )?;
+    }
 
     // Update reserves based on phase
     if matches!(pool.current_phase, CurvePhase::Graduated) {

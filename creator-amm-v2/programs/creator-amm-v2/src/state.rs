@@ -14,10 +14,16 @@ pub struct Config {
     pub crx_mint: Pubkey,
 
     /// Pre-bonding phase settings (0 → threshold_1)
+    /// RESERVED FOR FUTURE USE: Global default fee settings
+    /// Currently each pool specifies its own fee_bps at creation
     pub pre_bonding_fee_bps: u16,           // e.g., 300 = 3%
+    /// RESERVED FOR FUTURE USE: Global phase transition threshold
+    /// Currently each pool specifies its own graduation_threshold_usd
     pub pre_bonding_threshold_usd: u64,     // e.g., 40_000 USD (6 decimals)
 
     /// Post-bonding phase settings (threshold_1 → threshold_2)
+    /// RESERVED FOR FUTURE USE: Global default fee for post-bonding phase
+    /// Currently pools use fee_bps for PreBonding, 0 for Graduated
     pub post_bonding_fee_bps: u16,          // e.g., 100 = 1%
     pub graduation_threshold_usd: u64,      // e.g., 85_000 USD (6 decimals)
 
@@ -114,6 +120,7 @@ pub struct Pool {
     pub total_quote_volume: u64,
     pub total_base_volume: u64,
     pub total_fees_collected: u64,
+    // Reserved for future analytics - not currently tracked
     pub unique_traders: u64,
 
     /// Pool creator
@@ -122,6 +129,9 @@ pub struct Pool {
     /// Last oracle price (cached)
     pub last_crx_price_usd: u64,          // 6 decimals
     pub last_price_update_slot: u64,
+
+    /// Emergency pause flag (only config.authority can toggle)
+    pub is_paused: bool,
 
     pub bump: u8,
 }
@@ -151,6 +161,7 @@ impl Pool {
         32 + // creator
         8 +  // last_crx_price_usd
         8 +  // last_price_update_slot
+        1 +  // is_paused
         1;   // bump
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
@@ -198,7 +209,7 @@ impl Pool {
                     msg!("   🔄 Switching from VIRTUAL to REAL reserves for pricing");
                     msg!("   Now a permanent constant-product AMM!");
                     msg!("   Pool address stays the same - No migration needed");
-                    msg!("   Fee remains: {} bps", self.fee_bps);
+                    msg!("   Trading fees removed (was {} bps, now 0 bps)", self.fee_bps);
 
                     // Transition to graduated phase
                     // NOW PRICING USES REAL RESERVES (PumpSwap-style)

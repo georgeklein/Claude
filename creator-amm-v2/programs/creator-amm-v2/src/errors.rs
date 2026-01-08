@@ -82,4 +82,10 @@ pub enum ErrorCode {
 
     #[msg("Output amount too small (dust trade)")]
     OutputTooSmall,
+
+    #[msg("Pool is paused - trading disabled")]
+    PoolPaused,
+
+    #[msg("Invalid token decimals - must be 6 decimals")]
+    InvalidTokenDecimals,
 }
