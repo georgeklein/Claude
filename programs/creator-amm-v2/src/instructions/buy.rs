@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
-use crate::state::{Config, Pool, CurvePhase};
+use crate::state::{Config, Pool, CurvePhase, UserPosition};
 use crate::errors::ErrorCode;
 use crate::events::{TradeExecuted, PoolGraduated, PhaseTransition};
 
@@ -60,10 +60,21 @@ pub struct Buy<'info> {
     )]
     pub fee_recipient_account: Account<'info, TokenAccount>,
 
+    /// User position for WAA tracking (init_if_needed to auto-create)
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = UserPosition::LEN,
+        seeds = [b"pos", pool.key().as_ref(), user.key().as_ref()],
+        bump,
+    )]
+    pub user_position: Account<'info, UserPosition>,
+
     #[account(mut)]
     pub user: Signer<'info>,
 
     pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
 }
 
 pub fn handler(
@@ -245,6 +256,24 @@ pub fn handler(
     pool.total_fees_collected = pool.total_fees_collected
         .checked_add(fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
+
+    // Update user position for WAA tracking
+    let user_position = &mut ctx.accounts.user_position;
+
+    // Initialize position if first time
+    if user_position.pool == Pubkey::default() {
+        user_position.pool = pool.key();
+        user_position.user = ctx.accounts.user.key();
+        user_position.bump = ctx.bumps.user_position;
+    }
+
+    // Update weighted average entry slot
+    user_position.update_on_buy(base_output, clock.slot)?;
+
+    msg!("📊 WAA updated: avg_entry_slot={}, tracked_amount={}",
+        user_position.avg_entry_slot,
+        user_position.tracked_amount
+    );
 
     // Capture pre-transition state for event
     let phase_before = pool.current_phase;
