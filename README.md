@@ -91,9 +91,10 @@ await scale.sell(poolAddress, {
 4. **sell** - Sell tokens for CRX
 5. **update_approved_quotes** - Update whitelist of approved quote tokens (admin only)
 
-## SDK Documentation
+## Documentation
 
-See [sdk/README.md](sdk/README.md) for complete SDK documentation, or [sdk/QUICKSTART.md](sdk/QUICKSTART.md) for copy-paste templates.
+- **[WHAT_IT_DOES.md](WHAT_IT_DOES.md)** - Clear explanation of how this AMM works
+- **[sdk/README.md](sdk/README.md)** - Complete SDK documentation with examples
 
 ### Key SDK Features
 
@@ -106,58 +107,16 @@ See [sdk/README.md](sdk/README.md) for complete SDK documentation, or [sdk/QUICK
 ## Testing
 
 ```bash
-# Run full test suite (39 tests)
-anchor test
-
-# Run specific test
-anchor test --skip-build -- --test-name "buy_tokens"
+anchor test  # Run all tests
 ```
 
-Tests cover:
-- Pool creation and initialization
-- Buy and sell operations
-- Phase transitions and graduation
-- Fee calculations
-- Anti-sniper protection
+## Security
+
+- Checked arithmetic (no overflows)
 - Slippage protection
-- Edge cases and error conditions
-
-## Security Features
-
-- Checked arithmetic operations (no overflows)
-- Slippage protection on all trades
-- Anti-sniper protection during launch window
-- Post-trade vault validation
-- Oracle staleness and confidence checks
-- Mint and freeze authority validation
-
-## Configuration
-
-Global configuration parameters:
-
-```typescript
-{
-  preBondingFeeBps: 100,           // 1% fee before graduation
-  preBondingThresholdUsd: 40_000,  // $40k to graduate
-  postBondingFeeBps: 100,          // 1% fee after graduation
-  graduationThresholdUsd: 85_000,  // $85k graduation threshold
-  antiSniperWindowSlots: 100,      // 100 slots (~40s)
-  antiSniperMaxTradeBps: 500,      // 5% max trade during anti-sniper
-  oracleMaxAgeSeconds: 60,         // Price must be <60s old
-  oracleMaxConfidenceBps: 100,     // Max 1% confidence interval
-  approvedQuoteTokens: [...],      // Whitelist (CRX + 4 others)
-}
-```
-
-## Events
-
-The program emits comprehensive events for indexing:
-
-- `ConfigInitialized` - Protocol configuration
-- `PoolCreated` - New pool creation
-- `TradeExecuted` - Buy/sell trades
-- `PhaseTransition` - PreBonding → Graduated
-- `PoolGraduated` - Graduation milestone reached
+- Anti-sniper limits
+- Oracle validation
+- Vault balance checks
 
 ## License
 
@@ -165,13 +124,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Status
 
-✅ Production-ready code
-✅ Comprehensive test coverage (39 tests)
-✅ Security hardened
-✅ Well documented
-
-**Recommendation:** Deploy to devnet for integration testing, then schedule professional security audit before mainnet launch.
-
-## Support
-
-For questions or issues, please open a GitHub issue.
+✅ Core functionality complete
+⏳ Deploy to devnet for testing
+⏳ Professional audit before mainnet
