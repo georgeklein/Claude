@@ -1,6 +1,8 @@
 # Getting Started
 
-**Launch your first token pool in 5 minutes**
+**5-minute setup guide: install Solana + Anchor, build, test, deploy to devnet**
+
+Launch your first token pool in 5 minutes
 
 ---
 
