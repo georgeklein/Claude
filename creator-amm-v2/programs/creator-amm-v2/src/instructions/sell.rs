@@ -24,12 +24,14 @@ pub struct Sell<'info> {
     #[account(
         mut,
         constraint = quote_vault.key() == pool.quote_vault,
+        constraint = quote_vault.authority == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub quote_vault: Account<'info, TokenAccount>,
 
     #[account(
         mut,
         constraint = base_vault.key() == pool.base_vault,
+        constraint = base_vault.authority == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub base_vault: Account<'info, TokenAccount>,
 
@@ -52,8 +54,8 @@ pub struct Sell<'info> {
     /// Protocol fee recipient's quote token account
     #[account(
         mut,
-        constraint = fee_recipient_account.mint == pool.quote_mint,
-        constraint = fee_recipient_account.owner == config.fee_recipient,
+        constraint = fee_recipient_account.mint == pool.quote_mint @ ErrorCode::Unauthorized,
+        constraint = fee_recipient_account.owner == config.fee_recipient @ ErrorCode::Unauthorized,
     )]
     pub fee_recipient_account: Account<'info, TokenAccount>,
 
@@ -181,6 +183,9 @@ pub fn handler(
         // (Virtual reserves frozen at graduation)
     } else {
         // Pre-graduation: Update VIRTUAL reserves for bonding curve
+        // CRITICAL: Must match actual token amounts for x*y=k invariant
+        // User sends base_amount tokens, receives quote_output CRX (after fee)
+        // So virtual reserves gain base_amount, lose quote_output_before_fee
         pool.virtual_base_reserves = pool.virtual_base_reserves
             .checked_add(base_amount)
             .ok_or(ErrorCode::MathOverflow)?;

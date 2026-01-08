@@ -11,8 +11,8 @@ pub enum ErrorCode {
     #[msg("Invalid fee percentage (must be 0-10000 basis points)")]
     InvalidFee,
 
-    #[msg("Pool has graduated - no more trading allowed")]
-    PoolGraduated,
+    #[msg("Pool has graduated")]
+    PoolGraduated, // Note: Trading is still allowed after graduation
 
     #[msg("Math overflow occurred")]
     MathOverflow,
@@ -67,4 +67,7 @@ pub enum ErrorCode {
 
     #[msg("Quote token must be CRX - this AMM is permissioned for CRX pairs only")]
     MustUseCrxQuote,
+
+    #[msg("Custom curve type not implemented - fork the protocol to add your own curve math")]
+    CustomCurveNotImplemented,
 }

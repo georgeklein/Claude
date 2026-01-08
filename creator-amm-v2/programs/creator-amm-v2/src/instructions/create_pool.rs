@@ -86,19 +86,23 @@ pub struct CreatePool<'info> {
 
 pub fn handler(
     ctx: Context<CreatePool>,
-    target_market_cap_usd: u64,    // e.g., 50_000_000_000 = $50k (6 decimals)
-    token_supply: u64,              // e.g., 1_000_000_000_000 = 1M tokens (6 decimals)
-    fee_bps: u16,                   // Fee: 0, 25, or 100 bps (0%, 0.25%, or 1%)
-    curve_type: CurveType,          // Curve: ConstantProduct, Linear, or Exponential
+    target_market_cap_usd: u64,      // e.g., 10_000_000_000 = $10k (6 decimals)
+    token_supply: u64,                // e.g., 1_000_000_000_000 = 1M tokens (6 decimals)
+    fee_bps: u16,                     // Fee: 0, 25, or 100 bps (0%, 0.25%, or 1%)
+    curve_type: CurveType,            // Curve: ConstantProduct, Exponential, or Custom
+    graduation_threshold_usd: u64,    // e.g., 40_000_000_000 = $40k (6 decimals) - dynamic per pool
 ) -> Result<()> {
     // Validate fee is one of the allowed values
     require!(
         fee_bps == 0 || fee_bps == 25 || fee_bps == 100,
         ErrorCode::InvalidFee
     );
-    // Validation
+
+    // Validation constants
     const MIN_MARKET_CAP_USD: u64 = 1_000_000_000; // $1k minimum with 6 decimals
     const MAX_MARKET_CAP_USD: u64 = 1_000_000_000_000; // $1M maximum with 6 decimals
+    const MIN_GRADUATION_USD: u64 = 5_000_000_000; // $5k minimum graduation
+    const MAX_GRADUATION_USD: u64 = 10_000_000_000_000; // $10M maximum graduation
 
     require!(
         target_market_cap_usd >= MIN_MARKET_CAP_USD,
@@ -106,6 +110,18 @@ pub fn handler(
     );
     require!(
         target_market_cap_usd <= MAX_MARKET_CAP_USD,
+        ErrorCode::InvalidMarketCap
+    );
+    require!(
+        graduation_threshold_usd >= MIN_GRADUATION_USD,
+        ErrorCode::InvalidMarketCap
+    );
+    require!(
+        graduation_threshold_usd <= MAX_GRADUATION_USD,
+        ErrorCode::InvalidMarketCap
+    );
+    require!(
+        graduation_threshold_usd > target_market_cap_usd,
         ErrorCode::InvalidMarketCap
     );
     require!(token_supply > 0, ErrorCode::InvalidTokenSupply);
@@ -137,19 +153,19 @@ pub fn handler(
             crx_price_usd,
         )?;
 
-    // Step 3: Calculate graduation threshold at $40k USD
-    let graduation_threshold_usd = 40_000_000_000u64; // $40k with 6 decimals
+    // Step 3: Calculate dynamic graduation threshold in CRX
     let graduation_threshold_crx = (graduation_threshold_usd as u128)
         .checked_mul(1_000_000u128) // CRX decimals
         .ok_or(ErrorCode::MathOverflow)?
         .checked_div(crx_price_usd as u128)
         .ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
 
-    msg!("🎯 Graduation Threshold:");
-    msg!("   {} CRX (${} USD)",
+    msg!("🎯 Graduation Threshold (Dynamic):");
+    msg!("   {} CRX = ${} USD",
         graduation_threshold_crx,
         graduation_threshold_usd as f64 / 1_000_000.0
     );
+    msg!("   CRX Price at Launch: ${}", crx_price_usd as f64 / 1_000_000.0);
 
     // Initialize pool state
     pool.authority = pool.key();

@@ -24,12 +24,14 @@ pub struct Buy<'info> {
     #[account(
         mut,
         constraint = quote_vault.key() == pool.quote_vault,
+        constraint = quote_vault.authority == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub quote_vault: Account<'info, TokenAccount>,
 
     #[account(
         mut,
         constraint = base_vault.key() == pool.base_vault,
+        constraint = base_vault.authority == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub base_vault: Account<'info, TokenAccount>,
 
@@ -52,8 +54,8 @@ pub struct Buy<'info> {
     /// Protocol fee recipient's quote token account
     #[account(
         mut,
-        constraint = fee_recipient_account.mint == pool.quote_mint,
-        constraint = fee_recipient_account.owner == config.fee_recipient,
+        constraint = fee_recipient_account.mint == pool.quote_mint @ ErrorCode::Unauthorized,
+        constraint = fee_recipient_account.owner == config.fee_recipient @ ErrorCode::Unauthorized,
     )]
     pub fee_recipient_account: Account<'info, TokenAccount>,
 
@@ -197,11 +199,12 @@ pub fn handler(
         // (Virtual reserves frozen at graduation)
     } else {
         // Pre-graduation: Update VIRTUAL reserves for bonding curve
+        // CRITICAL: Must use before-fee amounts to maintain x*y=k invariant
         pool.virtual_quote_reserves = pool.virtual_quote_reserves
             .checked_add(quote_amount)
             .ok_or(ErrorCode::MathOverflow)?;
         pool.virtual_base_reserves = pool.virtual_base_reserves
-            .checked_sub(base_output)
+            .checked_sub(base_output_before_fee)  // FIX: Use before-fee amount
             .ok_or(ErrorCode::MathOverflow)?;
     }
 

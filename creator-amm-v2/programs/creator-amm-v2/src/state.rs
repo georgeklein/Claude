@@ -50,14 +50,22 @@ impl Config {
 }
 
 /// Bonding curve type
+/// Creators can choose the curve shape at launch, or implement custom formulas
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CurveType {
-    /// Constant product: x * y = k (Uniswap-style, balanced growth)
+    /// Constant product: x * y = k (Uniswap/Unisocks-style, balanced growth)
+    /// Best for: Standard fair launches, community tokens
     ConstantProduct,
-    /// Linear: price increases linearly with supply sold (gentler curve)
-    Linear,
-    /// Exponential: price increases exponentially (steeper, faster price growth)
+
+    /// Exponential: y = (x * Y) / (X + 1.5*x) (steeper curve, faster price growth)
+    /// Best for: Hype/meme tokens, aggressive price discovery
+    /// Reaches graduation threshold ~33% faster than constant product
     Exponential,
+
+    /// Custom: Allows on-chain programs to implement their own curve math
+    /// For advanced users experimenting with novel bonding curve designs
+    /// Must implement calculate_output_custom() in their program
+    Custom,
 }
 
 /// Bonding curve phase
@@ -216,7 +224,8 @@ impl Pool {
         let output_before_fee = match self.curve_type {
             CurveType::ConstantProduct => {
                 // Formula: y = (x * Y) / (X + x)
-                // Standard Uniswap constant product curve
+                // Unisocks/Uniswap constant product curve
+                // Balanced price growth, proven model
                 let numerator = (input_amount as u128)
                     .checked_mul(output_reserve as u128)
                     .ok_or(ErrorCode::MathOverflow)?;
@@ -229,45 +238,11 @@ impl Pool {
                     .checked_div(denominator)
                     .ok_or(ErrorCode::MathOverflow)?
             },
-            CurveType::Linear => {
-                // Linear pricing: each token costs a fixed amount more
-                // Price = (initial_price) + (sold_percentage * price_range)
-                // More gentle curve, slower price increase
-
-                let k = (input_reserve as u128)
-                    .checked_mul(output_reserve as u128)
-                    .ok_or(ErrorCode::MathOverflow)?;
-
-                // Calculate avg price over the trade
-                let sold_before = self.token_total_supply
-                    .checked_sub(output_reserve)
-                    .ok_or(ErrorCode::MathOverflow)?;
-                let sold_after = sold_before
-                    .checked_add(input_amount)
-                    .ok_or(ErrorCode::MathOverflow)?;
-
-                // Linear formula: simpler constant product with square root dampening
-                let numerator = (input_amount as u128)
-                    .checked_mul(output_reserve as u128)
-                    .ok_or(ErrorCode::MathOverflow)?
-                    .checked_mul(90)
-                    .ok_or(ErrorCode::MathOverflow)?;
-
-                let denominator = (input_reserve as u128)
-                    .checked_add(input_amount)
-                    .ok_or(ErrorCode::MathOverflow)?
-                    .checked_mul(100)
-                    .ok_or(ErrorCode::MathOverflow)?;
-
-                numerator
-                    .checked_div(denominator)
-                    .ok_or(ErrorCode::MathOverflow)?
-            },
             CurveType::Exponential => {
-                // Exponential curve: steeper price growth
                 // Formula: y = (x * Y) / (X + 1.5*x)
-                // Denominator grows faster = less output = steeper curve
-
+                // Steeper curve - denominator grows 50% faster
+                // Reaches graduation ~33% faster than constant product
+                // Better for aggressive price discovery and hype cycles
                 let numerator = (input_amount as u128)
                     .checked_mul(output_reserve as u128)
                     .ok_or(ErrorCode::MathOverflow)?;
@@ -285,6 +260,21 @@ impl Pool {
                 numerator
                     .checked_div(denominator)
                     .ok_or(ErrorCode::MathOverflow)?
+            },
+            CurveType::Custom => {
+                // Custom curves not implemented in base protocol
+                // Advanced users can fork and implement custom math
+                // Or use CPI to call their own curve calculation program
+                //
+                // Ideas for custom curves:
+                // - Polynomial curves (quadratic, cubic)
+                // - Logarithmic curves (slower initial growth)
+                // - Sigmoid curves (S-shaped, controlled ramps)
+                // - Step functions (discrete price levels)
+                // - Hybrid curves (different formulas per phase)
+                //
+                // For now, return error to prevent misconfiguration
+                return Err(ErrorCode::CustomCurveNotImplemented.into());
             },
         };
 
