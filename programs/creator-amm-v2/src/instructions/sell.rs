@@ -143,6 +143,39 @@ pub fn handler(
     // Shared minimum output validation
     trade::validate_minimum_output(quote_output)?;
 
+    // === CEI PATTERN: EFFECTS BEFORE INTERACTIONS ===
+    // Update all state before executing token transfers to prevent reentrancy
+
+    // Shared reserve update logic
+    // CRITICAL: Full base_amount enters vault, fee extracted from output
+    // This maintains x*y=k perfectly - no degradation!
+
+    // Total quote leaving vault = quote_output (to user) + fee (to creator)
+    let total_quote_out = quote_output_before_fee;
+
+    trade::update_reserves(
+        pool,
+        TradeDirection::Sell,
+        base_amount,       // Full amount enters reserves
+        total_quote_out,   // Total output leaves reserves
+    )?;
+
+    // Shared statistics update
+    trade::update_statistics(
+        pool,
+        TradeDirection::Sell,
+        base_amount,
+        quote_output,
+        total_fee_in_quote,  // Track total fees (base + WAA) in CRX
+    )?;
+
+    // Update user position - reduce tracked amount after sell
+    let user_position = &mut ctx.accounts.user_position;
+    user_position.update_on_sell(base_amount)?;
+
+    // === CEI PATTERN: INTERACTIONS (TOKEN TRANSFERS) ===
+    // All state updated - now safe to execute external calls
+
     // Transfer 1: All base tokens from user to pool vault
     trade::transfer_tokens(
         &ctx.accounts.token_program,
@@ -182,33 +215,6 @@ pub fn handler(
             Some(signer),
         )?;
     }
-
-    // Shared reserve update logic
-    // CRITICAL: Full base_amount enters vault, fee extracted from output
-    // This maintains x*y=k perfectly - no degradation!
-
-    // Total quote leaving vault = quote_output (to user) + fee (to creator)
-    let total_quote_out = quote_output_before_fee;
-
-    trade::update_reserves(
-        pool,
-        TradeDirection::Sell,
-        base_amount,       // Full amount enters reserves
-        total_quote_out,   // Total output leaves reserves
-    )?;
-
-    // Shared statistics update
-    trade::update_statistics(
-        pool,
-        TradeDirection::Sell,
-        base_amount,
-        quote_output,
-        total_fee_in_quote,  // Track total fees (base + WAA) in CRX
-    )?;
-
-    // Update user position - reduce tracked amount after sell
-    let user_position = &mut ctx.accounts.user_position;
-    user_position.update_on_sell(base_amount)?;
 
     // Shared phase transition handling with event emission
     // Note: Phase transitions on sells are less common but still checked

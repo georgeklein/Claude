@@ -139,6 +139,44 @@ pub fn handler(
     // Shared minimum output validation
     trade::validate_minimum_output(base_output)?;
 
+    // === CEI PATTERN: EFFECTS BEFORE INTERACTIONS ===
+    // Update all state before executing token transfers to prevent reentrancy
+
+    // Shared reserve update logic
+    // CRITICAL: Only swap_amount enters vault (fee already went to creator)
+    // This maintains x*y=k perfectly - no degradation!
+    trade::update_reserves(
+        pool,
+        TradeDirection::Buy,
+        swap_amount,  // Only swap amount enters reserves
+        base_output,
+    )?;
+
+    // Shared statistics update
+    trade::update_statistics(
+        pool,
+        TradeDirection::Buy,
+        quote_amount,  // Track full trade amount for volume
+        base_output,
+        fee_in_quote,
+    )?;
+
+    // Update user position for WAA tracking
+    let user_position = &mut ctx.accounts.user_position;
+
+    // Initialize position if first time
+    if user_position.pool == Pubkey::default() {
+        user_position.pool = pool.key();
+        user_position.user = ctx.accounts.user.key();
+        user_position.bump = ctx.bumps.user_position;
+    }
+
+    // Update weighted average entry slot
+    user_position.update_on_buy(base_output, clock.slot)?;
+
+    // === CEI PATTERN: INTERACTIONS (TOKEN TRANSFERS) ===
+    // All state updated - now safe to execute external calls
+
     // Transfer 1: Fee goes directly to creator (if any)
     if fee_in_quote > 0 {
         trade::transfer_tokens(
@@ -177,38 +215,6 @@ pub fn handler(
         base_output,
         Some(signer),
     )?;
-
-    // Shared reserve update logic
-    // CRITICAL: Only swap_amount enters vault (fee already went to creator)
-    // This maintains x*y=k perfectly - no degradation!
-    trade::update_reserves(
-        pool,
-        TradeDirection::Buy,
-        swap_amount,  // Only swap amount enters reserves
-        base_output,
-    )?;
-
-    // Shared statistics update
-    trade::update_statistics(
-        pool,
-        TradeDirection::Buy,
-        quote_amount,  // Track full trade amount for volume
-        base_output,
-        fee_in_quote,
-    )?;
-
-    // Update user position for WAA tracking
-    let user_position = &mut ctx.accounts.user_position;
-
-    // Initialize position if first time
-    if user_position.pool == Pubkey::default() {
-        user_position.pool = pool.key();
-        user_position.user = ctx.accounts.user.key();
-        user_position.bump = ctx.bumps.user_position;
-    }
-
-    // Update weighted average entry slot
-    user_position.update_on_buy(base_output, clock.slot)?;
 
     // Shared phase transition handling with event emission
     let _transitioned = trade::handle_phase_transition(pool, pool_key, &clock)?;
