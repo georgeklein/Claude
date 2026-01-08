@@ -159,6 +159,7 @@ impl Pool {
         1;   // bump
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
+    #[inline(always)]
     pub fn is_anti_sniper_active(&self, current_slot: u64, anti_sniper_window: u64) -> bool {
         matches!(self.current_phase, CurvePhase::PreBonding) &&
         current_slot < self.created_at_slot.saturating_add(anti_sniper_window)
@@ -168,11 +169,13 @@ impl Pool {
     /// Fees continue throughout the token's lifetime (PreBonding + Graduated)
     /// This ensures creators earn fees forever, not just during initial bonding phase
     /// Fee tiers: 0%, 0.25%, or 1% (set at pool creation)
+    #[inline(always)]
     pub fn get_current_fee_bps(&self) -> u16 {
         self.fee_bps // Same fee throughout lifetime
     }
 
     /// Get reserves to use for pricing (virtual pre-graduation, real post-graduation)
+    #[inline(always)]
     pub fn get_pricing_reserves(&self) -> (u64, u64) {
         match self.current_phase {
             CurvePhase::PreBonding => {
@@ -284,6 +287,7 @@ impl Pool {
 
     /// Get current spot price (quote per base token)
     /// Uses correct reserves based on phase (virtual in PreBonding, real in Graduated)
+    #[inline]
     pub fn get_spot_price(&self) -> Result<u64> {
         let (quote_reserves, base_reserves) = self.get_pricing_reserves();
 
@@ -299,6 +303,7 @@ impl Pool {
     }
 
     /// Get current market cap in CRX
+    #[inline]
     pub fn get_market_cap_crx(&self) -> Result<u64> {
         let price = self.get_spot_price()?;
 
@@ -312,6 +317,7 @@ impl Pool {
     }
 
     /// Get current market cap in USD
+    #[inline]
     pub fn get_market_cap_usd(&self) -> Result<u64> {
         let mc_crx = self.get_market_cap_crx()?;
 
