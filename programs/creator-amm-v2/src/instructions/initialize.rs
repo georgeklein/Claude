@@ -4,9 +4,22 @@ use crate::state::Config;
 use crate::errors::ErrorCode;
 use crate::events::ConfigInitialized;
 
-// CRITICAL SECURITY: Replace this with your actual deployer public key before deployment!
-// This prevents front-running attacks where a malicious actor initializes the protocol.
-// TODO: Set this to the deployer's actual public key
+// ⚠️  CRITICAL SECURITY BLOCKER ⚠️
+// DO NOT DEPLOY TO MAINNET WITHOUT CHANGING THIS!!!
+//
+// Replace "11111111111111111111111111111111" with your actual deployer wallet address.
+//
+// Get your address with: solana address
+//
+// Why this matters:
+// - Without this, ANYONE can call initialize() and take over the protocol
+// - This is a front-running attack vector
+// - Once someone else initializes, the protocol is bricked forever
+//
+// Example:
+// pub const DEPLOYER_PUBKEY: Pubkey = pubkey!("YourActualWalletAddressHere12345678901234567890");
+//
+// See DEPLOYMENT_CHECKLIST.md for full details.
 pub const DEPLOYER_PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
 
 #[derive(Accounts)]
