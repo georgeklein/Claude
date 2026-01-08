@@ -1,32 +1,30 @@
-# Creator AMM v2 - Dynamic Virtual Liquidity with Dual-Phase Bonding Curves
+# Creator AMM v2 - Proprietary Bonding Curve Protocol
 
-**The most advanced bonding curve AMM on Solana**
+**Advanced token launch platform for Solana - CONFIDENTIAL**
 
-## 🔒 **Permissioned for CRX Quote Token Only**
+## 🔒 **PROPRIETARY - DO NOT DISTRIBUTE**
 
-**This AMM is open source but intentionally restricted:**
-- ✅ **Open Source** - Full code transparency for auditing and trust
-- 🔒 **CRX Quote Only** - All pools MUST use CRX as the quote token
-- ⚡ **Protocol Enforced** - Smart contract validation, not bypassable
+**This code is confidential and proprietary to Creator Platform.**
+
+- ⛔ **CLOSED SOURCE** - Not for public distribution
+- 🔒 **CRX Quote Only** - All pools must use CRX as quote token
+- ⚡ **Platform Exclusive** - Only accessible via Creator Platform
+- 📜 **Licensed Use Only** - See [LICENSE](LICENSE)
 
 ```rust
-// Hardcoded constraint in create_pool instruction:
+// Protocol-enforced CRX requirement:
 constraint = quote_mint.key() == config.crx_mint @ ErrorCode::MustUseCrxQuote
 ```
 
-**Why?**
-1. **Unified Ecosystem** - All launchpad tokens denominated in CRX
-2. **CRX Utility** - Creates natural demand for CRX token
-3. **Simplified UX** - Users only need one quote token
-4. **Platform Economics** - Ensures launchpad operates as intended
+**Platform Strategy:**
+1. **Controlled Ecosystem** - All launchpad tokens use CRX
+2. **CRX Demand Driver** - Every trade requires CRX
+3. **Revenue Model** - Trading fees + CRX appreciation
+4. **Platform Control** - Proprietary technology
 
-**What This Means:**
-- Anyone can audit the code ✅
-- Anyone can propose improvements ✅
-- Only Creator platform can deploy CRX pools ✅
-- Forks must modify the constraint to use other quotes ✅
+**⚠️ CONFIDENTIAL - Internal Use Only**
 
-See [LICENSE](LICENSE) for full details.
+See [PLATFORM_STRATEGY.md](PLATFORM_STRATEGY.md) for business plan.
 
 ---
 

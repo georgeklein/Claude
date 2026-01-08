@@ -1,78 +1,63 @@
-MIT License with CRX Quote Restriction
+# PROPRIETARY LICENSE
 
-Copyright (c) 2026 Creator Platform
+Copyright (c) 2026 Creator Platform. All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## IMPORTANT NOTICE
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This software is proprietary and confidential. It is NOT open source.
 
-## IMPORTANT RESTRICTION
+### Restrictions
 
-This AMM protocol is **permissioned to use CRX as the quote token only**.
+This code and all associated materials are the exclusive property of Creator Platform.
 
-The smart contract enforces that all bonding curve pools MUST use CRX as the
-quote token. This restriction is enforced at the protocol level via:
+**You MAY NOT:**
+- ❌ Copy, modify, or distribute this code
+- ❌ Reverse engineer the deployed program
+- ❌ Create derivative works
+- ❌ Use this code in any other project
+- ❌ Share, publish, or disclose this code
 
-```rust
-constraint = quote_mint.key() == config.crx_mint @ ErrorCode::MustUseCrxQuote
-```
+**You MAY:**
+- ✅ Use the Creator Platform to launch tokens (subject to platform ToS)
+- ✅ Integrate with our public SDK/API (when available)
+- ✅ Build applications that interact with deployed pools
 
-### Why This Restriction Exists
+### Usage Rights
 
-1. **Ecosystem Alignment**: All tokens on the Creator launchpad are denominated
-   in CRX, creating a unified trading experience.
+The Creator Platform protocol is available for use exclusively through:
+- Official Creator Platform interface
+- Approved partner integrations
+- Licensed third-party applications
 
-2. **CRX Utility**: This creates inherent demand for CRX as users need it to
-   trade launchpad tokens.
+All pools must use CRX as the quote token. This is enforced at the protocol level.
 
-3. **Simplified UX**: Users only need CRX, not multiple quote tokens.
+### Intellectual Property
 
-4. **Platform Control**: Ensures the launchpad maintains its intended economics.
+All algorithms, implementations, and innovations including but not limited to:
+- Dynamic virtual liquidity calculations
+- Dual-phase bonding curve mechanics
+- Oracle-based market cap targeting
+- Phase transition logic
 
-### Open Source Philosophy
+...are proprietary trade secrets of Creator Platform.
 
-While the quote token is restricted, the code is fully open source to provide:
-- ✅ Transparency and auditability
-- ✅ Community security reviews
-- ✅ Educational value
-- ✅ Trust through openness
+### Legal Action
 
-You are free to:
-- ✅ Audit the code
-- ✅ Fork for educational purposes
-- ✅ Propose improvements via pull requests
-- ✅ Use patterns and algorithms in other projects
+Unauthorized use, distribution, or reverse engineering will result in:
+- Immediate legal action
+- Pursuit of maximum damages
+- Criminal prosecution where applicable
 
-You cannot:
-- ❌ Deploy pools with non-CRX quote tokens on this program
-- ❌ Remove the CRX restriction without forking
+### Contact
 
-If you want to use different quote tokens, you must deploy your own instance
-with modified constraints.
+For licensing inquiries: legal@creatorplatform.io
 
-## Disclaimer
+---
+
+## DISCLAIMER
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+IMPLIED. IN NO EVENT SHALL CREATOR PLATFORM BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY ARISING FROM USE OF THIS SOFTWARE.
 
-## Security Notice
-
-This software handles real user funds. Before deploying to mainnet:
-1. Obtain multiple independent security audits
-2. Test extensively on devnet
-3. Set up a bug bounty program
-4. Have emergency response procedures
-5. Consider insurance coverage
-
-Deploying unaudited smart contracts can result in total loss of user funds.
+**This code is confidential. Do not distribute.**
