@@ -1,7 +1,7 @@
 {
   "name": "creator-amm-v2",
   "version": "2.0.0",
-  "description": "Advanced bonding curve AMM with dynamic virtual liquidity",
+  "description": "Scale AMM - Bonding curve protocol with SDK dependencies and deployment scripts",
   "scripts": {
     "test": "anchor test",
     "build": "anchor build",
