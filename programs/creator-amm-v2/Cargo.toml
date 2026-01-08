@@ -20,6 +20,10 @@ anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
 anchor-spl = "0.29.0"
 solana-program = "1.17"
 
+# Optional: For standard Pyth Network integration (if not using custom oracle)
+# pyth-solana-receiver-sdk = "0.2"
+# If using standard Pyth, uncomment above and update oracle.rs PythPriceFeed struct
+
 [dev-dependencies]
 solana-program-test = "1.17"
 solana-sdk = "1.17"
