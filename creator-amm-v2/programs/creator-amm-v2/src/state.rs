@@ -50,13 +50,11 @@ impl Config {
 }
 
 /// Bonding curve phase
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CurvePhase {
-    /// Phase 1: Pre-bonding (0 → 40k USD)
+    /// Phase 1: Pre-bonding (0 → $40k) - Uses VIRTUAL reserves for pricing
     PreBonding,
-    /// Phase 2: Post-bonding (40k → 85k USD)
-    PostBonding,
-    /// Phase 3: Graduated to Meteora DAMM
+    /// Phase 2: Graduated ($40k+) - Uses REAL reserves for pricing, permanent AMM
     Graduated,
 }
 
@@ -86,9 +84,9 @@ pub struct Pool {
     pub current_phase: CurvePhase,
     pub target_market_cap_usd: u64,      // Initial target MC (6 decimals)
     pub token_total_supply: u64,          // Total token supply
+    pub fee_bps: u16,                     // Pool-specific fee (0, 25, or 100 bps)
 
-    /// Phase thresholds (in CRX, calculated from USD)
-    pub pre_bonding_threshold_crx: u64,   // Dynamic based on CRX price
+    /// Graduation threshold (in CRX, calculated from $40k USD)
     pub graduation_threshold_crx: u64,     // Dynamic based on CRX price
 
     /// Statistics
@@ -122,7 +120,7 @@ impl Pool {
         1 +  // current_phase
         8 +  // target_market_cap_usd
         8 +  // token_total_supply
-        8 +  // pre_bonding_threshold_crx
+        2 +  // fee_bps
         8 +  // graduation_threshold_crx
         8 +  // created_at_slot
         8 +  // total_quote_volume
@@ -134,55 +132,60 @@ impl Pool {
         8 +  // last_price_update_slot
         1;   // bump
 
-    /// Check if anti-sniper protection is active
+    /// Check if anti-sniper protection is active (only in PreBonding phase)
     pub fn is_anti_sniper_active(&self, current_slot: u64, anti_sniper_window: u64) -> bool {
-        !matches!(self.current_phase, CurvePhase::Graduated) &&
+        matches!(self.current_phase, CurvePhase::PreBonding) &&
         current_slot < self.created_at_slot.saturating_add(anti_sniper_window)
     }
 
-    /// Get current fee based on phase
-    pub fn get_current_fee_bps(
-        &self,
-        config: &Config,
-    ) -> u16 {
+    /// Get current fee (same across all phases, set at pool creation)
+    pub fn get_current_fee_bps(&self) -> u16 {
+        self.fee_bps
+    }
+
+    /// Get reserves to use for pricing (virtual pre-graduation, real post-graduation)
+    pub fn get_pricing_reserves(&self) -> (u64, u64) {
         match self.current_phase {
-            CurvePhase::PreBonding => config.pre_bonding_fee_bps,
-            CurvePhase::PostBonding => config.post_bonding_fee_bps,
-            CurvePhase::Graduated => 0, // No trading after graduation
+            CurvePhase::PreBonding => {
+                // Use VIRTUAL reserves for bonding curve pricing
+                (self.virtual_quote_reserves, self.virtual_base_reserves)
+            },
+            CurvePhase::Graduated => {
+                // Use REAL reserves for constant product AMM
+                (self.real_quote_reserves, self.real_base_reserves)
+            },
         }
     }
 
-    /// Check and update phase based on accumulated CRX
+    /// Check and update phase based on accumulated CRX (graduation at $40k)
+    /// Returns true if phase changed
     pub fn check_phase_transition(&mut self) -> Result<bool> {
-        let mut transitioned = false;
-
         match self.current_phase {
             CurvePhase::PreBonding => {
-                if self.real_quote_reserves >= self.pre_bonding_threshold_crx {
-                    msg!("🎉 Phase transition: PreBonding → PostBonding");
-                    msg!("Accumulated: {} CRX (threshold: {})",
-                        self.real_quote_reserves,
-                        self.pre_bonding_threshold_crx
-                    );
-                    self.current_phase = CurvePhase::PostBonding;
-                    transitioned = true;
-                }
-            },
-            CurvePhase::PostBonding => {
                 if self.real_quote_reserves >= self.graduation_threshold_crx {
-                    msg!("🚀 Pool ready for graduation!");
-                    msg!("Accumulated: {} CRX (threshold: {})",
+                    msg!("🚀 GRADUATION at $40k!");
+                    msg!("   Accumulated: {} CRX (threshold: {})",
                         self.real_quote_reserves,
                         self.graduation_threshold_crx
                     );
+                    msg!("   Remaining tokens: {}", self.real_base_reserves);
+                    msg!("   🔄 Switching from VIRTUAL to REAL reserves for pricing");
+                    msg!("   Now a permanent constant-product AMM!");
+                    msg!("   Pool address stays the same - No migration needed");
+                    msg!("   Fee remains: {} bps", self.fee_bps);
+
+                    // Transition to graduated phase
+                    // NOW PRICING USES REAL RESERVES (PumpSwap-style)
                     self.current_phase = CurvePhase::Graduated;
-                    transitioned = true;
+                    return Ok(true);
                 }
             },
-            CurvePhase::Graduated => {},
+            CurvePhase::Graduated => {
+                // Already graduated, stays in this phase forever
+            },
         }
 
-        Ok(transitioned)
+        Ok(false)
     }
 
     /// Calculate output for constant product bonding curve

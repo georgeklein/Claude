@@ -88,7 +88,13 @@ pub fn handler(
     ctx: Context<CreatePool>,
     target_market_cap_usd: u64,    // e.g., 50_000_000_000 = $50k (6 decimals)
     token_supply: u64,              // e.g., 1_000_000_000_000 = 1M tokens (6 decimals)
+    fee_bps: u16,                   // Fee: 0, 25, or 100 bps (0%, 0.25%, or 1%)
 ) -> Result<()> {
+    // Validate fee is one of the allowed values
+    require!(
+        fee_bps == 0 || fee_bps == 25 || fee_bps == 100,
+        ErrorCode::InvalidFee
+    );
     // Validation
     require!(target_market_cap_usd > 0, ErrorCode::InvalidMarketCap);
     require!(token_supply > 0, ErrorCode::InvalidTokenSupply);
@@ -120,22 +126,18 @@ pub fn handler(
             crx_price_usd,
         )?;
 
-    // Step 3: Calculate dynamic CRX thresholds based on USD targets
-    let (pre_bonding_threshold_crx, graduation_threshold_crx) =
-        calculate_crx_thresholds(
-            config.pre_bonding_threshold_usd,
-            config.graduation_threshold_usd,
-            crx_price_usd,
-        )?;
+    // Step 3: Calculate graduation threshold at $40k USD
+    let graduation_threshold_usd = 40_000_000_000u64; // $40k with 6 decimals
+    let graduation_threshold_crx = (graduation_threshold_usd as u128)
+        .checked_mul(1_000_000u128) // CRX decimals
+        .ok_or(ErrorCode::MathOverflow)?
+        .checked_div(crx_price_usd as u128)
+        .ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
 
-    msg!("🎯 Thresholds:");
-    msg!("   Pre-bonding: {} CRX (${} USD)",
-        pre_bonding_threshold_crx,
-        config.pre_bonding_threshold_usd as f64 / 1_000_000.0
-    );
-    msg!("   Graduation: {} CRX (${} USD)",
+    msg!("🎯 Graduation Threshold:");
+    msg!("   {} CRX (${} USD)",
         graduation_threshold_crx,
-        config.graduation_threshold_usd as f64 / 1_000_000.0
+        graduation_threshold_usd as f64 / 1_000_000.0
     );
 
     // Initialize pool state
@@ -154,8 +156,8 @@ pub fn handler(
     pool.current_phase = CurvePhase::PreBonding;
     pool.target_market_cap_usd = target_market_cap_usd;
     pool.token_total_supply = token_supply;
+    pool.fee_bps = fee_bps;
 
-    pool.pre_bonding_threshold_crx = pre_bonding_threshold_crx;
     pool.graduation_threshold_crx = graduation_threshold_crx;
 
     pool.created_at_slot = clock.slot;
@@ -191,7 +193,7 @@ pub fn handler(
         virtual_quote_reserves,
         virtual_base_reserves
     );
-    msg!("🎯 Phase: PreBonding (Fee: {} bps)", config.pre_bonding_fee_bps);
+    msg!("🎯 Phase: PreBonding (Fee: {} bps)", fee_bps);
 
     Ok(())
 }

@@ -76,7 +76,7 @@ pub fn handler(
     let clock = Clock::get()?;
 
     // Get current phase parameters
-    let current_fee_bps = pool.get_current_fee_bps(config);
+    let current_fee_bps = pool.get_current_fee_bps();
 
     msg!("💸 Sell Request:");
     msg!("   Base Amount: {} tokens", base_amount);
@@ -99,11 +99,14 @@ pub fn handler(
         msg!("🛡️  Anti-sniper active: max {} tokens", max_trade_amount);
     }
 
-    // Calculate output amount using bonding curve
+    // Get correct reserves based on phase (virtual or real)
+    let (quote_reserve, base_reserve) = pool.get_pricing_reserves();
+
+    // Calculate output amount using correct reserves
     let quote_output = pool.calculate_output(
         base_amount,
-        pool.virtual_base_reserves,
-        pool.virtual_quote_reserves,
+        base_reserve,
+        quote_reserve,
         current_fee_bps,
     )?;
 
@@ -116,8 +119,8 @@ pub fn handler(
     // Calculate protocol fee
     let quote_output_before_fee = pool.calculate_output(
         base_amount,
-        pool.virtual_base_reserves,
-        pool.virtual_quote_reserves,
+        base_reserve,
+        quote_reserve,
         0, // Calculate without fee to get fee amount
     )?;
 
@@ -158,13 +161,19 @@ pub fn handler(
         quote_output,
     )?;
 
-    // Update pool virtual reserves
-    pool.virtual_base_reserves = pool.virtual_base_reserves
-        .checked_add(base_amount)
-        .ok_or(ErrorCode::MathOverflow)?;
-    pool.virtual_quote_reserves = pool.virtual_quote_reserves
-        .checked_sub(quote_output_before_fee)
-        .ok_or(ErrorCode::MathOverflow)?;
+    // Update reserves based on phase
+    if matches!(pool.current_phase, CurvePhase::Graduated) {
+        // Post-graduation: Update REAL reserves only
+        // (Virtual reserves frozen at graduation)
+    } else {
+        // Pre-graduation: Update VIRTUAL reserves for bonding curve
+        pool.virtual_base_reserves = pool.virtual_base_reserves
+            .checked_add(base_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        pool.virtual_quote_reserves = pool.virtual_quote_reserves
+            .checked_sub(quote_output_before_fee)
+            .ok_or(ErrorCode::MathOverflow)?;
+    }
 
     // Update pool real reserves
     pool.real_base_reserves = pool.real_base_reserves
@@ -192,17 +201,17 @@ pub fn handler(
     msg!("   Base In: {} tokens", base_amount);
     msg!("   Quote Out: {} CRX", quote_output);
     msg!("   Fee: {} CRX ({} bps)", fee_amount, current_fee_bps);
+    let (new_quote_res, new_base_res) = pool.get_pricing_reserves();
     msg!("   New Price: {} CRX per token",
-        (pool.virtual_quote_reserves as f64) / (pool.virtual_base_reserves as f64)
+        (new_quote_res as f64) / (new_base_res as f64)
     );
-    msg!("   Real CRX Accumulated: {} / {}",
-        pool.real_quote_reserves,
-        match pool.current_phase {
-            CurvePhase::PreBonding => pool.pre_bonding_threshold_crx,
-            CurvePhase::PostBonding => pool.graduation_threshold_crx,
-            CurvePhase::Graduated => pool.graduation_threshold_crx,
-        }
-    );
+
+    if matches!(pool.current_phase, CurvePhase::PreBonding) {
+        msg!("   Real CRX Accumulated: {} / {} (to graduation)",
+            pool.real_quote_reserves,
+            pool.graduation_threshold_crx
+        );
+    }
 
     if transitioned {
         msg!("🎉 Phase transition occurred!");
