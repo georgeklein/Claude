@@ -64,4 +64,7 @@ pub enum ErrorCode {
 
     #[msg("Threshold calculation failed")]
     ThresholdCalculationFailed,
+
+    #[msg("Quote token must be CRX - this AMM is permissioned for CRX pairs only")]
+    MustUseCrxQuote,
 }

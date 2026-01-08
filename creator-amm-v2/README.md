@@ -2,6 +2,32 @@
 
 **The most advanced bonding curve AMM on Solana**
 
+## 🔒 **Permissioned for CRX Quote Token Only**
+
+**This AMM is open source but intentionally restricted:**
+- ✅ **Open Source** - Full code transparency for auditing and trust
+- 🔒 **CRX Quote Only** - All pools MUST use CRX as the quote token
+- ⚡ **Protocol Enforced** - Smart contract validation, not bypassable
+
+```rust
+// Hardcoded constraint in create_pool instruction:
+constraint = quote_mint.key() == config.crx_mint @ ErrorCode::MustUseCrxQuote
+```
+
+**Why?**
+1. **Unified Ecosystem** - All launchpad tokens denominated in CRX
+2. **CRX Utility** - Creates natural demand for CRX token
+3. **Simplified UX** - Users only need one quote token
+4. **Platform Economics** - Ensures launchpad operates as intended
+
+**What This Means:**
+- Anyone can audit the code ✅
+- Anyone can propose improvements ✅
+- Only Creator platform can deploy CRX pools ✅
+- Forks must modify the constraint to use other quotes ✅
+
+See [LICENSE](LICENSE) for full details.
+
 ---
 
 ## 🚀 Revolutionary Features

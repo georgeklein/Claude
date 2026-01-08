@@ -25,8 +25,9 @@ pub struct CreatePool<'info> {
     pub pool: Account<'info, Pool>,
 
     /// CRX token mint (quote token)
+    /// 🔒 PERMISSIONED: Must be CRX - enforces all pools use CRX as quote
     #[account(
-        constraint = quote_mint.key() == config.crx_mint @ ErrorCode::InvalidOracle
+        constraint = quote_mint.key() == config.crx_mint @ ErrorCode::MustUseCrxQuote
     )]
     pub quote_mint: Account<'info, Mint>,
 
