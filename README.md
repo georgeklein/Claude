@@ -291,29 +291,6 @@ Result:
 
 ---
 
-## Use Cases
-
-### Creator Platform (Primary)
-- Launch community tokens for different projects
-- AI-generated token concepts
-- Event-based token launches
-- Automated pool management
-- Custom integrations with Creator features
-
-### AI-Powered Launches
-- Train AI to launch tokens based on trends
-- Automated market making strategies
-- Event-driven token creation
-- Batch launching (1000s of tokens)
-
-### Community Tokens
-- DAO governance tokens
-- Community engagement tokens
-- Project-specific utility tokens
-- NFT collection tokens
-
----
-
 ## Documentation
 
 - **[GETTING_STARTED.md](GETTING_STARTED.md)** - 5-minute setup guide
