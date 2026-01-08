@@ -198,6 +198,56 @@ export interface GraduationEvent {
   timestamp: Date;
 }
 
+export interface ConfigInfo {
+  address: PublicKey;
+  authority: PublicKey;
+  feeRecipient: PublicKey;
+  crxMint: PublicKey;
+  crxPriceOracle: PublicKey;
+
+  preBondingFeeBps: number;
+  preBondingThresholdUsd: number;
+  postBondingFeeBps: number;
+  graduationThresholdUsd: number;
+
+  antiSniperWindowSlots: number;
+  antiSniperMaxTradeBps: number;
+
+  oracleMaxAgeSeconds: number;
+  oracleMaxConfidenceBps: number;
+
+  approvedQuoteTokens: PublicKey[];
+  approvedQuoteCount: number;
+}
+
+export interface UserPosition {
+  pool: PublicKey;
+  user: PublicKey;
+  weightedAverageEntrySlot: number;  // WAA slot for fee calculations
+  amount: number;                     // Amount tracked for WAA
+  currentSlot: number;                // Current slot for time calculation
+  waaAge: number;                     // Age in slots (currentSlot - waaSlot)
+  waaAgeSeconds: number;              // Age in seconds (~400ms per slot)
+  hasWaaFee: boolean;                 // If true, selling within 30min window
+}
+
+export interface ConfigInitializedEvent {
+  authority: PublicKey;
+  feeRecipient: PublicKey;
+  crxMint: PublicKey;
+  crxPriceOracle: PublicKey;
+  timestamp: Date;
+}
+
+export interface PhaseTransitionEvent {
+  pool: PublicKey;
+  baseMint: PublicKey;
+  fromPhase: 'PreBonding' | 'Graduated';
+  toPhase: 'PreBonding' | 'Graduated';
+  slot: number;
+  timestamp: Date;
+}
+
 // ============================================================================
 // MAIN SDK CLASS
 // ============================================================================
@@ -837,6 +887,52 @@ export class ScaleAMM {
   }
 
   /**
+   * Get protocol configuration
+   *
+   * @example
+   * ```typescript
+   * const config = await scale.getConfig();
+   * console.log('Fee recipient:', config.feeRecipient.toBase58());
+   * console.log('CRX mint:', config.crxMint.toBase58());
+   * console.log('Pre-bonding fee:', config.preBondingFeeBps / 100, '%');
+   * ```
+   */
+  async getConfig(): Promise<ConfigInfo> {
+    try {
+      const [configPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('config')],
+        this.programId
+      );
+
+      const configData = await this.program.account.config.fetch(configPda);
+
+      return {
+        address: configPda,
+        authority: configData.authority,
+        feeRecipient: configData.feeRecipient,
+        crxMint: configData.crxMint,
+        crxPriceOracle: configData.crxPriceOracle,
+
+        preBondingFeeBps: configData.preBondingFeeBps,
+        preBondingThresholdUsd: configData.preBondingThresholdUsd.toNumber() / 1_000_000,
+        postBondingFeeBps: configData.postBondingFeeBps,
+        graduationThresholdUsd: configData.graduationThresholdUsd.toNumber() / 1_000_000,
+
+        antiSniperWindowSlots: configData.antiSniperWindowSlots.toNumber(),
+        antiSniperMaxTradeBps: configData.antiSniperMaxTradeBps,
+
+        oracleMaxAgeSeconds: configData.oracleMaxAgeSeconds.toNumber(),
+        oracleMaxConfidenceBps: configData.oracleMaxConfidenceBps.toNumber(),
+
+        approvedQuoteTokens: configData.approvedQuoteTokens,
+        approvedQuoteCount: configData.approvedQuoteCount,
+      };
+    } catch (error) {
+      throw this.translateError(error);
+    }
+  }
+
+  /**
    * Estimate buy output (no transaction)
    *
    * @example
@@ -868,6 +964,151 @@ export class ScaleAMM {
     try {
       const poolData = await this.program.account.pool.fetch(pool) as PoolData;
       return await this.estimateSellInternal(poolData, tokenAmount);
+    } catch (error) {
+      throw this.translateError(error);
+    }
+  }
+
+  /**
+   * Get user position for WAA fee tracking
+   *
+   * @example
+   * ```typescript
+   * const position = await scale.getUserPosition(userWallet, poolAddress);
+   * console.log('WAA age:', position.waaAgeSeconds, 'seconds');
+   * console.log('Has WAA fee:', position.hasWaaFee);
+   * ```
+   */
+  async getUserPosition(user: PublicKey, pool: PublicKey): Promise<UserPosition | null> {
+    try {
+      // Derive UserPosition PDA
+      const [positionPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('user_position'),
+          pool.toBuffer(),
+          user.toBuffer(),
+        ],
+        this.programId
+      );
+
+      // Try to fetch the position account
+      try {
+        const positionData = await this.program.account.userPosition.fetch(positionPda);
+        const currentSlot = await this.connection.getSlot();
+
+        const waaSlot = positionData.weightedAverageEntrySlot.toNumber();
+        const waaAge = currentSlot - waaSlot;
+        const waaAgeSeconds = waaAge * 0.4; // ~400ms per slot
+
+        // WAA fee active if selling within 30 minutes (4,500 slots)
+        const hasWaaFee = waaAge < 4500;
+
+        return {
+          pool: positionData.pool,
+          user: positionData.user,
+          weightedAverageEntrySlot: waaSlot,
+          amount: positionData.amount.toNumber() / 1_000_000,
+          currentSlot,
+          waaAge,
+          waaAgeSeconds,
+          hasWaaFee,
+        };
+      } catch (accountError) {
+        // Account doesn't exist - user has no position
+        return null;
+      }
+    } catch (error) {
+      throw this.translateError(error);
+    }
+  }
+
+  /**
+   * Get all pools from the protocol
+   *
+   * @param limit Optional limit on number of pools to return (default: 100)
+   * @param offset Optional offset for pagination (default: 0)
+   *
+   * @example
+   * ```typescript
+   * const pools = await scale.getAllPools();
+   * console.log('Total pools:', pools.length);
+   *
+   * // With pagination
+   * const firstPage = await scale.getAllPools(10, 0);
+   * const secondPage = await scale.getAllPools(10, 10);
+   * ```
+   */
+  async getAllPools(limit: number = 100, offset: number = 0): Promise<PoolInfo[]> {
+    try {
+      // Get all pool accounts
+      const poolAccounts = await this.program.account.pool.all();
+
+      // Apply pagination
+      const paginatedAccounts = poolAccounts.slice(offset, offset + limit);
+
+      // Convert to PoolInfo
+      const pools: PoolInfo[] = [];
+      for (const account of paginatedAccounts) {
+        const poolData = account.account as PoolData;
+        const price = this.calculatePrice(poolData);
+        const marketCapUsd = this.calculateMarketCapUsd(poolData, price);
+        const graduationProgress = this.calculateGraduationProgress(poolData);
+
+        const phase = 'graduated' in poolData.currentPhase
+          ? 'Graduated' as const
+          : 'PreBonding' as const;
+
+        const curveType = 'exponential' in poolData.curveType
+          ? 'Exponential' as const
+          : 'ConstantProduct' as const;
+
+        pools.push({
+          address: account.publicKey,
+          baseMint: poolData.baseMint,
+          quoteMint: poolData.quoteMint,
+          creator: poolData.creator,
+
+          phase,
+          curveType,
+
+          price,
+          marketCapUsd,
+          liquidityCrx: poolData.realQuoteReserves.toNumber() / 1_000_000,
+          liquidityTokens: poolData.realBaseReserves.toNumber() / 1_000_000,
+
+          volumeCrx: poolData.totalQuoteVolume.toNumber() / 1_000_000,
+          feeBps: poolData.feeBps,
+
+          graduationThresholdCrx: poolData.graduationThresholdCrx.toNumber() / 1_000_000,
+          graduationProgress,
+
+          initialPrice: poolData.virtualQuoteReserves.toNumber() / poolData.virtualBaseReserves.toNumber(),
+          targetMarketCapUsd: poolData.targetMarketCapUsd.toNumber() / 1_000_000,
+
+          createdAt: new Date(poolData.createdAtSlot.toNumber() * 400),
+          url: `https://scale-amm.xyz/pool/${account.publicKey.toBase58()}`,
+        });
+      }
+
+      return pools;
+    } catch (error) {
+      throw this.translateError(error);
+    }
+  }
+
+  /**
+   * Get pools by creator
+   *
+   * @example
+   * ```typescript
+   * const myPools = await scale.getPoolsByCreator(wallet.publicKey);
+   * console.log('My pools:', myPools.length);
+   * ```
+   */
+  async getPoolsByCreator(creator: PublicKey): Promise<PoolInfo[]> {
+    try {
+      const allPools = await this.getAllPools(1000); // Get up to 1000 pools
+      return allPools.filter(pool => pool.creator.equals(creator));
     } catch (error) {
       throw this.translateError(error);
     }
@@ -935,6 +1176,72 @@ export class ScaleAMM {
           totalFees: event.totalFeesCollected.toNumber() / 1_000_000,
           slotsToGraduate: event.slotsToGraduate.toNumber(),
           timestamp: new Date(event.timestamp * 1000),
+        });
+      }
+    });
+
+    this.listeners.set(listenerId, subscriptionId);
+    return listenerId;
+  }
+
+  /**
+   * Listen to config initialized event (protocol deployment)
+   *
+   * @example
+   * ```typescript
+   * const listener = scale.onConfigInitialized((event) => {
+   *   console.log('Protocol initialized by:', event.authority.toBase58());
+   *   console.log('Fee recipient:', event.feeRecipient.toBase58());
+   * });
+   * ```
+   */
+  onConfigInitialized(callback: (event: ConfigInitializedEvent) => void): number {
+    const listenerId = this.nextListenerId++;
+
+    const subscriptionId = this.program.addEventListener('ConfigInitialized', (event) => {
+      callback({
+        authority: event.authority,
+        feeRecipient: event.feeRecipient,
+        crxMint: event.crxMint,
+        crxPriceOracle: event.crxPriceOracle,
+        timestamp: new Date(event.timestamp.toNumber() * 1000),
+      });
+    });
+
+    this.listeners.set(listenerId, subscriptionId);
+    return listenerId;
+  }
+
+  /**
+   * Listen to phase transition events (PreBonding → Graduated)
+   *
+   * @example
+   * ```typescript
+   * const listener = scale.onPhaseTransition(poolAddress, (event) => {
+   *   console.log(`Pool transitioned: ${event.fromPhase} → ${event.toPhase}`);
+   * });
+   * ```
+   */
+  onPhaseTransition(pool: PublicKey, callback: (event: PhaseTransitionEvent) => void): number {
+    const listenerId = this.nextListenerId++;
+
+    const subscriptionId = this.program.addEventListener('PhaseTransition', (event) => {
+      if (event.pool.equals(pool)) {
+        const fromPhase = 'graduated' in event.fromPhase
+          ? 'Graduated' as const
+          : 'PreBonding' as const;
+
+        const toPhase = 'graduated' in event.toPhase
+          ? 'Graduated' as const
+          : 'PreBonding' as const;
+
+        callback({
+          pool: event.pool,
+          baseMint: event.baseMint,
+          fromPhase,
+          toPhase,
+          slot: event.slot.toNumber(),
+          timestamp: new Date(event.timestamp.toNumber() * 1000),
         });
       }
     });

@@ -42,9 +42,16 @@ await scale.sell(pool.address, { tokenAmount: 5000 });
 
 ## API
 
+### Protocol
+- `initialize(config)` - Initialize protocol (one-time, admin only)
+- `getConfig()` - Get protocol configuration
+
 ### Pool Operations
 - `createPool(params)` - Create new bonding curve pool
 - `getPool(baseMint)` - Query pool state
+- `getAllPools(limit, offset)` - Get all pools with pagination
+- `getPoolsByCreator(creator)` - Get pools by creator address
+- `getPrice(pool)` - Get current pool price
 
 ### Trading
 - `buy(pool, params)` - Buy tokens with $CRX
@@ -52,15 +59,29 @@ await scale.sell(pool.address, { tokenAmount: 5000 });
 - `estimateBuy(pool, amount)` - Estimate buy without executing
 - `estimateSell(pool, amount)` - Estimate sell without executing
 
+### User Data
+- `getUserPosition(user, pool)` - Get user WAA position and fee state
+
 ### Events
 - `onTrade(pool, callback)` - Listen for trades
 - `onGraduation(pool, callback)` - Listen for pool graduation
+- `onConfigInitialized(callback)` - Listen for protocol initialization
+- `onPhaseTransition(pool, callback)` - Listen for phase changes
 - `removeListener(id)` - Remove event listener
 
 ### Utilities
 - `ScaleUtils.usdToMicroUsd()` - Convert USD to on-chain format
 - `ScaleUtils.findPoolAddress()` - Derive pool PDA
 - `ScaleUtils.formatPrice()` - Format prices for display
+
+### Admin Utilities (AdminUtils class)
+- `getProtocolStats()` - Protocol-wide analytics (volume, pools, creators)
+- `getGraduationAlerts(threshold)` - Pools approaching graduation
+- `detectAnomalies()` - Detect suspicious activity or issues
+- `checkOracleHealth()` - Verify oracle is functioning
+- `getPoolMetrics(pool)` - Detailed pool metrics
+- `getTopCreators(limit)` - Top creators by volume
+- `validatePoolReserves(pool)` - Verify reserve integrity
 
 ---
 
