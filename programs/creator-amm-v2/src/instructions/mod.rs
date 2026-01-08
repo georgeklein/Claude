@@ -1,5 +1,6 @@
 pub mod initialize;
 pub mod create_pool;
+pub mod trade;
 pub mod buy;
 pub mod sell;
 pub mod update_approved_quotes;

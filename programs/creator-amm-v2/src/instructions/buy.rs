@@ -83,6 +83,7 @@ pub fn handler(
     min_base_amount: u64,   // Minimum tokens to receive (slippage protection)
 ) -> Result<()> {
     let config = &ctx.accounts.config;
+    let pool_key = ctx.accounts.pool.key();
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
 
@@ -210,12 +211,12 @@ pub fn handler(
     user_position.update_on_buy(base_output, clock.slot)?;
 
     // Shared phase transition handling with event emission
-    let transitioned = trade::handle_phase_transition(pool, ctx.accounts.pool.key(), &clock)?;
+    let _transitioned = trade::handle_phase_transition(pool, pool_key, &clock)?;
 
     // Shared trade event emission
     trade::emit_trade_event(
         pool,
-        ctx.accounts.pool.key(),
+        pool_key,
         ctx.accounts.user.key(),
         TradeDirection::Buy,
         quote_amount,

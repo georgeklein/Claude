@@ -82,6 +82,7 @@ pub fn handler(
     min_quote_amount: u64,  // Minimum CRX to receive (slippage protection)
 ) -> Result<()> {
     let config = &ctx.accounts.config;
+    let pool_key = ctx.accounts.pool.key();
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
     // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
@@ -140,7 +141,7 @@ pub fn handler(
     // Calculate WAA-based extra sell fee (anti-sniper)
     let user_position = &ctx.accounts.user_position;
     let extra_fee_bps = user_position.calculate_extra_sell_fee_bps(clock.slot);
-    let extra_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, extra_fee_bps)?;
+    let extra_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, extra_fee_bps as u16)?;
     // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
     // Trade execution confirmed via TradeExecuted event
     // Phase transitions confirmed via PhaseTransition event
@@ -271,7 +272,7 @@ pub fn handler(
 
     // Shared phase transition handling with event emission
     // Note: Phase transitions on sells are less common but still checked
-    let transitioned = trade::handle_phase_transition(pool, &clock)?;
+    let _transitioned = trade::handle_phase_transition(pool, pool_key, &clock)?;
     // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
     // Trade execution confirmed via TradeExecuted event
     // Phase transitions confirmed via PhaseTransition event
@@ -285,6 +286,7 @@ pub fn handler(
     // Shared trade event emission
     trade::emit_trade_event(
         pool,
+        pool_key,
         ctx.accounts.user.key(),
         TradeDirection::Sell,
         base_amount,
