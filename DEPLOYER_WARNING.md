@@ -1,5 +1,7 @@
 # ⚠️  CRITICAL DEPLOYER_PUBKEY WARNING
 
+**#1 blocker for mainnet - prevents front-running attack on protocol initialization**
+
 ## 🚨 DO NOT DEPLOY TO MAINNET WITHOUT FIXING THIS
 
 **File:** `programs/creator-amm-v2/src/instructions/initialize.rs:23`
