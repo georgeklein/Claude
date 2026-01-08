@@ -110,12 +110,10 @@ pub struct Pool {
     /// Graduation threshold (in CRX, calculated from $40k USD)
     pub graduation_threshold_crx: u64,     // Dynamic based on CRX price
 
-    /// Statistics
+    /// Statistics (minimal to save rent)
+    /// Removed: total_base_volume, total_fees_collected, unique_traders (derive from events)
     pub created_at_slot: u64,
-    pub total_quote_volume: u64,
-    pub total_base_volume: u64,
-    pub total_fees_collected: u64,
-    pub unique_traders: u64,
+    pub total_quote_volume: u64,  // Keep for graduation tracking
 
     /// Pool creator
     pub creator: Pubkey,
@@ -149,14 +147,13 @@ impl Pool {
         8 +  // graduation_threshold_crx
         8 +  // created_at_slot
         8 +  // total_quote_volume
-        8 +  // total_base_volume
-        8 +  // total_fees_collected
-        8 +  // unique_traders
+        // Removed: total_base_volume (8), total_fees_collected (8), unique_traders (8) = 24 bytes saved
         32 + // creator
         8 +  // last_crx_price_usd
         8 +  // last_price_update_slot
         1 +  // disable_waa
         1;   // bump
+    // New size: 307 - 24 = 283 bytes
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
     #[inline(always)]

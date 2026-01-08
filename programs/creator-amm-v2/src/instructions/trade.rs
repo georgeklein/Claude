@@ -168,7 +168,7 @@ pub fn update_statistics(
     direction: TradeDirection,
     input_amount: u64,
     output_amount: u64,
-    total_fee: u64,
+    _total_fee: u64,  // Unused after optimization
 ) -> Result<()> {
     match direction {
         TradeDirection::Buy => {
@@ -176,25 +176,18 @@ pub fn update_statistics(
             pool.total_quote_volume = pool.total_quote_volume
                 .checked_add(input_amount)
                 .ok_or(ErrorCode::MathOverflow)?;
-            pool.total_base_volume = pool.total_base_volume
-                .checked_add(output_amount)
-                .ok_or(ErrorCode::MathOverflow)?;
+            // Removed: total_base_volume (derive from events)
         },
         TradeDirection::Sell => {
             // For sells: input is base (tokens), output is quote (CRX)
-            pool.total_base_volume = pool.total_base_volume
-                .checked_add(input_amount)
-                .ok_or(ErrorCode::MathOverflow)?;
+            // Removed: total_base_volume (derive from events)
             pool.total_quote_volume = pool.total_quote_volume
                 .checked_add(output_amount)
                 .ok_or(ErrorCode::MathOverflow)?;
         },
     }
 
-    // Update total fees collected (always in quote/CRX)
-    pool.total_fees_collected = pool.total_fees_collected
-        .checked_add(total_fee)
-        .ok_or(ErrorCode::MathOverflow)?;
+    // Removed: total_fees_collected (derive from events)
 
     Ok(())
 }
@@ -239,7 +232,7 @@ pub fn handle_phase_transition(
             price_at_graduation,
             market_cap_usd_at_graduation: market_cap_at_graduation,
             total_volume_crx: pool.total_quote_volume,
-            total_fees_collected: pool.total_fees_collected,
+            total_fees_collected: 0,  // Removed from Pool struct (derive from events)
             slots_to_graduate,
             timestamp: clock.unix_timestamp,
         });

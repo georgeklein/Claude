@@ -220,9 +220,7 @@ pub fn handler(
 
     pool.created_at_slot = clock.slot;
     pool.total_quote_volume = 0;
-    pool.total_base_volume = 0;
-    pool.total_fees_collected = 0;
-    pool.unique_traders = 0;
+    // Removed: total_base_volume, total_fees_collected, unique_traders (derive from events)
 
     pool.creator = ctx.accounts.creator.key();
 
