@@ -1,0 +1,43 @@
+# Anchor
+.anchor
+target/
+**/*.rs.bk
+node_modules
+test-ledger
+
+# IDL
+*.so
+
+# Keys (NEVER commit these!)
+*.json
+!package.json
+!tsconfig.json
+!Anchor.toml
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+dist/
+build/
+
+# Solana
+test-ledger/
+.config/
