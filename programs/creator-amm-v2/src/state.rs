@@ -196,13 +196,13 @@ impl Pool {
         match self.current_phase {
             CurvePhase::PreBonding => {
                 if self.real_quote_reserves >= self.graduation_threshold_crx {
-                    msg!("🚀 GRADUATION at $40k!");
+                    msg!("GRADUATION at $40k!");
                     msg!("   Accumulated: {} CRX (threshold: {})",
                         self.real_quote_reserves,
                         self.graduation_threshold_crx
                     );
                     msg!("   Remaining tokens: {}", self.real_base_reserves);
-                    msg!("   🔄 Switching from VIRTUAL to REAL reserves for pricing");
+                    msg!("   Switching from VIRTUAL to REAL reserves for pricing");
                     msg!("   Now a permanent constant-product AMM!");
                     msg!("   Pool address stays the same - No migration needed");
                     msg!("   Creator continues earning {} bps fees forever", self.fee_bps);
