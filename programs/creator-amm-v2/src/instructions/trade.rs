@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 use crate::state::{Config, Pool, CurvePhase};
 use crate::errors::ErrorCode;
-use crate::events::{TradeExecuted, PoolGraduated, PhaseTransition};
+use crate::events::{TradeExecuted, PoolGraduated};
 
 /// Trade direction enum for shared logic
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -244,24 +244,18 @@ pub fn handle_phase_transition(
             timestamp: clock.unix_timestamp,
         });
 
-        emit!(PhaseTransition {
-            pool: pool_key,
-            base_mint: pool.base_mint,
-            from_phase: phase_before,
-            to_phase: pool.current_phase,
-            transition_slot: clock.slot,
-            timestamp: clock.unix_timestamp,
-        });
+        // PhaseTransition event removed - PoolGraduated provides same info (saves ~1k CU)
     }
 
     Ok(transitioned)
 }
 
 /// Emit trade executed event
+/// Optimized: Removed pool, user, price, market_cap fields (saves ~5k CU)
 pub fn emit_trade_event(
     pool: &Pool,
-    pool_key: Pubkey,
-    user: Pubkey,
+    _pool_key: Pubkey,  // Unused after optimization
+    _user: Pubkey,      // Unused after optimization
     direction: TradeDirection,
     input_amount: u64,
     output_amount: u64,
@@ -271,17 +265,9 @@ pub fn emit_trade_event(
     clock: &Clock,
 ) -> Result<()> {
     let (quote_reserves_after, base_reserves_after) = pool.get_pricing_reserves();
-    let price_after = pool.get_spot_price()?;
-
-    // Optimized: Calculate market cap from already-computed price (saves ~3-4k CU)
-    // Avoids redundant get_spot_price() call inside get_market_cap_usd()
-    let market_cap_usd = pool.get_market_cap_usd_from_price(price_after)?;
-
     let anti_sniper_active = pool.is_anti_sniper_active(clock.slot, config.anti_sniper_window_slots);
 
     emit!(TradeExecuted {
-        pool: pool_key,
-        user,
         base_mint: pool.base_mint,
         is_buy: direction == TradeDirection::Buy,
         input_amount,
@@ -289,11 +275,9 @@ pub fn emit_trade_event(
         fee_amount,
         fee_bps,
         phase: pool.current_phase,
-        price_after,
         quote_reserves_after,
         base_reserves_after,
         real_crx_accumulated: pool.real_quote_reserves,
-        market_cap_usd,
         anti_sniper_active,
         slot: clock.slot,
         timestamp: clock.unix_timestamp,

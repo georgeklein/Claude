@@ -106,16 +106,10 @@ pub struct PoolCreated {
 }
 
 /// Emitted on every buy/sell trade
+/// Optimized: Removed computed fields (price, market_cap) to save ~5k CU
+/// Indexers can calculate these from reserves
 #[event]
 pub struct TradeExecuted {
-    /// Pool address (indexed for per-pool queries)
-    #[index]
-    pub pool: Pubkey,
-
-    /// Trader address (indexed for per-user queries)
-    #[index]
-    pub user: Pubkey,
-
     /// Base token mint (indexed for per-token queries)
     #[index]
     pub base_mint: Pubkey,
@@ -138,9 +132,6 @@ pub struct TradeExecuted {
     /// Current phase at time of trade
     pub phase: CurvePhase,
 
-    /// Spot price after trade (CRX per token, 9 decimals)
-    pub price_after: u64,
-
     /// Quote reserves after trade (virtual for PreBonding, real for Graduated)
     pub quote_reserves_after: u64,
 
@@ -149,9 +140,6 @@ pub struct TradeExecuted {
 
     /// Real CRX accumulated in vault (only meaningful in PreBonding phase)
     pub real_crx_accumulated: u64,
-
-    /// Current market cap in USD after trade (6 decimals)
-    pub market_cap_usd: u64,
 
     /// Was anti-sniper protection active during this trade?
     pub anti_sniper_active: bool,
@@ -217,27 +205,5 @@ pub struct PoolGraduated {
     pub timestamp: i64,
 }
 
-/// Emitted when a phase transition occurs (PreBonding → Graduated)
-/// Note: Currently same as PoolGraduated, but kept separate for future multi-phase support
-#[event]
-pub struct PhaseTransition {
-    /// Pool address (indexed)
-    #[index]
-    pub pool: Pubkey,
-
-    /// Base token mint (indexed)
-    #[index]
-    pub base_mint: Pubkey,
-
-    /// Previous phase
-    pub from_phase: CurvePhase,
-
-    /// New phase
-    pub to_phase: CurvePhase,
-
-    /// Slot when transition occurred
-    pub transition_slot: u64,
-
-    /// Timestamp when transition occurred
-    pub timestamp: i64,
-}
+// PhaseTransition event removed - was duplicate of PoolGraduated (saves ~1k CU)
+// Indexers should use PoolGraduated for phase transition tracking
