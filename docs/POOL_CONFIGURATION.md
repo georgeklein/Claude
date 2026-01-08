@@ -10,64 +10,148 @@
 
 ---
 
-## Master Configuration Structure
+## ⚠️ Integration with Existing creator-amm-v2
+
+This configuration is designed to **extend** the existing `creator-amm-v2` Pool struct, NOT replace it.
+
+### Architecture: Separate PDAs (No Breaking Changes)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     EXISTING (unchanged)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Pool (287 bytes)           Config (global)                     │
+│  - virtual/real reserves    - anti_sniper_window_slots          │
+│  - curve_type               - anti_sniper_max_trade_bps         │
+│  - current_phase            - fee settings                      │
+│  - graduation_threshold     - oracle settings                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ References
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      NEW (additive)                             │
+├─────────────────────────────────────────────────────────────────┤
+│  WaaPoolConfig (~120 bytes)     UserPosition (~80 bytes)        │
+│  Seeds: ["waa", pool]           Seeds: ["pos", pool, user]      │
+│  - enabled (on/off)             - avg_entry_slot                │
+│  - decay_type                   - tracked_amount                │
+│  - t1/t2/t3_slots               - last_update_slot              │
+│  - f1/f2/f3_bps                                                 │
+│  - fee routing                                                  │
+│  - whitelist_enabled                                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Critical Constraint: PreBonding Phase Only
+
+WAA fees **MUST NOT** apply after graduation. The existing AMM guarantees 0% fees post-graduation:
+
+```rust
+// WAA respects existing phase rules
+fn should_apply_waa(pool: &Pool, waa_config: &WaaPoolConfig) -> bool {
+    matches!(pool.current_phase, CurvePhase::PreBonding)
+        && waa_config.enabled
+        && !waa_config.paused
+}
+```
+
+---
+
+## Account Structures
+
+### WaaPoolConfig (NEW - Separate PDA)
 
 ```rust
 #[account]
-pub struct PoolState {
-    // ═══════════════════════════════════════════════════════════════
-    // IMMUTABLE (set at creation, never changes)
-    // ═══════════════════════════════════════════════════════════════
+pub struct WaaPoolConfig {
     pub bump: u8,
-    pub pool_id: u64,                    // Unique pool identifier
-    pub token_mint: Pubkey,              // The meme/project token
-    pub quote_mint: Pubkey,              // CRX (or SOL, USDC for some pools)
-    pub token_vault: Pubkey,
-    pub quote_vault: Pubkey,
-    pub lp_mint: Pubkey,
-    pub creator: Pubkey,                 // Pool creator (for analytics)
-    pub created_slot: u64,
+    pub pool: Pubkey,                    // Parent pool reference
 
     // ═══════════════════════════════════════════════════════════════
-    // CURVE CONFIGURATION (immutable - defines pool behavior)
+    // IMMUTABLE (set at creation, NEVER changes)
     // ═══════════════════════════════════════════════════════════════
-    pub curve_type: CurveType,
-    pub curve_params: CurveParams,       // Type-specific parameters
+    pub decay_type: DecayType,
+    pub t1_slots: u64,                   // End of max fee (default: 75)
+    pub t2_slots: u64,                   // Mid decay (default: 750)
+    pub t3_slots: u64,                   // Zero fee (default: 4500)
+    pub f1_bps: u16,                     // Max fee (default: 1000 = 10%)
+    pub f2_bps: u16,                     // Mid fee (default: 100 = 1%)
+    pub f3_bps: u16,                     // Min fee (default: 0)
+    pub min_tracked_amount: u64,         // Dust threshold
+    pub untracked_policy: UntrackedPolicy,
+    pub grace_period_slots: u64,
+
+    // Fee routing (immutable)
+    pub treasury_bps: u16,               // Default: 3000 (30%)
+    pub burn_bps: u16,                   // Default: 2000 (20%)
+    pub lp_rewards_bps: u16,             // Default: 5000 (50%)
 
     // ═══════════════════════════════════════════════════════════════
-    // FEE CONFIGURATION
+    // MUTABLE (admin controls - safety only)
     // ═══════════════════════════════════════════════════════════════
-    pub fee_config: FeeConfig,
+    pub enabled: bool,                   // Can DISABLE only (never re-enable)
+    pub paused: bool,                    // Emergency pause (can toggle)
+    pub whitelist_enabled: bool,
 
     // ═══════════════════════════════════════════════════════════════
-    // WAA ANTI-SNIPE CONFIGURATION
+    // ANALYTICS
     // ═══════════════════════════════════════════════════════════════
-    pub waa_config: WaaConfig,
+    pub total_waa_fees_collected: u64,
+    pub total_waa_fees_burned: u64,
+    pub total_waa_fees_to_treasury: u64,
+    pub total_waa_fees_to_lp: u64,
+}
 
-    // ═══════════════════════════════════════════════════════════════
-    // GOVERNANCE (limited mutability)
-    // ═══════════════════════════════════════════════════════════════
-    pub admin: Pubkey,                   // Can pause, update some params
-    pub pending_admin: Option<Pubkey>,   // For 2-step admin transfer
-    pub is_paused: bool,                 // Emergency pause
-    pub pause_reason: [u8; 64],          // Optional reason string
+// Seeds: ["waa_config", pool.key()]
+// Size: ~150 bytes
+// Rent: ~0.001 SOL
 
-    // ═══════════════════════════════════════════════════════════════
-    // POOL STATE (dynamic, updated on every swap)
-    // ═══════════════════════════════════════════════════════════════
-    pub token_reserve: u64,
-    pub quote_reserve: u64,
-    pub lp_supply: u64,
-
-    // ═══════════════════════════════════════════════════════════════
-    // ANALYTICS (updated on swaps)
-    // ═══════════════════════════════════════════════════════════════
-    pub total_volume_quote: u128,        // Lifetime volume in quote token
-    pub total_swaps: u64,
-    pub total_fees_collected: u64,
-    pub total_waa_fees_collected: u64,   // Anti-snipe fees specifically
+impl WaaPoolConfig {
+    pub const LEN: usize = 8 + 1 + 32 + 1 + 8*3 + 2*3 + 8 + 1 + 8 + 2*3 + 1*3 + 8*4;
 }
 ```
+
+### UserPosition (NEW - Per User Per Pool)
+
+```rust
+#[account]
+pub struct UserPosition {
+    pub bump: u8,
+    pub pool: Pubkey,
+    pub owner: Pubkey,
+    pub avg_entry_slot: u64,             // Weighted average entry
+    pub tracked_amount: u64,             // Tokens tracked for WAA
+    pub last_update_slot: u64,           // Last buy/sell slot
+}
+
+// Seeds: ["user_pos", pool.key(), user.key()]
+// Size: ~90 bytes
+// Rent: ~0.0007 SOL (paid by user on first buy)
+
+impl UserPosition {
+    pub const LEN: usize = 8 + 1 + 32 + 32 + 8 + 8 + 8;
+}
+```
+
+### WaaWhitelist (NEW - Optional)
+
+```rust
+#[account]
+pub struct WaaWhitelist {
+    pub bump: u8,
+    pub pool: Pubkey,
+    pub addresses: Vec<Pubkey>,          // Max 50 addresses
+}
+
+// Seeds: ["waa_whitelist", pool.key()]
+// Size: 8 + 1 + 32 + 4 + (32 * 50) = ~1650 bytes
+// Rent: ~0.012 SOL
+```
+
+---
+
+## Existing Pool Structure (DO NOT MODIFY)
 
 ---
 

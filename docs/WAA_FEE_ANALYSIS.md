@@ -241,6 +241,262 @@ Pool creators pick their config at creation. Once live, WAA can only be **disabl
 
 ---
 
+## 🔴 Integration with Existing AMM (creator-amm-v2)
+
+### Critical Design Conflicts
+
+#### 1. Graduated Phase = Zero Fees (MUST RESPECT)
+
+The existing AMM has a hard rule: **no fees after graduation**.
+
+```rust
+// creator-amm-v2/src/state.rs:165-170
+pub fn get_current_fee_bps(&self) -> u16 {
+    match self.current_phase {
+        CurvePhase::PreBonding => self.fee_bps,
+        CurvePhase::Graduated => 0,  // NO FEES after graduation!
+    }
+}
+```
+
+**WAA MUST only apply in `PreBonding` phase.** After graduation, pools become pure x*y=k AMMs with zero fees.
+
+```rust
+// CORRECT implementation
+fn calculate_waa_fee(pool: &Pool, user_pos: &UserPosition, slot: u64) -> u16 {
+    // WAA disabled after graduation
+    if matches!(pool.current_phase, CurvePhase::Graduated) {
+        return 0;
+    }
+
+    // WAA disabled if not enabled for this pool
+    if !pool.waa_config.enabled {
+        return 0;
+    }
+
+    // Normal WAA calculation...
+    calculate_decay_fee(user_pos.avg_entry_slot, slot, &pool.waa_config)
+}
+```
+
+#### 2. Existing Anti-Sniper Conflict
+
+Current AMM already has anti-sniper protection:
+```rust
+// Config fields:
+pub anti_sniper_window_slots: u64,   // ~20 slots (8 seconds)
+pub anti_sniper_max_trade_bps: u16,  // 5% of supply max
+```
+
+**Integration rules:**
+| Time Period | Existing Anti-Sniper | WAA Fee |
+|-------------|---------------------|---------|
+| 0-8 seconds | Trade size limit ✅ | 10% ✅ |
+| 8s - 30 min | None | Decaying ✅ |
+| 30+ min | None | 0% |
+
+Both mechanisms can coexist - they protect different attack vectors.
+
+#### 3. Pool State Size - Use Separate PDA
+
+Adding WAA config to `Pool` struct would break existing pools (287 → 370+ bytes).
+
+**Solution: Separate WaaPoolConfig PDA**
+
+```rust
+#[account]
+pub struct WaaPoolConfig {
+    pub bump: u8,
+    pub pool: Pubkey,              // Parent pool
+
+    // Config (immutable after creation)
+    pub enabled: bool,
+    pub decay_type: DecayType,
+    pub t1_slots: u64,
+    pub t2_slots: u64,
+    pub t3_slots: u64,
+    pub f1_bps: u16,
+    pub f2_bps: u16,
+    pub f3_bps: u16,
+    pub min_tracked_amount: u64,
+    pub untracked_policy: UntrackedPolicy,
+    pub grace_period_slots: u64,
+
+    // Fee routing
+    pub treasury_bps: u16,
+    pub burn_bps: u16,
+    pub lp_rewards_bps: u16,
+
+    // Mutable by admin
+    pub whitelist_enabled: bool,
+    pub paused: bool,
+}
+
+// Seeds: ["waa_config", pool.key()]
+// Size: ~120 bytes
+// Rent: ~0.001 SOL
+```
+
+This approach:
+- ✅ No breaking changes to existing Pool struct
+- ✅ Optional per-pool (not all pools need WAA)
+- ✅ Can be added to existing pools retroactively
+- ✅ Separate rent cost (pool creator pays)
+
+---
+
+## 🔴 Security Fixes Required
+
+### Fix 1: Fee Application Order
+
+**Problem:** WAA fee must not compound with base fee.
+
+```rust
+// ❌ WRONG - Compounds fees
+let output_after_base = apply_base_fee(gross_output, base_fee_bps);
+let output_after_waa = apply_waa_fee(output_after_base, waa_fee_bps);
+// User pays: base_fee + waa_fee + (base_fee * waa_fee)
+```
+
+```rust
+// ✅ CORRECT - Additive fees
+let base_fee_amount = gross_output * base_fee_bps / 10000;
+let waa_fee_amount = gross_output * waa_fee_bps / 10000;
+let total_fee = base_fee_amount + waa_fee_amount;
+let output = gross_output - total_fee;
+// User pays exactly: base_fee + waa_fee
+```
+
+### Fix 2: Reserve Validation Timing
+
+**Problem:** Current code validates reserves match vaults AFTER fee extraction:
+
+```rust
+// creator-amm-v2/src/instructions/sell.rs:324-331
+require!(
+    pool.real_quote_reserves == ctx.accounts.quote_vault.amount,
+    ErrorCode::ReserveVaultMismatch
+);
+```
+
+If WAA fees route to treasury/burn, vault balance won't match reserves.
+
+**Solution:** Route WAA fees from user's received output, not from vault:
+
+```rust
+// Step 1: Calculate outputs
+let quote_output_gross = pool.calculate_output(...);
+let base_fee = quote_output_gross * base_fee_bps / 10000;
+let quote_output_after_base = quote_output_gross - base_fee;
+
+// Step 2: WAA fee calculated on post-base-fee output
+let waa_fee = quote_output_after_base * waa_fee_bps / 10000;
+let quote_output_final = quote_output_after_base - waa_fee;
+
+// Step 3: Transfer from vault to user (output + waa_fee to be split)
+token::transfer(vault → user, quote_output_after_base);
+
+// Step 4: User's WAA fee gets split (separate instruction or CPI)
+// This way vault balance stays consistent with reserves
+```
+
+**Alternative (simpler):** Route all WAA fees to a separate WAA fee vault, not touching main pool vault.
+
+### Fix 3: Prevent WAA Config Manipulation
+
+**Problem:** Admin could manipulate WAA config to extract user funds.
+
+**Solution:** Immutable config with limited admin controls:
+
+```rust
+// IMMUTABLE after pool creation:
+- decay_type, t1/t2/t3_slots, f1/f2/f3_bps
+- min_tracked_amount, untracked_policy
+- treasury_bps, burn_bps, lp_rewards_bps
+
+// MUTABLE by admin (safety controls only):
+- enabled: Can DISABLE only (bool can go true→false, never false→true)
+- paused: Emergency pause (can toggle)
+- whitelist: Add/remove addresses
+
+// Enforced in instruction:
+pub fn update_waa_config(ctx: Context<UpdateWaaConfig>, new_enabled: bool) -> Result<()> {
+    let config = &mut ctx.accounts.waa_config;
+
+    // Can only disable, never re-enable
+    if config.enabled && !new_enabled {
+        config.enabled = false;
+        msg!("WAA disabled for pool");
+    } else if !config.enabled && new_enabled {
+        return Err(ErrorCode::CannotReenableWaa.into());
+    }
+
+    Ok(())
+}
+```
+
+### Fix 4: Whitelist Bypass Prevention
+
+**Problem:** Whitelisted addresses could be used to bypass WAA for non-whitelisted users.
+
+```
+Attack:
+1. Whitelisted aggregator buys tokens (no WAA tracking)
+2. Aggregator sells to user off-chain
+3. User sells through aggregator (no WAA fee)
+```
+
+**Solution:** Track at user level, not transaction level:
+
+```rust
+// UserPosition is always per end-user wallet, never per aggregator
+// Aggregator instructions must pass through user's WAA check
+
+pub fn sell_via_aggregator(
+    ctx: Context<SellViaAggregator>,
+    amount: u64,
+    min_out: u64,
+) -> Result<()> {
+    // Even if aggregator is whitelisted, check USER's position
+    let user_position = &ctx.accounts.user_position;
+    let waa_fee = calculate_waa_fee(user_position, ...);
+
+    // Aggregator whitelist only exempts the aggregator's own holdings
+    // Not holdings being sold on behalf of users
+}
+```
+
+### Fix 5: Overflow Protection in WAA Calculation
+
+```rust
+pub fn calculate_waa(
+    old_amount: u64,
+    old_slot: u64,
+    new_amount: u64,
+    new_slot: u64,
+) -> Result<u64> {
+    // Use u128 to prevent overflow
+    let numerator = (old_amount as u128)
+        .checked_mul(old_slot as u128)
+        .ok_or(ErrorCode::MathOverflow)?
+        .checked_add(
+            (new_amount as u128)
+                .checked_mul(new_slot as u128)
+                .ok_or(ErrorCode::MathOverflow)?
+        )
+        .ok_or(ErrorCode::MathOverflow)?;
+
+    let denominator = (old_amount as u128)
+        .checked_add(new_amount as u128)
+        .ok_or(ErrorCode::MathOverflow)?;
+
+    // Safe to cast back - result is always <= max(old_slot, new_slot)
+    Ok((numerator / denominator) as u64)
+}
+```
+
+---
+
 ## Gas/Compute Analysis
 
 **Additional compute per swap:**
