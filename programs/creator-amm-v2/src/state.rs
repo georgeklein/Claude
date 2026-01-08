@@ -111,8 +111,9 @@ pub struct Pool {
     pub token_total_supply: u64,          // Total token supply
     pub fee_bps: u16,                     // Pool-specific fee (0, 25, or 100 bps)
 
-    /// Graduation threshold (in CRX, calculated from $40k USD)
-    pub graduation_threshold_crx: u64,     // Dynamic based on CRX price
+    /// Graduation thresholds
+    pub graduation_threshold_usd: u64,     // Target USD threshold (6 decimals) - stored for recalculation
+    pub graduation_threshold_crx: u64,     // Dynamic CRX threshold - recalculated when CRX price changes
 
     /// Statistics
     pub created_at_slot: u64,
@@ -147,6 +148,7 @@ impl Pool {
         8 +  // target_market_cap_usd
         8 +  // token_total_supply
         2 +  // fee_bps
+        8 +  // graduation_threshold_usd
         8 +  // graduation_threshold_crx
         8 +  // created_at_slot
         8 +  // total_quote_volume
@@ -236,9 +238,18 @@ impl Pool {
                 current_crx_price_usd,
             )?;
 
-        // Update virtual reserves atomically
+        // Recalculate graduation threshold in CRX based on current price
+        // Example: $40k USD / $0.20 per CRX = 200k CRX threshold
+        let new_graduation_threshold_crx = (self.graduation_threshold_usd as u128)
+            .checked_mul(1_000_000u128) // CRX decimals
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(current_crx_price_usd as u128)
+            .ok_or(ErrorCode::MathOverflow)? as u64;
+
+        // Update all dynamic values atomically
         self.virtual_quote_reserves = new_virtual_quote;
         self.virtual_base_reserves = new_virtual_base;
+        self.graduation_threshold_crx = new_graduation_threshold_crx;
 
         // Update cached price
         self.last_crx_price_usd = current_crx_price_usd;
