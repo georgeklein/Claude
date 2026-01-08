@@ -61,29 +61,42 @@ pub mod creator_amm_v2 {
     ///
     /// # Example
     /// ```
-    /// Target MC: $50,000 USD
+    /// Target MC: $10,000 USD
     /// Token Supply: 1,000,000
     /// CRX Price: $2.00 (from oracle)
+    /// Fee: 0.25% (25 bps)
+    /// Curve: Exponential
+    /// Graduation: $40,000 USD
     ///
     /// Result:
-    /// - Virtual CRX: 25,000 CRX
+    /// - Virtual CRX: 5,000 CRX
     /// - Virtual Tokens: 1,000,000
-    /// - Initial Price: 0.025 CRX per token
-    /// - Launches at exactly $50k market cap!
+    /// - Initial Price: 0.005 CRX per token
+    /// - Launches at exactly $10k market cap!
+    /// - Graduates when 20,000 CRX accumulated
     /// ```
     ///
     /// # Arguments
     /// * `target_market_cap_usd` - Desired initial market cap (6 decimals)
     /// * `token_supply` - Total token supply to deposit
+    /// * `fee_bps` - Pool fee: 0 (0%), 25 (0.25%), or 100 (1%)
+    /// * `curve_type` - Bonding curve: ConstantProduct or Exponential
+    /// * `graduation_threshold_usd` - USD threshold for graduation ($5k - $10M)
     pub fn create_pool(
         ctx: Context<CreatePool>,
         target_market_cap_usd: u64,
         token_supply: u64,
+        fee_bps: u16,
+        curve_type: state::CurveType,
+        graduation_threshold_usd: u64,
     ) -> Result<()> {
         instructions::create_pool::handler(
             ctx,
             target_market_cap_usd,
             token_supply,
+            fee_bps,
+            curve_type,
+            graduation_threshold_usd,
         )
     }
 

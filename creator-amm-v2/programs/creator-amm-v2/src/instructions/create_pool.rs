@@ -98,6 +98,12 @@ pub fn handler(
         ErrorCode::InvalidFee
     );
 
+    // Validate curve type is implemented (CRITICAL: prevent Custom DOS)
+    require!(
+        matches!(curve_type, CurveType::ConstantProduct | CurveType::Exponential),
+        ErrorCode::CustomCurveNotImplemented
+    );
+
     // Validation constants
     const MIN_MARKET_CAP_USD: u64 = 1_000_000_000; // $1k minimum with 6 decimals
     const MAX_MARKET_CAP_USD: u64 = 1_000_000_000_000; // $1M maximum with 6 decimals
