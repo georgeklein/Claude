@@ -25,14 +25,14 @@ pub struct Sell<'info> {
     #[account(
         mut,
         constraint = quote_vault.key() == pool.quote_vault,
-        constraint = quote_vault.authority == pool.key() @ ErrorCode::Unauthorized,
+        constraint = quote_vault.owner == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub quote_vault: Account<'info, TokenAccount>,
 
     #[account(
         mut,
         constraint = base_vault.key() == pool.base_vault,
-        constraint = base_vault.authority == pool.key() @ ErrorCode::Unauthorized,
+        constraint = base_vault.owner == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub base_vault: Account<'info, TokenAccount>,
 
@@ -104,12 +104,20 @@ pub fn handler(
         msg!("🛡️  Anti-sniper active: max {} tokens", max_trade_amount);
     }
 
-    // CRITICAL FEE LOGIC: Take fee "off the cuff" BEFORE swap
-    // This prevents liquidity degradation by not extracting fees from reserves
+    // CRITICAL FEE LOGIC: Calculate output first, then extract fee from output
+    // This maintains consistency with buy.rs and prevents token mint mismatch
 
-    // Calculate fee from user's input amount (base tokens)
-    let fee_in_base = if current_fee_bps > 0 {
-        let fee = (base_amount as u128)
+    // Calculate output WITHOUT fee first
+    let quote_output_before_fee = pool.calculate_output(
+        base_amount,
+        base_reserve,
+        quote_reserve,
+        0, // No fee in calculation
+    )?;
+
+    // Calculate fee from OUTPUT (in quote tokens, not base tokens)
+    let fee_in_quote = if current_fee_bps > 0 {
+        let fee = (quote_output_before_fee as u128)
             .checked_mul(current_fee_bps as u128)
             .ok_or(ErrorCode::MathOverflow)?
             .checked_div(10000)
@@ -119,19 +127,10 @@ pub fn handler(
         0
     };
 
-    // Calculate swap amount (base_amount minus fee)
-    let swap_amount = base_amount
-        .checked_sub(fee_in_base)
+    // Final output to user (after fee)
+    let quote_output = quote_output_before_fee
+        .checked_sub(fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
-
-    // Calculate output based on SWAP AMOUNT (not full base_amount)
-    // This maintains x*y=k invariant because only swap_amount enters reserves
-    let quote_output = pool.calculate_output(
-        swap_amount,
-        base_reserve,
-        quote_reserve,
-        0, // No fee here - already extracted above
-    )?;
 
     // Slippage protection (CRITICAL SECURITY FIX from PumpSwap)
     require!(
@@ -146,20 +145,7 @@ pub fn handler(
         ErrorCode::OutputTooSmall
     );
 
-    // Transfer 1: Fee goes directly to creator in BASE tokens (if any)
-    if fee_in_base > 0 {
-        let fee_cpi_accounts = Transfer {
-            from: ctx.accounts.user_base_account.to_account_info(),
-            to: ctx.accounts.fee_recipient_account.to_account_info(),
-            authority: ctx.accounts.user.to_account_info(),
-        };
-        token::transfer(
-            CpiContext::new(ctx.accounts.token_program.to_account_info(), fee_cpi_accounts),
-            fee_in_base,
-        )?;
-    }
-
-    // Transfer 2: Swap amount goes to pool vault in BASE tokens (NOT full base_amount)
+    // Transfer 1: All base tokens from user to pool vault
     let cpi_accounts = Transfer {
         from: ctx.accounts.user_base_account.to_account_info(),
         to: ctx.accounts.base_vault.to_account_info(),
@@ -167,10 +153,10 @@ pub fn handler(
     };
     token::transfer(
         CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
-        swap_amount, // Only swap amount, not full base_amount
+        base_amount, // Full amount goes to pool
     )?;
 
-    // Transfer 3: Quote tokens from pool to user
+    // Setup pool signer for outgoing transfers
     let pool_seeds = &[
         b"pool",
         pool.base_mint.as_ref(),
@@ -178,6 +164,7 @@ pub fn handler(
     ];
     let signer = &[&pool_seeds[..]];
 
+    // Transfer 2: Quote tokens from pool to user (after fee deduction)
     let cpi_accounts = Transfer {
         from: ctx.accounts.quote_vault.to_account_info(),
         to: ctx.accounts.user_quote_account.to_account_info(),
@@ -189,53 +176,63 @@ pub fn handler(
             cpi_accounts,
             signer,
         ),
-        quote_output,
+        quote_output, // User gets output after fee
     )?;
 
+    // Transfer 3: Fee in QUOTE tokens from pool to creator
+    if fee_in_quote > 0 {
+        let fee_cpi_accounts = Transfer {
+            from: ctx.accounts.quote_vault.to_account_info(),
+            to: ctx.accounts.fee_recipient_account.to_account_info(),
+            authority: pool.to_account_info(),
+        };
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                fee_cpi_accounts,
+                signer,
+            ),
+            fee_in_quote,
+        )?;
+    }
+
     // Update reserves based on phase
-    // CRITICAL: Only swap_amount enters vault (fee already went to creator)
+    // CRITICAL: Full base_amount enters vault, fee extracted from output
     // This maintains x*y=k perfectly - no degradation!
+
+    // Total quote leaving vault = quote_output (to user) + fee_in_quote (to creator)
+    let total_quote_out = quote_output_before_fee;
+
     if matches!(pool.current_phase, CurvePhase::Graduated) {
-        // GRADUATED PHASE: Pure constant product with fees taken "off the cuff"
-        // Fee went directly to creator, swap_amount to vault
-        // Reserves updated with swap_amount only - k is maintained!
+        // GRADUATED PHASE: Pure constant product with fees taken from output
+        // Full base_amount enters vault, quote_output_before_fee leaves vault
+        // Reserves updated accordingly - k is maintained!
         pool.real_base_reserves = pool.real_base_reserves
-            .checked_add(swap_amount)  // Only swap amount, not full base_amount
+            .checked_add(base_amount)  // Full amount to vault
             .ok_or(ErrorCode::MathOverflow)?;
         pool.real_quote_reserves = pool.real_quote_reserves
-            .checked_sub(quote_output)
+            .checked_sub(total_quote_out)  // Total output (user + fee)
             .ok_or(ErrorCode::MathOverflow)?;
         // Virtual reserves frozen at graduation (no longer used for pricing)
     } else {
         // PRE-BONDING PHASE: Update VIRTUAL reserves for bonding curve
-        // Swap calculated with swap_amount, so add swap_amount to reserves
+        // Full base_amount to vault, total_quote_out from vault
         pool.virtual_base_reserves = pool.virtual_base_reserves
-            .checked_add(swap_amount)
+            .checked_add(base_amount)
             .ok_or(ErrorCode::MathOverflow)?;
         pool.virtual_quote_reserves = pool.virtual_quote_reserves
-            .checked_sub(quote_output)
+            .checked_sub(total_quote_out)
             .ok_or(ErrorCode::MathOverflow)?;
 
         // Update real reserves (tracking actual vault balances)
-        // Real reserves only track what's actually in vaults
+        // Real reserves must match actual tokens in vaults
         pool.real_base_reserves = pool.real_base_reserves
-            .checked_add(swap_amount)  // Only swap amount went to vault
+            .checked_add(base_amount)  // Full amount went to vault
             .ok_or(ErrorCode::MathOverflow)?;
         pool.real_quote_reserves = pool.real_quote_reserves
-            .checked_sub(quote_output)
+            .checked_sub(total_quote_out)  // Total output left vault
             .ok_or(ErrorCode::MathOverflow)?;
     }
-
-    // Convert fee to CRX equivalent for statistics (consistency with buy.rs)
-    let fee_in_quote = if fee_in_base > 0 {
-        (fee_in_base as u128)
-            .checked_mul(quote_reserve as u128)
-            .ok_or(ErrorCode::MathOverflow)?
-            .checked_div(base_reserve as u128)
-            .ok_or(ErrorCode::MathOverflow)? as u64
-    } else {
-        0
-    };
 
     // Update statistics
     pool.total_base_volume = pool.total_base_volume
@@ -318,10 +315,9 @@ pub fn handler(
     });
 
     msg!("✅ Sell executed!");
-    msg!("   Base In: {} tokens (total from user)", base_amount);
-    msg!("   Swap Amount: {} tokens (after {} bps fee)", swap_amount, current_fee_bps);
-    msg!("   Quote Out: {} CRX", quote_output);
-    msg!("   Fee to Creator: {} tokens (~{} CRX)", fee_in_base, fee_in_quote);
+    msg!("   Base In: {} tokens (from user)", base_amount);
+    msg!("   Quote Out: {} CRX (to user, after {} bps fee)", quote_output, current_fee_bps);
+    msg!("   Fee to Creator: {} CRX", fee_in_quote);
     let (new_quote_res, new_base_res) = pool.get_pricing_reserves();
     msg!("   New Price: {} CRX per token",
         (new_quote_res as f64) / (new_base_res as f64)

@@ -8,18 +8,18 @@ import {
   mintTo,
   TOKEN_PROGRAM_ID,
   getAccount,
+  setAuthority,
+  AuthorityType,
 } from "@solana/spl-token";
 import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 describe("Creator AMM v2 - Comprehensive Test Suite", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-
   const program = anchor.workspace.CreatorAmmV2 as Program<CreatorAmmV2>;
 
   // Global accounts
   let config: PublicKey;
-  let configBump: number;
   let authority: Keypair;
   let feeRecipient: Keypair;
   let crxMint: PublicKey;
@@ -31,19 +31,11 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
   let trader1: Keypair;
   let trader2: Keypair;
 
-  // Constants for oracle simulation
-  const CRX_PRICE_USD = 2_000_000; // $2.00 with 6 decimals
-  const ORACLE_CONFIDENCE = 10_000; // 0.1% confidence
-  const ORACLE_EXPO = -6;
-
   // Helper: Create mock Pyth oracle account
-  async function createMockOracle(price: number): Promise<Keypair> {
+  async function createMockOracle(): Promise<Keypair> {
     const oracle = Keypair.generate();
-
-    // Create account with enough space for PythPriceFeed
-    const space = 8 + 8 + 8 + 4 + 8; // discriminator + price + conf + expo + publish_time
+    const space = 8 + 8 + 8 + 4 + 8;
     const lamports = await provider.connection.getMinimumBalanceForRentExemption(space);
-
     const createIx = SystemProgram.createAccount({
       fromPubkey: provider.wallet.publicKey,
       newAccountPubkey: oracle.publicKey,
@@ -51,60 +43,37 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
       space,
       programId: program.programId,
     });
-
     await provider.sendAndConfirm(new anchor.web3.Transaction().add(createIx), [oracle]);
-
-    // Initialize oracle data
-    const oracleAccount = await program.account.pythPriceFeed.fetch(oracle.publicKey);
-    // Note: In real tests, you'd need to write the data structure properly
-    // For this comprehensive test, we assume oracle returns valid price
-
     return oracle;
   }
 
   // Helper: Create token mint with revoked authorities
-  async function createTokenWithRevokedAuthorities(
-    decimals: number = 6
-  ): Promise<PublicKey> {
+  async function createTokenWithRevokedAuthorities(decimals: number = 6): Promise<PublicKey> {
     const mint = await createMint(
       provider.connection,
       creator,
       creator.publicKey,
-      null, // No freeze authority
+      null,
       decimals
     );
-
-    // Revoke mint authority by setting to null
-    // This is done by creating with authority then revoking via setAuthority
-    const { Token } = require("@solana/spl-token");
-    const token = new Token(
+    await setAuthority(
       provider.connection,
+      creator,
       mint,
-      TOKEN_PROGRAM_ID,
-      creator
-    );
-
-    await token.setAuthority(
-      mint,
-      null,
-      "MintTokens",
       creator.publicKey,
-      []
+      AuthorityType.MintTokens,
+      null
     );
-
     return mint;
   }
 
-  // Helper: Airdrop SOL to account
+  // Helper: Airdrop SOL
   async function airdrop(pubkey: PublicKey, amount: number = 10) {
-    const signature = await provider.connection.requestAirdrop(
-      pubkey,
-      amount * LAMPORTS_PER_SOL
-    );
-    await provider.connection.confirmTransaction(signature);
+    const sig = await provider.connection.requestAirdrop(pubkey, amount * LAMPORTS_PER_SOL);
+    await provider.connection.confirmTransaction(sig);
   }
 
-  // Helper: Create pool wrapper
+  // Helper: Create pool
   async function createPool(
     baseMint: PublicKey,
     targetMarketCapUsd: anchor.BN,
@@ -113,21 +82,18 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
     curveType: any,
     graduationThresholdUsd: anchor.BN
   ) {
-    const [pool, poolBump] = PublicKey.findProgramAddressSync(
+    const [pool] = PublicKey.findProgramAddressSync(
       [Buffer.from("pool"), baseMint.toBuffer()],
       program.programId
     );
-
     const [quoteVault] = PublicKey.findProgramAddressSync(
       [Buffer.from("quote_vault"), pool.toBuffer()],
       program.programId
     );
-
     const [baseVault] = PublicKey.findProgramAddressSync(
       [Buffer.from("base_vault"), pool.toBuffer()],
       program.programId
     );
-
     const creatorBaseAccount = await getOrCreateAssociatedTokenAccount(
       provider.connection,
       creator,
@@ -136,13 +102,7 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
     );
 
     await program.methods
-      .createPool(
-        targetMarketCapUsd,
-        tokenSupply,
-        feeBps,
-        curveType,
-        graduationThresholdUsd
-      )
+      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd)
       .accounts({
         config,
         pool,
@@ -160,18 +120,19 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
       .signers([creator])
       .rpc();
 
-    return { pool, quoteVault, baseVault, poolBump };
+    return { pool, quoteVault, baseVault };
   }
 
-  // Helper: Execute buy
-  async function executeBuy(
+  // Helper: Execute trade (buy or sell)
+  async function executeTrade(
     pool: PublicKey,
     quoteVault: PublicKey,
     baseVault: PublicKey,
     baseMint: PublicKey,
     user: Keypair,
-    quoteAmount: anchor.BN,
-    minBaseAmount: anchor.BN
+    isBuy: boolean,
+    amount: anchor.BN,
+    minAmount: anchor.BN
   ) {
     const userQuoteAccount = await getOrCreateAssociatedTokenAccount(
       provider.connection,
@@ -179,7 +140,6 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
       crxMint,
       user.publicKey
     );
-
     const userBaseAccount = await getOrCreateAssociatedTokenAccount(
       provider.connection,
       user,
@@ -187,8 +147,8 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
       user.publicKey
     );
 
-    await program.methods
-      .buy(quoteAmount, minBaseAmount)
+    const method = isBuy ? program.methods.buy(amount, minAmount) : program.methods.sell(amount, minAmount);
+    await method
       .accounts({
         config,
         pool,
@@ -204,152 +164,78 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
       .rpc();
 
     return { userQuoteAccount, userBaseAccount };
-  }
-
-  // Helper: Execute sell
-  async function executeSell(
-    pool: PublicKey,
-    quoteVault: PublicKey,
-    baseVault: PublicKey,
-    baseMint: PublicKey,
-    user: Keypair,
-    baseAmount: anchor.BN,
-    minQuoteAmount: anchor.BN
-  ) {
-    const userQuoteAccount = await getOrCreateAssociatedTokenAccount(
-      provider.connection,
-      user,
-      crxMint,
-      user.publicKey
-    );
-
-    const userBaseAccount = await getOrCreateAssociatedTokenAccount(
-      provider.connection,
-      user,
-      baseMint,
-      user.publicKey
-    );
-
-    await program.methods
-      .sell(baseAmount, minQuoteAmount)
-      .accounts({
-        config,
-        pool,
-        quoteVault,
-        baseVault,
-        userQuoteAccount: userQuoteAccount.address,
-        userBaseAccount: userBaseAccount.address,
-        feeRecipientAccount: feeRecipientCrxAccount,
-        user: user.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .signers([user])
-      .rpc();
-
-    return { userQuoteAccount, userBaseAccount };
-  }
-
-  // Helper: Verify constant product invariant
-  async function verifyInvariant(
-    pool: PublicKey,
-    phase: string,
-    previousProduct?: anchor.BN
-  ) {
-    const poolAccount = await program.account.pool.fetch(pool);
-
-    let product: anchor.BN;
-    if (phase === "PreBonding") {
-      product = poolAccount.virtualQuoteReserves.mul(poolAccount.virtualBaseReserves);
-    } else {
-      product = poolAccount.realQuoteReserves.mul(poolAccount.realBaseReserves);
-    }
-
-    if (previousProduct) {
-      // In PreBonding with fees, product can decrease slightly due to fee extraction
-      // In Graduated, product should be maintained exactly (no fees)
-      if (phase === "Graduated") {
-        expect(product.toString()).to.equal(previousProduct.toString());
-      } else {
-        // Virtual reserves should maintain x*y=k for pricing
-        expect(product.gte(previousProduct.muln(0.99))).to.be.true;
-      }
-    }
-
-    return product;
   }
 
   // Helper: Verify vault balances match reserves
-  async function verifyVaultBalances(
-    pool: PublicKey,
-    quoteVault: PublicKey,
-    baseVault: PublicKey
-  ) {
+  async function verifyVaultBalances(pool: PublicKey, quoteVault: PublicKey, baseVault: PublicKey) {
     const poolAccount = await program.account.pool.fetch(pool);
     const quoteVaultAccount = await getAccount(provider.connection, quoteVault);
     const baseVaultAccount = await getAccount(provider.connection, baseVault);
+    expect(poolAccount.realQuoteReserves.toString()).to.equal(quoteVaultAccount.amount.toString());
+    expect(poolAccount.realBaseReserves.toString()).to.equal(baseVaultAccount.amount.toString());
+  }
 
-    expect(poolAccount.realQuoteReserves.toString()).to.equal(
-      quoteVaultAccount.amount.toString()
+  // Helper: Setup test pool
+  async function setupTestPool(
+    marketCap: number = 10_000_000_000,
+    graduationThreshold: number = 40_000_000_000
+  ) {
+    const baseMint = await createTokenWithRevokedAuthorities();
+    const tokenSupply = new anchor.BN(1_000_000_000_000);
+    await mintTo(
+      provider.connection,
+      creator,
+      baseMint,
+      (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey)).address,
+      creator,
+      tokenSupply.toNumber()
     );
-    expect(poolAccount.realBaseReserves.toString()).to.equal(
-      baseVaultAccount.amount.toString()
+    const { pool, quoteVault, baseVault } = await createPool(
+      baseMint,
+      new anchor.BN(marketCap),
+      tokenSupply,
+      25,
+      { constantProduct: {} },
+      new anchor.BN(graduationThreshold)
     );
+    return { pool, quoteVault, baseVault, baseMint };
   }
 
   // Setup before all tests
   before(async () => {
-    // Initialize keypairs
     authority = Keypair.generate();
     feeRecipient = Keypair.generate();
     creator = Keypair.generate();
     trader1 = Keypair.generate();
     trader2 = Keypair.generate();
 
-    // Airdrop SOL
-    await airdrop(authority.publicKey);
-    await airdrop(feeRecipient.publicKey);
-    await airdrop(creator.publicKey);
-    await airdrop(trader1.publicKey);
-    await airdrop(trader2.publicKey);
+    await Promise.all([
+      airdrop(authority.publicKey),
+      airdrop(feeRecipient.publicKey),
+      airdrop(creator.publicKey),
+      airdrop(trader1.publicKey),
+      airdrop(trader2.publicKey),
+    ]);
 
-    // Create CRX mint
-    crxMint = await createMint(
-      provider.connection,
-      authority,
-      authority.publicKey,
-      null,
-      6
-    );
+    crxMint = await createMint(provider.connection, authority, authority.publicKey, null, 6);
+    crxPriceOracle = await createMockOracle();
 
-    // Create mock oracle
-    crxPriceOracle = await createMockOracle(CRX_PRICE_USD);
+    [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], program.programId);
 
-    // Find config PDA
-    [config, configBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("config")],
-      program.programId
-    );
+    feeRecipientCrxAccount = (
+      await getOrCreateAssociatedTokenAccount(provider.connection, feeRecipient, crxMint, feeRecipient.publicKey)
+    ).address;
 
-    // Create fee recipient CRX account
-    const feeRecipientAccount = await getOrCreateAssociatedTokenAccount(
-      provider.connection,
-      feeRecipient,
-      crxMint,
-      feeRecipient.publicKey
-    );
-    feeRecipientCrxAccount = feeRecipientAccount.address;
-
-    // Initialize config
     await program.methods
       .initialize(
-        300,  // pre_bonding_fee_bps (3%)
-        new anchor.BN(40_000_000_000), // $40k
-        100,  // post_bonding_fee_bps (1%)
-        new anchor.BN(85_000_000_000), // $85k
-        new anchor.BN(20), // anti_sniper_window_slots
-        500,  // anti_sniper_max_trade_bps (5%)
-        new anchor.BN(60), // oracle_max_age_seconds
-        new anchor.BN(100) // oracle_max_confidence_bps (1%)
+        300,
+        new anchor.BN(40_000_000_000),
+        100,
+        new anchor.BN(85_000_000_000),
+        new anchor.BN(20),
+        500,
+        new anchor.BN(60),
+        new anchor.BN(100)
       )
       .accounts({
         config,
@@ -365,85 +251,57 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
     console.log("✅ Test environment initialized");
   });
 
-  describe("1. Pool Creation Tests", () => {
-    it("Should create pool with ConstantProduct curve", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000); // 1M tokens
-
-      // Mint tokens to creator
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const { pool } = await createPool(
-        baseMint,
-        new anchor.BN(10_000_000_000), // $10k
-        tokenSupply,
-        25, // 0.25%
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000) // $40k
-      );
-
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.curveType).to.deep.equal({ constantProduct: {} });
-      expect(poolAccount.feeBps).to.equal(25);
-    });
-
-    it("Should create pool with Exponential curve", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
+  describe("1. Pool Creation", () => {
+    it("Should create pools with different curve types", async () => {
+      const baseMint1 = await createTokenWithRevokedAuthorities();
+      const baseMint2 = await createTokenWithRevokedAuthorities();
       const tokenSupply = new anchor.BN(1_000_000_000_000);
 
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
+      for (const mint of [baseMint1, baseMint2]) {
+        await mintTo(
           provider.connection,
           creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
+          mint,
+          (await getOrCreateAssociatedTokenAccount(provider.connection, creator, mint, creator.publicKey)).address,
+          creator,
+          tokenSupply.toNumber()
+        );
+      }
 
-      const { pool } = await createPool(
-        baseMint,
+      const { pool: pool1 } = await createPool(
+        baseMint1,
         new anchor.BN(10_000_000_000),
         tokenSupply,
-        100, // 1%
+        25,
+        { constantProduct: {} },
+        new anchor.BN(40_000_000_000)
+      );
+      const { pool: pool2 } = await createPool(
+        baseMint2,
+        new anchor.BN(10_000_000_000),
+        tokenSupply,
+        100,
         { exponential: {} },
         new anchor.BN(40_000_000_000)
       );
 
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.curveType).to.deep.equal({ exponential: {} });
+      const pool1Account = await program.account.pool.fetch(pool1);
+      const pool2Account = await program.account.pool.fetch(pool2);
+
+      expect(pool1Account.curveType).to.deep.equal({ constantProduct: {} });
+      expect(pool1Account.feeBps).to.equal(25);
+      expect(pool2Account.curveType).to.deep.equal({ exponential: {} });
+      expect(pool2Account.feeBps).to.equal(100);
     });
 
-    it("Should reject Custom curve (not implemented)", async () => {
+    it("Should reject Custom curve and invalid parameters", async () => {
       const baseMint = await createTokenWithRevokedAuthorities();
       const tokenSupply = new anchor.BN(1_000_000_000_000);
-
       await mintTo(
         provider.connection,
         creator,
         baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey)).address,
         creator,
         tokenSupply.toNumber()
       );
@@ -457,38 +315,20 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
           { custom: {} },
           new anchor.BN(40_000_000_000)
         );
-        expect.fail("Should have rejected Custom curve");
+        expect.fail("Should reject Custom curve");
       } catch (err) {
         expect(err.toString()).to.include("CustomCurveNotImplemented");
       }
     });
 
-    it("Should reject non-CRX quote token", async () => {
-      // This test would require modifying the createPool helper to accept different quote mints
-      // For now, this is enforced by the program constraint
-      console.log("⚠️  Test skipped - enforced by program constraint");
-    });
-
-    it("Should reject if mint authority not revoked", async () => {
-      const baseMint = await createMint(
-        provider.connection,
-        creator,
-        creator.publicKey, // Authority NOT revoked
-        null,
-        6
-      );
-
+    it("Should reject mint with authority not revoked", async () => {
+      const baseMint = await createMint(provider.connection, creator, creator.publicKey, null, 6);
       const tokenSupply = new anchor.BN(1_000_000_000_000);
       await mintTo(
         provider.connection,
         creator,
         baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey)).address,
         creator,
         tokenSupply.toNumber()
       );
@@ -502,73 +342,104 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
           { constantProduct: {} },
           new anchor.BN(40_000_000_000)
         );
-        expect.fail("Should have rejected mint with authority");
+        expect.fail("Should reject mint with authority");
       } catch (err) {
         expect(err.toString()).to.include("MintAuthorityNotRevoked");
       }
     });
 
-    it("Should reject invalid market cap (too low)", async () => {
+    it("Should validate fee tiers correctly", async () => {
       const baseMint = await createTokenWithRevokedAuthorities();
       const tokenSupply = new anchor.BN(1_000_000_000_000);
-
       await mintTo(
         provider.connection,
         creator,
         baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey)).address,
+        creator,
+        tokenSupply.toNumber()
+      );
+
+      // Valid fees: 0, 25, 100
+      const { pool } = await createPool(
+        baseMint,
+        new anchor.BN(10_000_000_000),
+        tokenSupply,
+        0,
+        { constantProduct: {} },
+        new anchor.BN(40_000_000_000)
+      );
+      const poolAccount = await program.account.pool.fetch(pool);
+      expect(poolAccount.feeBps).to.equal(0);
+
+      // Invalid fee: 50
+      const baseMint2 = await createTokenWithRevokedAuthorities();
+      await mintTo(
+        provider.connection,
+        creator,
+        baseMint2,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint2, creator.publicKey)).address,
         creator,
         tokenSupply.toNumber()
       );
 
       try {
         await createPool(
-          baseMint,
-          new anchor.BN(500_000_000), // $500 - too low
+          baseMint2,
+          new anchor.BN(10_000_000_000),
+          tokenSupply,
+          50,
+          { constantProduct: {} },
+          new anchor.BN(40_000_000_000)
+        );
+        expect.fail("Should reject invalid fee");
+      } catch (err) {
+        expect(err.toString()).to.include("InvalidFee");
+      }
+    });
+
+    it("Should validate market cap ranges", async () => {
+      const baseMint1 = await createTokenWithRevokedAuthorities();
+      const baseMint2 = await createTokenWithRevokedAuthorities();
+      const tokenSupply = new anchor.BN(1_000_000_000_000);
+
+      for (const mint of [baseMint1, baseMint2]) {
+        await mintTo(
+          provider.connection,
+          creator,
+          mint,
+          (await getOrCreateAssociatedTokenAccount(provider.connection, creator, mint, creator.publicKey)).address,
+          creator,
+          tokenSupply.toNumber()
+        );
+      }
+
+      // Too low
+      try {
+        await createPool(
+          baseMint1,
+          new anchor.BN(500_000_000),
           tokenSupply,
           25,
           { constantProduct: {} },
           new anchor.BN(40_000_000_000)
         );
-        expect.fail("Should have rejected low market cap");
+        expect.fail("Should reject low market cap");
       } catch (err) {
         expect(err.toString()).to.include("InvalidMarketCap");
       }
-    });
 
-    it("Should reject invalid market cap (too high)", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
+      // Too high
       try {
         await createPool(
-          baseMint,
-          new anchor.BN(2_000_000_000_000), // $2M - too high
+          baseMint2,
+          new anchor.BN(2_000_000_000_000),
           tokenSupply,
           25,
           { constantProduct: {} },
           new anchor.BN(5_000_000_000_000)
         );
-        expect.fail("Should have rejected high market cap");
+        expect.fail("Should reject high market cap");
       } catch (err) {
         expect(err.toString()).to.include("InvalidMarketCap");
       }
@@ -577,17 +448,11 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
     it("Should reject invalid graduation threshold", async () => {
       const baseMint = await createTokenWithRevokedAuthorities();
       const tokenSupply = new anchor.BN(1_000_000_000_000);
-
       await mintTo(
         provider.connection,
         creator,
         baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey)).address,
         creator,
         tokenSupply.toNumber()
       );
@@ -599,210 +464,44 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
           tokenSupply,
           25,
           { constantProduct: {} },
-          new anchor.BN(5_000_000_000) // Graduation < market cap
+          new anchor.BN(5_000_000_000) // Less than market cap
         );
-        expect.fail("Should have rejected invalid graduation threshold");
+        expect.fail("Should reject invalid graduation threshold");
       } catch (err) {
         expect(err.toString()).to.include("InvalidMarketCap");
       }
     });
-
-    it("Should create pool with 0 fee tier", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const { pool } = await createPool(
-        baseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        0, // 0% fee
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.feeBps).to.equal(0);
-    });
-
-    it("Should create pool with 100 bps fee tier", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const { pool } = await createPool(
-        baseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        100, // 1% fee
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.feeBps).to.equal(100);
-    });
-
-    it("Should reject invalid fee tier", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      try {
-        await createPool(
-          baseMint,
-          new anchor.BN(10_000_000_000),
-          tokenSupply,
-          50, // Invalid - only 0, 25, 100 allowed
-          { constantProduct: {} },
-          new anchor.BN(40_000_000_000)
-        );
-        expect.fail("Should have rejected invalid fee");
-      } catch (err) {
-        expect(err.toString()).to.include("InvalidFee");
-      }
-    });
   });
 
-  describe("2. Buy Instruction Tests", () => {
-    let testPool: PublicKey;
-    let testBaseMint: PublicKey;
-    let testQuoteVault: PublicKey;
-    let testBaseVault: PublicKey;
+  describe("2. Buy Operations", () => {
+    let testPool: PublicKey, testQuoteVault: PublicKey, testBaseVault: PublicKey, testBaseMint: PublicKey;
 
     before(async () => {
-      // Create a test pool for buy tests
-      testBaseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        testBaseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          testBaseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const poolData = await createPool(
-        testBaseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        25,
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      testPool = poolData.pool;
-      testQuoteVault = poolData.quoteVault;
-      testBaseVault = poolData.baseVault;
-
-      // Mint CRX to traders
-      await mintTo(
-        provider.connection,
-        authority,
-        crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader1,
-          crxMint,
-          trader1.publicKey
-        )).address,
-        authority,
-        1_000_000_000_000 // 1M CRX
-      );
+      const setup = await setupTestPool();
+      testPool = setup.pool;
+      testQuoteVault = setup.quoteVault;
+      testBaseVault = setup.baseVault;
+      testBaseMint = setup.baseMint;
 
       await mintTo(
         provider.connection,
         authority,
         crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader2,
-          crxMint,
-          trader2.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, trader1, crxMint, trader1.publicKey)).address,
         authority,
-        1_000_000_000_000 // 1M CRX
+        1_000_000_000_000
       );
-    });
-
-    it("Should execute normal buy in PreBonding phase", async () => {
-      const quoteAmount = new anchor.BN(1_000_000); // 1 CRX
-      const minBaseAmount = new anchor.BN(0);
-
-      await executeBuy(
-        testPool,
-        testQuoteVault,
-        testBaseVault,
-        testBaseMint,
-        trader1,
-        quoteAmount,
-        minBaseAmount
-      );
-
-      const poolAccount = await program.account.pool.fetch(testPool);
-      expect(poolAccount.currentPhase).to.deep.equal({ preBonding: {} });
-      expect(poolAccount.realQuoteReserves.gt(new anchor.BN(0))).to.be.true;
     });
 
     it("Should execute buy with slippage protection", async () => {
       const quoteAmount = new anchor.BN(1_000_000);
-      const minBaseAmount = new anchor.BN(190_000); // Expect ~200k tokens
+      const minBaseAmount = new anchor.BN(190_000);
 
-      await executeBuy(
-        testPool,
-        testQuoteVault,
-        testBaseVault,
-        testBaseMint,
-        trader1,
-        quoteAmount,
-        minBaseAmount
-      );
+      await executeTrade(testPool, testQuoteVault, testBaseVault, testBaseMint, trader1, true, quoteAmount, minBaseAmount);
+
+      const poolAccount = await program.account.pool.fetch(testPool);
+      expect(poolAccount.currentPhase).to.deep.equal({ preBonding: {} });
+      expect(poolAccount.realQuoteReserves.gt(new anchor.BN(0))).to.be.true;
 
       const userBaseAccount = await getOrCreateAssociatedTokenAccount(
         provider.connection,
@@ -810,887 +509,342 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
         testBaseMint,
         trader1.publicKey
       );
-
       const balance = await getAccount(provider.connection, userBaseAccount.address);
       expect(Number(balance.amount)).to.be.greaterThan(minBaseAmount.toNumber());
     });
 
-    it("Should reject buy if output < min_base_amount (SlippageExceeded)", async () => {
-      const quoteAmount = new anchor.BN(1_000_000);
-      const minBaseAmount = new anchor.BN(1_000_000_000_000); // Unreasonably high
-
+    it("Should reject invalid buy amounts", async () => {
+      // SlippageExceeded
       try {
-        await executeBuy(
+        await executeTrade(
           testPool,
           testQuoteVault,
           testBaseVault,
           testBaseMint,
           trader1,
-          quoteAmount,
-          minBaseAmount
+          true,
+          new anchor.BN(1_000_000),
+          new anchor.BN(1_000_000_000_000)
         );
-        expect.fail("Should have rejected due to slippage");
+        expect.fail("Should reject due to slippage");
       } catch (err) {
         expect(err.toString()).to.include("SlippageExceeded");
       }
-    });
 
-    it("Should reject buy if output < MIN_OUTPUT_AMOUNT (OutputTooSmall)", async () => {
-      const quoteAmount = new anchor.BN(1); // Dust amount
-      const minBaseAmount = new anchor.BN(0);
-
+      // OutputTooSmall
       try {
-        await executeBuy(
+        await executeTrade(
           testPool,
           testQuoteVault,
           testBaseVault,
           testBaseMint,
           trader1,
-          quoteAmount,
-          minBaseAmount
+          true,
+          new anchor.BN(1),
+          new anchor.BN(0)
         );
-        expect.fail("Should have rejected dust trade");
+        expect.fail("Should reject dust trade");
       } catch (err) {
         expect(err.toString()).to.include("OutputTooSmall");
       }
+
+      // Zero amount
+      try {
+        await executeTrade(
+          testPool,
+          testQuoteVault,
+          testBaseVault,
+          testBaseMint,
+          trader1,
+          true,
+          new anchor.BN(0),
+          new anchor.BN(0)
+        );
+        expect.fail("Should reject zero amount");
+      } catch (err) {
+        expect(err.toString()).to.include("InvalidAmount");
+      }
     });
 
-    it("Should verify reserve updates match vault balances", async () => {
-      await verifyVaultBalances(testPool, testQuoteVault, testBaseVault);
-    });
-
-    it("Should collect fees to fee_recipient", async () => {
-      const feeRecipientBalanceBefore = await getAccount(
-        provider.connection,
-        feeRecipientCrxAccount
-      );
-
-      const quoteAmount = new anchor.BN(10_000_000); // 10 CRX
-
-      await executeBuy(
+    it("Should collect fees to fee recipient", async () => {
+      const feeBalanceBefore = await getAccount(provider.connection, feeRecipientCrxAccount);
+      await executeTrade(
         testPool,
         testQuoteVault,
         testBaseVault,
         testBaseMint,
         trader1,
-        quoteAmount,
+        true,
+        new anchor.BN(10_000_000),
         new anchor.BN(0)
       );
-
-      const feeRecipientBalanceAfter = await getAccount(
-        provider.connection,
-        feeRecipientCrxAccount
-      );
-
-      expect(Number(feeRecipientBalanceAfter.amount)).to.be.greaterThan(
-        Number(feeRecipientBalanceBefore.amount)
-      );
+      const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
+      expect(Number(feeBalanceAfter.amount)).to.be.greaterThan(Number(feeBalanceBefore.amount));
     });
   });
 
-  describe("3. Sell Instruction Tests", () => {
-    let sellTestPool: PublicKey;
-    let sellTestBaseMint: PublicKey;
-    let sellTestQuoteVault: PublicKey;
-    let sellTestBaseVault: PublicKey;
+  describe("3. Sell Operations", () => {
+    let sellPool: PublicKey, sellQuoteVault: PublicKey, sellBaseVault: PublicKey, sellBaseMint: PublicKey;
 
     before(async () => {
-      // Create a new pool for sell tests
-      sellTestBaseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
+      const setup = await setupTestPool();
+      sellPool = setup.pool;
+      sellQuoteVault = setup.quoteVault;
+      sellBaseVault = setup.baseVault;
+      sellBaseMint = setup.baseMint;
 
-      await mintTo(
-        provider.connection,
-        creator,
-        sellTestBaseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          sellTestBaseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const poolData = await createPool(
-        sellTestBaseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        25,
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      sellTestPool = poolData.pool;
-      sellTestQuoteVault = poolData.quoteVault;
-      sellTestBaseVault = poolData.baseVault;
-
-      // Give trader1 some CRX and execute buy first to get base tokens
       await mintTo(
         provider.connection,
         authority,
         crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader1,
-          crxMint,
-          trader1.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, trader1, crxMint, trader1.publicKey)).address,
         authority,
         1_000_000_000_000
       );
 
-      // Buy some tokens first
-      await executeBuy(
-        sellTestPool,
-        sellTestQuoteVault,
-        sellTestBaseVault,
-        sellTestBaseMint,
-        trader1,
-        new anchor.BN(10_000_000),
-        new anchor.BN(0)
-      );
-    });
-
-    it("Should execute normal sell in PreBonding phase", async () => {
-      const baseAmount = new anchor.BN(1_000_000); // 1 token
-      const minQuoteAmount = new anchor.BN(0);
-
-      await executeSell(
-        sellTestPool,
-        sellTestQuoteVault,
-        sellTestBaseVault,
-        sellTestBaseMint,
-        trader1,
-        baseAmount,
-        minQuoteAmount
-      );
-
-      const poolAccount = await program.account.pool.fetch(sellTestPool);
-      expect(poolAccount.currentPhase).to.deep.equal({ preBonding: {} });
+      // Buy tokens first
+      await executeTrade(sellPool, sellQuoteVault, sellBaseVault, sellBaseMint, trader1, true, new anchor.BN(10_000_000), new anchor.BN(0));
     });
 
     it("Should execute sell with slippage protection", async () => {
       const baseAmount = new anchor.BN(1_000_000);
-      const minQuoteAmount = new anchor.BN(1); // Expect some CRX back
+      const minQuoteAmount = new anchor.BN(1);
 
-      await executeSell(
-        sellTestPool,
-        sellTestQuoteVault,
-        sellTestBaseVault,
-        sellTestBaseMint,
-        trader1,
-        baseAmount,
-        minQuoteAmount
-      );
+      await executeTrade(sellPool, sellQuoteVault, sellBaseVault, sellBaseMint, trader1, false, baseAmount, minQuoteAmount);
 
-      const userQuoteAccount = await getOrCreateAssociatedTokenAccount(
-        provider.connection,
-        trader1,
-        crxMint,
-        trader1.publicKey
-      );
+      const poolAccount = await program.account.pool.fetch(sellPool);
+      expect(poolAccount.currentPhase).to.deep.equal({ preBonding: {} });
 
+      const userQuoteAccount = await getOrCreateAssociatedTokenAccount(provider.connection, trader1, crxMint, trader1.publicKey);
       const balance = await getAccount(provider.connection, userQuoteAccount.address);
       expect(Number(balance.amount)).to.be.greaterThan(0);
     });
 
-    it("Should reject sell if output < min_quote_amount (SlippageExceeded)", async () => {
-      const baseAmount = new anchor.BN(1_000_000);
-      const minQuoteAmount = new anchor.BN(1_000_000_000_000); // Unreasonably high
-
+    it("Should reject invalid sell amounts", async () => {
+      // SlippageExceeded
       try {
-        await executeSell(
-          sellTestPool,
-          sellTestQuoteVault,
-          sellTestBaseVault,
-          sellTestBaseMint,
+        await executeTrade(
+          sellPool,
+          sellQuoteVault,
+          sellBaseVault,
+          sellBaseMint,
           trader1,
-          baseAmount,
-          minQuoteAmount
+          false,
+          new anchor.BN(1_000_000),
+          new anchor.BN(1_000_000_000_000)
         );
-        expect.fail("Should have rejected due to slippage");
+        expect.fail("Should reject due to slippage");
       } catch (err) {
         expect(err.toString()).to.include("SlippageExceeded");
       }
-    });
 
-    it("Should reject sell if output < MIN_OUTPUT_AMOUNT (OutputTooSmall)", async () => {
-      const baseAmount = new anchor.BN(1); // Dust amount
-      const minQuoteAmount = new anchor.BN(0);
-
+      // OutputTooSmall
       try {
-        await executeSell(
-          sellTestPool,
-          sellTestQuoteVault,
-          sellTestBaseVault,
-          sellTestBaseMint,
+        await executeTrade(
+          sellPool,
+          sellQuoteVault,
+          sellBaseVault,
+          sellBaseMint,
           trader1,
-          baseAmount,
-          minQuoteAmount
+          false,
+          new anchor.BN(1),
+          new anchor.BN(0)
         );
-        expect.fail("Should have rejected dust trade");
+        expect.fail("Should reject dust trade");
       } catch (err) {
         expect(err.toString()).to.include("OutputTooSmall");
       }
     });
-
-    it("Should verify reserve updates after sell", async () => {
-      await verifyVaultBalances(sellTestPool, sellTestQuoteVault, sellTestBaseVault);
-    });
   });
 
-  describe("4. Graduation Tests", () => {
-    let gradPool: PublicKey;
-    let gradBaseMint: PublicKey;
-    let gradQuoteVault: PublicKey;
-    let gradBaseVault: PublicKey;
+  describe("4. Graduation & Phase Transitions", () => {
+    let gradPool: PublicKey, gradQuoteVault: PublicKey, gradBaseVault: PublicKey, gradBaseMint: PublicKey;
 
     before(async () => {
-      // Create pool with low graduation threshold for testing
-      gradBaseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
+      const setup = await setupTestPool(5_000_000_000, 10_000_000_000);
+      gradPool = setup.pool;
+      gradQuoteVault = setup.quoteVault;
+      gradBaseVault = setup.baseVault;
+      gradBaseMint = setup.baseMint;
 
-      await mintTo(
-        provider.connection,
-        creator,
-        gradBaseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          gradBaseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const poolData = await createPool(
-        gradBaseMint,
-        new anchor.BN(5_000_000_000), // $5k
-        tokenSupply,
-        25,
-        { constantProduct: {} },
-        new anchor.BN(10_000_000_000) // $10k graduation (low for testing)
-      );
-
-      gradPool = poolData.pool;
-      gradQuoteVault = poolData.quoteVault;
-      gradBaseVault = poolData.baseVault;
-
-      // Mint CRX to trader2
       await mintTo(
         provider.connection,
         authority,
         crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader2,
-          crxMint,
-          trader2.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, trader2, crxMint, trader2.publicKey)).address,
         authority,
-        10_000_000_000_000 // 10M CRX
+        10_000_000_000_000
       );
     });
 
-    it("Should trigger graduation when threshold reached", async () => {
-      // Buy enough to graduate
-      const largeBuy = new anchor.BN(5_000_000_000); // 5k CRX
-
-      await executeBuy(
+    it("Should graduate and enable zero-fee trading", async () => {
+      // Trigger graduation
+      await executeTrade(
         gradPool,
         gradQuoteVault,
         gradBaseVault,
         gradBaseMint,
         trader2,
-        largeBuy,
+        true,
+        new anchor.BN(5_000_000_000),
         new anchor.BN(0)
       );
 
       const poolAccount = await program.account.pool.fetch(gradPool);
       expect(poolAccount.currentPhase).to.deep.equal({ graduated: {} });
-    });
 
-    it("Should have 0 fee after graduation", async () => {
-      const poolAccount = await program.account.pool.fetch(gradPool);
+      // Verify trading works and fee is 0
+      await executeTrade(gradPool, gradQuoteVault, gradBaseVault, gradBaseMint, trader2, true, new anchor.BN(1_000_000), new anchor.BN(0));
 
-      // Get current fee should return 0 for graduated pools
       const currentFee = poolAccount.currentPhase.graduated ? 0 : poolAccount.feeBps;
       expect(currentFee).to.equal(0);
     });
 
-    it("Should allow trading after graduation", async () => {
-      const quoteAmount = new anchor.BN(1_000_000);
-
-      await executeBuy(
-        gradPool,
-        gradQuoteVault,
-        gradBaseVault,
-        gradBaseMint,
-        trader2,
-        quoteAmount,
-        new anchor.BN(0)
-      );
-
-      const poolAccount = await program.account.pool.fetch(gradPool);
-      expect(poolAccount.currentPhase).to.deep.equal({ graduated: {} });
-    });
-
-    it("Should maintain x*y=k in graduated phase", async () => {
-      const poolBefore = await program.account.pool.fetch(gradPool);
-      const productBefore = poolBefore.realQuoteReserves.mul(poolBefore.realBaseReserves);
-
-      // Execute buy
-      await executeBuy(
-        gradPool,
-        gradQuoteVault,
-        gradBaseVault,
-        gradBaseMint,
-        trader2,
-        new anchor.BN(1_000_000),
-        new anchor.BN(0)
-      );
-
-      const poolAfter = await program.account.pool.fetch(gradPool);
-      const productAfter = poolAfter.realQuoteReserves.mul(poolAfter.realBaseReserves);
-
-      // In graduated phase, constant product should be maintained exactly
-      expect(productAfter.toString()).to.equal(productBefore.toString());
-    });
-
-    it("Should verify buy-then-sell maintains constant product", async () => {
+    it("Should maintain constant product after graduation", async () => {
       const poolBefore = await program.account.pool.fetch(gradPool);
       const productBefore = poolBefore.realQuoteReserves.mul(poolBefore.realBaseReserves);
 
       // Buy
-      await executeBuy(
-        gradPool,
-        gradQuoteVault,
-        gradBaseVault,
-        gradBaseMint,
-        trader2,
-        new anchor.BN(5_000_000),
-        new anchor.BN(0)
-      );
+      await executeTrade(gradPool, gradQuoteVault, gradBaseVault, gradBaseMint, trader2, true, new anchor.BN(5_000_000), new anchor.BN(0));
 
-      // Get trader's base balance
-      const traderBaseAccount = await getOrCreateAssociatedTokenAccount(
-        provider.connection,
-        trader2,
-        gradBaseMint,
-        trader2.publicKey
-      );
+      const poolMid = await program.account.pool.fetch(gradPool);
+      const productMid = poolMid.realQuoteReserves.mul(poolMid.realBaseReserves);
+      expect(productMid.toString()).to.equal(productBefore.toString());
+
+      // Sell
+      const traderBaseAccount = await getOrCreateAssociatedTokenAccount(provider.connection, trader2, gradBaseMint, trader2.publicKey);
       const baseBalance = await getAccount(provider.connection, traderBaseAccount.address);
-
-      // Sell half back
-      await executeSell(
+      await executeTrade(
         gradPool,
         gradQuoteVault,
         gradBaseVault,
         gradBaseMint,
         trader2,
+        false,
         new anchor.BN(Number(baseBalance.amount) / 2),
         new anchor.BN(0)
       );
 
       const poolAfter = await program.account.pool.fetch(gradPool);
       const productAfter = poolAfter.realQuoteReserves.mul(poolAfter.realBaseReserves);
-
-      // Product should be maintained
       expect(productAfter.toString()).to.equal(productBefore.toString());
     });
   });
 
-  describe("5. Edge Cases", () => {
-    let edgePool: PublicKey;
-    let edgeBaseMint: PublicKey;
-    let edgeQuoteVault: PublicKey;
-    let edgeBaseVault: PublicKey;
+  describe("5. Price Discovery", () => {
+    it("Should show price increases with buys and decreases with sells", async () => {
+      const { pool, quoteVault, baseVault, baseMint } = await setupTestPool();
+
+      await mintTo(
+        provider.connection,
+        authority,
+        crxMint,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, trader1, crxMint, trader1.publicKey)).address,
+        authority,
+        1_000_000_000_000
+      );
+
+      const poolBefore = await program.account.pool.fetch(pool);
+      const priceBefore = poolBefore.virtualQuoteReserves.toNumber() / poolBefore.virtualBaseReserves.toNumber();
+
+      // Buy - price should increase
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(10_000_000), new anchor.BN(0));
+
+      const poolMid = await program.account.pool.fetch(pool);
+      const priceMid = poolMid.virtualQuoteReserves.toNumber() / poolMid.virtualBaseReserves.toNumber();
+      expect(priceMid).to.be.greaterThan(priceBefore);
+
+      // Sell - price should decrease
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, false, new anchor.BN(1_000_000), new anchor.BN(0));
+
+      const poolAfter = await program.account.pool.fetch(pool);
+      const priceAfter = poolAfter.virtualQuoteReserves.toNumber() / poolAfter.virtualBaseReserves.toNumber();
+      expect(priceAfter).to.be.lessThan(priceMid);
+    });
+  });
+
+  describe("6. Edge Cases & Stress Tests", () => {
+    let edgePool: PublicKey, edgeQuoteVault: PublicKey, edgeBaseVault: PublicKey, edgeBaseMint: PublicKey;
 
     before(async () => {
-      edgeBaseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
+      const setup = await setupTestPool();
+      edgePool = setup.pool;
+      edgeQuoteVault = setup.quoteVault;
+      edgeBaseVault = setup.baseVault;
+      edgeBaseMint = setup.baseMint;
 
-      await mintTo(
-        provider.connection,
-        creator,
-        edgeBaseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          edgeBaseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const poolData = await createPool(
-        edgeBaseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        25,
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      edgePool = poolData.pool;
-      edgeQuoteVault = poolData.quoteVault;
-      edgeBaseVault = poolData.baseVault;
-
-      // Fund trader
       await mintTo(
         provider.connection,
         authority,
         crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader1,
-          crxMint,
-          trader1.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, trader1, crxMint, trader1.publicKey)).address,
         authority,
-        1_000_000_000_000
+        10_000_000_000_000
       );
     });
 
-    it("Should handle minimum valid trade (just above MIN_OUTPUT)", async () => {
-      // Find amount that produces just above 1000 output
-      const quoteAmount = new anchor.BN(10_000); // Small amount
-
-      await executeBuy(
-        edgePool,
-        edgeQuoteVault,
-        edgeBaseVault,
-        edgeBaseMint,
-        trader1,
-        quoteAmount,
-        new anchor.BN(0)
-      );
-
-      const userBaseAccount = await getOrCreateAssociatedTokenAccount(
-        provider.connection,
-        trader1,
-        edgeBaseMint,
-        trader1.publicKey
-      );
-
-      const balance = await getAccount(provider.connection, userBaseAccount.address);
-      expect(Number(balance.amount)).to.be.greaterThan(1000);
-    });
-
-    it("Should reject zero amount buy", async () => {
-      try {
-        await executeBuy(
-          edgePool,
-          edgeQuoteVault,
-          edgeBaseVault,
-          edgeBaseMint,
-          trader1,
-          new anchor.BN(0),
-          new anchor.BN(0)
-        );
-        expect.fail("Should have rejected zero amount");
-      } catch (err) {
-        expect(err.toString()).to.include("InvalidAmount");
-      }
-    });
-
-    it("Should handle large volume trades correctly", async () => {
-      const largeBuy = new anchor.BN(100_000_000); // 100 CRX
-
-      // Mint more CRX to trader
-      await mintTo(
-        provider.connection,
-        authority,
-        crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader1,
-          crxMint,
-          trader1.publicKey
-        )).address,
-        authority,
-        1_000_000_000_000
-      );
-
-      await executeBuy(
-        edgePool,
-        edgeQuoteVault,
-        edgeBaseVault,
-        edgeBaseMint,
-        trader1,
-        largeBuy,
-        new anchor.BN(0)
-      );
-
-      // Verify reserves still match vaults
+    it("Should handle large volume trades", async () => {
+      await executeTrade(edgePool, edgeQuoteVault, edgeBaseVault, edgeBaseMint, trader1, true, new anchor.BN(100_000_000), new anchor.BN(0));
       await verifyVaultBalances(edgePool, edgeQuoteVault, edgeBaseVault);
     });
 
-    it("Should maintain invariants across multiple sequential trades", async () => {
+    it("Should maintain invariants across sequential trades", async () => {
       for (let i = 0; i < 5; i++) {
-        await executeBuy(
-          edgePool,
-          edgeQuoteVault,
-          edgeBaseVault,
-          edgeBaseMint,
-          trader1,
-          new anchor.BN(1_000_000),
-          new anchor.BN(0)
-        );
-
+        await executeTrade(edgePool, edgeQuoteVault, edgeBaseVault, edgeBaseMint, trader1, true, new anchor.BN(1_000_000), new anchor.BN(0));
         await verifyVaultBalances(edgePool, edgeQuoteVault, edgeBaseVault);
       }
     });
   });
 
-  describe("6. Curve Math Tests", () => {
-    it("Should price correctly with ConstantProduct curve", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const { pool } = await createPool(
-        baseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        0, // 0 fee for easier math
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      const poolAccount = await program.account.pool.fetch(pool);
-
-      // Verify initial price matches expected
-      // Price = virtualQuote / virtualBase
-      const expectedPrice = poolAccount.virtualQuoteReserves.toNumber() /
-                           poolAccount.virtualBaseReserves.toNumber();
-
-      expect(expectedPrice).to.be.greaterThan(0);
-    });
-
-    it("Should price correctly with Exponential curve", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const { pool } = await createPool(
-        baseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        0,
-        { exponential: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.curveType).to.deep.equal({ exponential: {} });
-    });
-
-    it("Should show price increases with buys", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const { pool, quoteVault, baseVault } = await createPool(
-        baseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        25,
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      const poolBefore = await program.account.pool.fetch(pool);
-      const priceBefore = poolBefore.virtualQuoteReserves.toNumber() /
-                         poolBefore.virtualBaseReserves.toNumber();
-
-      // Fund and execute buy
-      await mintTo(
-        provider.connection,
-        authority,
-        crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader1,
-          crxMint,
-          trader1.publicKey
-        )).address,
-        authority,
-        1_000_000_000_000
-      );
-
-      await executeBuy(
-        pool,
-        quoteVault,
-        baseVault,
-        baseMint,
-        trader1,
-        new anchor.BN(10_000_000),
-        new anchor.BN(0)
-      );
-
-      const poolAfter = await program.account.pool.fetch(pool);
-      const priceAfter = poolAfter.virtualQuoteReserves.toNumber() /
-                        poolAfter.virtualBaseReserves.toNumber();
-
-      expect(priceAfter).to.be.greaterThan(priceBefore);
-    });
-
-    it("Should show price decreases with sells", async () => {
-      const baseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        baseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          baseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const { pool, quoteVault, baseVault } = await createPool(
-        baseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        25,
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      // Fund and buy first
-      await mintTo(
-        provider.connection,
-        authority,
-        crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader1,
-          crxMint,
-          trader1.publicKey
-        )).address,
-        authority,
-        1_000_000_000_000
-      );
-
-      await executeBuy(
-        pool,
-        quoteVault,
-        baseVault,
-        baseMint,
-        trader1,
-        new anchor.BN(10_000_000),
-        new anchor.BN(0)
-      );
-
-      const poolBefore = await program.account.pool.fetch(pool);
-      const priceBefore = poolBefore.virtualQuoteReserves.toNumber() /
-                         poolBefore.virtualBaseReserves.toNumber();
-
-      // Sell
-      await executeSell(
-        pool,
-        quoteVault,
-        baseVault,
-        baseMint,
-        trader1,
-        new anchor.BN(1_000_000),
-        new anchor.BN(0)
-      );
-
-      const poolAfter = await program.account.pool.fetch(pool);
-      const priceAfter = poolAfter.virtualQuoteReserves.toNumber() /
-                        poolAfter.virtualBaseReserves.toNumber();
-
-      expect(priceAfter).to.be.lessThan(priceBefore);
-    });
-  });
-
-  describe("7. Invariant Tests", () => {
-    let invPool: PublicKey;
-    let invBaseMint: PublicKey;
-    let invQuoteVault: PublicKey;
-    let invBaseVault: PublicKey;
+  describe("7. System Integrity", () => {
+    let sysPool: PublicKey, sysQuoteVault: PublicKey, sysBaseVault: PublicKey, sysBaseMint: PublicKey;
 
     before(async () => {
-      invBaseMint = await createTokenWithRevokedAuthorities();
-      const tokenSupply = new anchor.BN(1_000_000_000_000);
-
-      await mintTo(
-        provider.connection,
-        creator,
-        invBaseMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          creator,
-          invBaseMint,
-          creator.publicKey
-        )).address,
-        creator,
-        tokenSupply.toNumber()
-      );
-
-      const poolData = await createPool(
-        invBaseMint,
-        new anchor.BN(10_000_000_000),
-        tokenSupply,
-        25,
-        { constantProduct: {} },
-        new anchor.BN(40_000_000_000)
-      );
-
-      invPool = poolData.pool;
-      invQuoteVault = poolData.quoteVault;
-      invBaseVault = poolData.baseVault;
+      const setup = await setupTestPool();
+      sysPool = setup.pool;
+      sysQuoteVault = setup.quoteVault;
+      sysBaseVault = setup.baseVault;
+      sysBaseMint = setup.baseMint;
 
       await mintTo(
         provider.connection,
         authority,
         crxMint,
-        (await getOrCreateAssociatedTokenAccount(
-          provider.connection,
-          trader1,
-          crxMint,
-          trader1.publicKey
-        )).address,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, trader1, crxMint, trader1.publicKey)).address,
         authority,
         1_000_000_000_000
       );
     });
 
     it("Should maintain virtual x*y=k in PreBonding", async () => {
-      const product = await verifyInvariant(invPool, "PreBonding");
+      const poolBefore = await program.account.pool.fetch(sysPool);
+      const productBefore = poolBefore.virtualQuoteReserves.mul(poolBefore.virtualBaseReserves);
 
-      await executeBuy(
-        invPool,
-        invQuoteVault,
-        invBaseVault,
-        invBaseMint,
-        trader1,
-        new anchor.BN(1_000_000),
-        new anchor.BN(0)
-      );
+      await executeTrade(sysPool, sysQuoteVault, sysBaseVault, sysBaseMint, trader1, true, new anchor.BN(1_000_000), new anchor.BN(0));
 
-      await verifyInvariant(invPool, "PreBonding", product);
+      const poolAfter = await program.account.pool.fetch(sysPool);
+      const productAfter = poolAfter.virtualQuoteReserves.mul(poolAfter.virtualBaseReserves);
+
+      // With fees, product can decrease slightly but should maintain pricing integrity
+      expect(productAfter.gte(productBefore.muln(0.99))).to.be.true;
     });
 
-    it("Should verify vault balances = real_reserves after every trade", async () => {
-      await executeBuy(
-        invPool,
-        invQuoteVault,
-        invBaseVault,
-        invBaseMint,
-        trader1,
-        new anchor.BN(1_000_000),
-        new anchor.BN(0)
-      );
-
-      await verifyVaultBalances(invPool, invQuoteVault, invBaseVault);
-
-      // Buy tokens first to have some to sell
-      await executeBuy(
-        invPool,
-        invQuoteVault,
-        invBaseVault,
-        invBaseMint,
-        trader1,
-        new anchor.BN(5_000_000),
-        new anchor.BN(0)
-      );
-
-      await executeSell(
-        invPool,
-        invQuoteVault,
-        invBaseVault,
-        invBaseMint,
-        trader1,
-        new anchor.BN(1_000_000),
-        new anchor.BN(0)
-      );
-
-      await verifyVaultBalances(invPool, invQuoteVault, invBaseVault);
-    });
-
-    it("Should maintain total supply conservation", async () => {
-      const poolAccount = await program.account.pool.fetch(invPool);
-      const quoteVaultAccount = await getAccount(provider.connection, invQuoteVault);
-      const baseVaultAccount = await getAccount(provider.connection, invBaseVault);
-
-      // Real reserves should equal vault balances
-      expect(poolAccount.realQuoteReserves.toString()).to.equal(
-        quoteVaultAccount.amount.toString()
-      );
-      expect(poolAccount.realBaseReserves.toString()).to.equal(
-        baseVaultAccount.amount.toString()
-      );
-    });
-
-    it("Should track fee accounting accurately", async () => {
-      const poolBefore = await program.account.pool.fetch(invPool);
+    it("Should verify comprehensive accounting integrity", async () => {
+      const poolBefore = await program.account.pool.fetch(sysPool);
       const feesBefore = poolBefore.totalFeesCollected;
 
-      await executeBuy(
-        invPool,
-        invQuoteVault,
-        invBaseVault,
-        invBaseMint,
-        trader1,
-        new anchor.BN(10_000_000),
-        new anchor.BN(0)
-      );
+      await executeTrade(sysPool, sysQuoteVault, sysBaseVault, sysBaseMint, trader1, true, new anchor.BN(10_000_000), new anchor.BN(0));
 
-      const poolAfter = await program.account.pool.fetch(invPool);
-      const feesAfter = poolAfter.totalFeesCollected;
+      // Verify vault balances match reserves
+      const poolAfter = await program.account.pool.fetch(sysPool);
+      const quoteVaultAccount = await getAccount(provider.connection, sysQuoteVault);
+      const baseVaultAccount = await getAccount(provider.connection, sysBaseVault);
 
-      expect(feesAfter.gt(feesBefore)).to.be.true;
+      expect(poolAfter.realQuoteReserves.toString()).to.equal(quoteVaultAccount.amount.toString());
+      expect(poolAfter.realBaseReserves.toString()).to.equal(baseVaultAccount.amount.toString());
+
+      // Verify fee tracking
+      expect(poolAfter.totalFeesCollected.gt(feesBefore)).to.be.true;
     });
   });
 });

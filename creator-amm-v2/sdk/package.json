@@ -1,0 +1,46 @@
+{
+  "name": "@scale-amm/sdk",
+  "version": "1.0.0",
+  "description": "Dead-simple TypeScript SDK for Scale AMM - Integrate in <10 lines of code",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "ts-node test/examples.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "solana",
+    "defi",
+    "amm",
+    "dex",
+    "bonding-curve",
+    "token-launch",
+    "scale-amm"
+  ],
+  "author": "Scale AMM Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scale-amm/sdk"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@solana/web3.js": "^1.87.6",
+    "@solana/spl-token": "^0.3.9"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  },
+  "peerDependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@solana/web3.js": "^1.87.0",
+    "@solana/spl-token": "^0.3.0"
+  }
+}

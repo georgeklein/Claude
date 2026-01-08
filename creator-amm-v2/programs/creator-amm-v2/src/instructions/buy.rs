@@ -25,14 +25,14 @@ pub struct Buy<'info> {
     #[account(
         mut,
         constraint = quote_vault.key() == pool.quote_vault,
-        constraint = quote_vault.authority == pool.key() @ ErrorCode::Unauthorized,
+        constraint = quote_vault.owner == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub quote_vault: Account<'info, TokenAccount>,
 
     #[account(
         mut,
         constraint = base_vault.key() == pool.base_vault,
-        constraint = base_vault.authority == pool.key() @ ErrorCode::Unauthorized,
+        constraint = base_vault.owner == pool.key() @ ErrorCode::Unauthorized,
     )]
     pub base_vault: Account<'info, TokenAccount>,
 
