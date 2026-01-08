@@ -1,7 +1,7 @@
 # Scale AMM - What It Does
 
 ## Overview
-**Bonding curve AMM for launching tokens on Solana with dynamic USD-denominated pricing.**
+**Bonding curve AMM powering $CRX on Solana with dynamic USD-denominated pricing.**
 
 ---
 
