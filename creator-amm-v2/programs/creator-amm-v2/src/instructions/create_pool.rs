@@ -160,29 +160,12 @@ pub fn handler(
         ErrorCode::InvalidCrxPrice
     );
 
-    msg!("📊 CRX Price: ${}", crx_price_usd as f64 / 1_000_000.0);
-
-    // Step 2: Calculate dynamic virtual reserves for target market cap
     let (virtual_quote_reserves, virtual_base_reserves) =
-        calculate_virtual_reserves_for_market_cap(
-            target_market_cap_usd,
-            token_supply,
-            crx_price_usd,
-        )?;
+        calculate_virtual_reserves_for_market_cap(target_market_cap_usd, token_supply, crx_price_usd)?;
 
-    // Step 3: Calculate dynamic graduation threshold in CRX
     let graduation_threshold_crx = (graduation_threshold_usd as u128)
-        .checked_mul(1_000_000u128) // CRX decimals
-        .ok_or(ErrorCode::MathOverflow)?
-        .checked_div(crx_price_usd as u128)
-        .ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
-
-    msg!("🎯 Graduation Threshold (Dynamic):");
-    msg!("   {} CRX = ${} USD",
-        graduation_threshold_crx,
-        graduation_threshold_usd as f64 / 1_000_000.0
-    );
-    msg!("   CRX Price at Launch: ${}", crx_price_usd as f64 / 1_000_000.0);
+        .checked_mul(1_000_000u128).ok_or(ErrorCode::MathOverflow)?
+        .checked_div(crx_price_usd as u128).ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
 
     // Initialize pool state
     pool.authority = pool.key();
@@ -209,15 +192,9 @@ pub fn handler(
     pool.total_quote_volume = 0;
     pool.total_base_volume = 0;
     pool.total_fees_collected = 0;
-    pool.unique_traders = 0;
-
     pool.creator = ctx.accounts.creator.key();
-
     pool.last_crx_price_usd = crx_price_usd;
-    pool.last_price_update_slot = clock.slot;
-
-    pool.is_paused = false; // Pool starts unpaused
-
+    pool.is_paused = false;
     pool.bump = ctx.bumps.pool;
 
     // Transfer initial base tokens from creator to pool
@@ -254,19 +231,6 @@ pub fn handler(
         created_at_slot: clock.slot,
         timestamp: clock.unix_timestamp,
     });
-
-    msg!("🚀 Pool created successfully!");
-    msg!("💰 Target Market Cap: ${}", target_market_cap_usd as f64 / 1_000_000.0);
-    msg!("🪙 Token Supply: {}", token_supply);
-    msg!("📈 Initial Price: {} CRX per token",
-        (virtual_quote_reserves as f64) / (virtual_base_reserves as f64)
-    );
-    msg!("📊 Virtual Reserves: {} CRX × {} tokens",
-        virtual_quote_reserves,
-        virtual_base_reserves
-    );
-    msg!("🎯 Phase: PreBonding (Fee: {} bps)", fee_bps);
-    msg!("📈 Curve Type: {:?}", curve_type);
 
     Ok(())
 }

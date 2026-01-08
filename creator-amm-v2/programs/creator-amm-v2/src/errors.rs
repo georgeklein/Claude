@@ -2,87 +2,50 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Slippage tolerance exceeded")]
+    #[msg("Slippage exceeded")]
     SlippageExceeded,
-
-    #[msg("Insufficient liquidity in pool")]
+    #[msg("Insufficient liquidity")]
     InsufficientLiquidity,
-
-    #[msg("Invalid fee percentage (must be 0-10000 basis points)")]
+    #[msg("Invalid fee")]
     InvalidFee,
-
-    #[msg("Pool has graduated")]
-    PoolGraduated, // Note: Trading is still allowed after graduation
-
-    #[msg("Math overflow occurred")]
+    #[msg("Math overflow")]
     MathOverflow,
-
-    #[msg("Invalid amount (must be greater than 0)")]
+    #[msg("Invalid amount")]
     InvalidAmount,
-
-    #[msg("Graduation threshold not met yet")]
-    GraduationThresholdNotMet,
-
-    #[msg("Anti-sniper protection active - trade size limited")]
+    #[msg("Anti-sniper active")]
     AntiSniperActive,
-
-    #[msg("Pool not initialized")]
-    PoolNotInitialized,
-
     #[msg("Invalid virtual reserves")]
     InvalidVirtualReserves,
-
-    #[msg("Unauthorized access")]
+    #[msg("Unauthorized")]
     Unauthorized,
-
-    #[msg("Invalid reserves configuration")]
+    #[msg("Invalid reserves")]
     InvalidReserves,
-
-    #[msg("Oracle price is stale")]
+    #[msg("Oracle price stale")]
     OraclePriceStale,
-
-    #[msg("Oracle confidence interval too wide")]
+    #[msg("Oracle confidence too low")]
     OracleConfidenceTooLow,
-
-    #[msg("Invalid target market cap")]
+    #[msg("Invalid market cap")]
     InvalidMarketCap,
-
     #[msg("Invalid token supply")]
     InvalidTokenSupply,
-
-    #[msg("Pool already graduated")]
-    AlreadyGraduated,
-
-    #[msg("Wrong curve phase for this operation")]
-    WrongPhase,
-
-    #[msg("Invalid oracle account")]
+    #[msg("Invalid oracle")]
     InvalidOracle,
-
-    #[msg("CRX price out of reasonable bounds")]
+    #[msg("Invalid CRX price")]
     InvalidCrxPrice,
-
     #[msg("Threshold calculation failed")]
     ThresholdCalculationFailed,
-
-    #[msg("Quote token must be CRX - this AMM is permissioned for CRX pairs only")]
+    #[msg("Must use CRX quote")]
     MustUseCrxQuote,
-
-    #[msg("Custom curve type not implemented - fork the protocol to add your own curve math")]
+    #[msg("Custom curve not implemented")]
     CustomCurveNotImplemented,
-
-    #[msg("Pool reserves do not match vault balances - potential accounting error")]
+    #[msg("Reserve vault mismatch")]
     ReserveVaultMismatch,
-
-    #[msg("Base token mint authority must be revoked to prevent rugpull")]
+    #[msg("Mint authority not revoked")]
     MintAuthorityNotRevoked,
-
-    #[msg("Base token freeze authority must be revoked to prevent freeze attacks")]
+    #[msg("Freeze authority not revoked")]
     FreezeAuthorityNotRevoked,
-
-    #[msg("Output amount too small (dust trade)")]
+    #[msg("Output too small")]
     OutputTooSmall,
-
-    #[msg("Pool is paused - trading temporarily disabled")]
+    #[msg("Pool paused")]
     PoolPaused,
 }
