@@ -1,0 +1,63 @@
+# PROPRIETARY LICENSE
+
+Copyright (c) 2026 Creator Platform. All Rights Reserved.
+
+## IMPORTANT NOTICE
+
+This software is proprietary and confidential. It is NOT open source.
+
+### Restrictions
+
+This code and all associated materials are the exclusive property of Creator Platform.
+
+**You MAY NOT:**
+- ❌ Copy, modify, or distribute this code
+- ❌ Reverse engineer the deployed program
+- ❌ Create derivative works
+- ❌ Use this code in any other project
+- ❌ Share, publish, or disclose this code
+
+**You MAY:**
+- ✅ Use the Creator Platform to launch tokens (subject to platform ToS)
+- ✅ Integrate with our public SDK/API (when available)
+- ✅ Build applications that interact with deployed pools
+
+### Usage Rights
+
+The Creator Platform protocol is available for use exclusively through:
+- Official Creator Platform interface
+- Approved partner integrations
+- Licensed third-party applications
+
+All pools must use CRX as the quote token. This is enforced at the protocol level.
+
+### Intellectual Property
+
+All algorithms, implementations, and innovations including but not limited to:
+- Dynamic virtual liquidity calculations
+- Dual-phase bonding curve mechanics
+- Oracle-based market cap targeting
+- Phase transition logic
+
+...are proprietary trade secrets of Creator Platform.
+
+### Legal Action
+
+Unauthorized use, distribution, or reverse engineering will result in:
+- Immediate legal action
+- Pursuit of maximum damages
+- Criminal prosecution where applicable
+
+### Contact
+
+For licensing inquiries: legal@creatorplatform.io
+
+---
+
+## DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL CREATOR PLATFORM BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY ARISING FROM USE OF THIS SOFTWARE.
+
+**This code is confidential. Do not distribute.**
