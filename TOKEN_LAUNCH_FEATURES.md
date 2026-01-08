@@ -1,6 +1,8 @@
 # Token Launch Features
 
-**What you can configure when launching a token on Scale AMM**
+**Comprehensive checklist: configurable options, phase behavior, same-address transition**
+
+What you can configure when launching a token on Scale AMM
 
 ---
 
