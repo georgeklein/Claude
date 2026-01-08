@@ -118,7 +118,7 @@ pub fn handler(
         timestamp: clock.unix_timestamp,
     });
 
-    msg!("✅ Creator AMM v2 initialized!");
+    msg!("Creator AMM v2 initialized!");
     msg!("Pre-bonding: {} bps fee, ${} threshold",
         pre_bonding_fee_bps,
         pre_bonding_threshold_usd as f64 / 1_000_000.0
