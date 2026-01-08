@@ -270,7 +270,11 @@ pub fn emit_trade_event(
 ) -> Result<()> {
     let (quote_reserves_after, base_reserves_after) = pool.get_pricing_reserves();
     let price_after = pool.get_spot_price()?;
-    let market_cap_usd = pool.get_market_cap_usd()?;
+
+    // Optimized: Calculate market cap from already-computed price (saves ~3-4k CU)
+    // Avoids redundant get_spot_price() call inside get_market_cap_usd()
+    let market_cap_usd = pool.get_market_cap_usd_from_price(price_after)?;
+
     let anti_sniper_active = pool.is_anti_sniper_active(clock.slot, config.anti_sniper_window_slots);
 
     emit!(TradeExecuted {

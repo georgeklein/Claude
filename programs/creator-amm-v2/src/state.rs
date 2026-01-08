@@ -306,7 +306,12 @@ impl Pool {
     #[inline]
     pub fn get_market_cap_crx(&self) -> Result<u64> {
         let price = self.get_spot_price()?;
+        self.get_market_cap_crx_from_price(price)
+    }
 
+    /// Get market cap in CRX from pre-calculated price (optimized to avoid redundant price calc)
+    #[inline]
+    pub fn get_market_cap_crx_from_price(&self, price: u64) -> Result<u64> {
         let market_cap = (self.token_total_supply as u128)
             .checked_mul(price as u128)
             .ok_or(ErrorCode::MathOverflow)?
@@ -320,7 +325,12 @@ impl Pool {
     #[inline]
     pub fn get_market_cap_usd(&self) -> Result<u64> {
         let mc_crx = self.get_market_cap_crx()?;
+        self.get_market_cap_usd_from_crx(mc_crx)
+    }
 
+    /// Get market cap in USD from pre-calculated CRX market cap (optimized)
+    #[inline]
+    pub fn get_market_cap_usd_from_crx(&self, mc_crx: u64) -> Result<u64> {
         let mc_usd = (mc_crx as u128)
             .checked_mul(self.last_crx_price_usd as u128)
             .ok_or(ErrorCode::MathOverflow)?
@@ -328,6 +338,13 @@ impl Pool {
             .ok_or(ErrorCode::MathOverflow)?;
 
         Ok(mc_usd as u64)
+    }
+
+    /// Get market cap in USD from pre-calculated price (optimized to avoid all redundant calcs)
+    #[inline]
+    pub fn get_market_cap_usd_from_price(&self, price: u64) -> Result<u64> {
+        let mc_crx = self.get_market_cap_crx_from_price(price)?;
+        self.get_market_cap_usd_from_crx(mc_crx)
     }
 }
 
