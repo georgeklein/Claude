@@ -233,12 +233,12 @@ pub fn handler(
         &clock,
     )?;
 
-    // NOTE: Vault validation removed for CU optimization (saves ~5k CU)
-    // Reserve accounting is enforced by:
-    // 1. Checked arithmetic preventing over/underflow
-    // 2. Token program validating all transfers
-    // 3. Comprehensive test suite
-    // 4. External monitoring can verify reserves post-transaction
+    // Validate vault balances match reserves (critical security check)
+    trade::validate_vault_balances(
+        pool,
+        &ctx.accounts.quote_vault,
+        &ctx.accounts.base_vault,
+    )?;
 
     Ok(())
 }
