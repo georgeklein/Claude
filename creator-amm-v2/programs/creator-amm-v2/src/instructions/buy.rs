@@ -207,16 +207,18 @@ pub fn handler(
 
     // Update reserves based on phase
     if matches!(pool.current_phase, CurvePhase::Graduated) {
-        // GRADUATED PHASE: Pure constant product (x*y=k)
-        // NO fees extracted to maintain invariant
-        // Add full input, subtract full output
+        // GRADUATED PHASE: Constant product AMM with ongoing fees
+        // Fees already transferred to creator (line 199-206)
+        // Update real reserves to reflect actual vault balances (after fee extraction)
         pool.real_quote_reserves = pool.real_quote_reserves
             .checked_add(quote_amount)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_sub(fee_in_quote)  // Fee extracted to creator
             .ok_or(ErrorCode::MathOverflow)?;
         pool.real_base_reserves = pool.real_base_reserves
             .checked_sub(base_output)
             .ok_or(ErrorCode::MathOverflow)?;
-        // Virtual reserves frozen at graduation
+        // Virtual reserves frozen at graduation (no longer used for pricing)
     } else {
         // PRE-BONDING PHASE: Update VIRTUAL reserves for bonding curve
         // CRITICAL: Must use before-fee amounts to maintain x*y=k invariant

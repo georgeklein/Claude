@@ -168,14 +168,12 @@ impl Pool {
         current_slot < self.created_at_slot.saturating_add(anti_sniper_window)
     }
 
-    /// Get current fee based on phase
-    /// PreBonding: Uses pool's configured fee (0, 25, or 100 bps)
-    /// Graduated: NO fees (pure constant product x*y=k)
+    /// Get current fee based on pool configuration
+    /// Fees continue throughout the token's lifetime (PreBonding + Graduated)
+    /// This ensures creators earn fees forever, not just during initial bonding phase
+    /// Fee tiers: 0%, 0.25%, or 1% (set at pool creation)
     pub fn get_current_fee_bps(&self) -> u16 {
-        match self.current_phase {
-            CurvePhase::PreBonding => self.fee_bps,
-            CurvePhase::Graduated => 0, // No fees after graduation
-        }
+        self.fee_bps // Same fee throughout lifetime
     }
 
     /// Get reserves to use for pricing (virtual pre-graduation, real post-graduation)
@@ -207,7 +205,7 @@ impl Pool {
                     msg!("   🔄 Switching from VIRTUAL to REAL reserves for pricing");
                     msg!("   Now a permanent constant-product AMM!");
                     msg!("   Pool address stays the same - No migration needed");
-                    msg!("   Fee remains: {} bps", self.fee_bps);
+                    msg!("   Creator continues earning {} bps fees forever", self.fee_bps);
 
                     // Transition to graduated phase
                     // NOW PRICING USES REAL RESERVES (PumpSwap-style)
