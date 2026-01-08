@@ -462,15 +462,24 @@ impl UserPosition {
         if age <= T2 {
             // 30s-5m: decay from 10% → 1%
             // extra = F2 + (F1 - F2) * (T2 - age) / (T2 - T1)
-            let time_remaining = T2 - age;
-            return F2 + (DECAY_RANGE * time_remaining) / TIME_RANGE_1;
+            let time_remaining = T2.saturating_sub(age);
+            let decay_component = DECAY_RANGE
+                .checked_mul(time_remaining)
+                .unwrap_or(0)
+                .checked_div(TIME_RANGE_1)
+                .unwrap_or(0);
+            return F2.saturating_add(decay_component);
         }
 
         if age <= T3 {
             // 5m-30m: decay from 1% → 0%
             // extra = F2 * (T3 - age) / (T3 - T2)
-            let time_remaining = T3 - age;
-            return (F2 * time_remaining) / TIME_RANGE_2;
+            let time_remaining = T3.saturating_sub(age);
+            return F2
+                .checked_mul(time_remaining)
+                .unwrap_or(0)
+                .checked_div(TIME_RANGE_2)
+                .unwrap_or(0);
         }
 
         0 // 30m+: no extra fee
