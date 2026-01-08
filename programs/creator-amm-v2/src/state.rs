@@ -189,63 +189,6 @@ impl Pool {
         }
     }
 
-    /// Update virtual reserves based on current CRX price (PreBonding phase only)
-    ///
-    /// CRITICAL FIX: Virtual reserves must be recalculated when CRX price changes
-    /// to maintain USD-pegged target market cap.
-    ///
-    /// Example: Pool launches at $10k target MC when CRX = $0.10
-    /// - Initial virtual reserves calculated for $10k / $0.10 = 100k CRX
-    /// - If CRX doubles to $0.20, those same reserves now represent $20k MC (wrong!)
-    /// - Fix: Recalculate virtual reserves for $10k / $0.20 = 50k CRX (correct)
-    ///
-    /// This ensures the pool's target market cap remains constant in USD terms
-    /// regardless of CRX price fluctuations.
-    pub fn update_virtual_reserves_if_needed(&mut self, current_crx_price_usd: u64) -> Result<()> {
-        // Only recalculate in PreBonding phase (Graduated uses real reserves)
-        if !matches!(self.current_phase, CurvePhase::PreBonding) {
-            return Ok(());
-        }
-
-        // Check if price has changed (avoid unnecessary recalculation)
-        // Only recalculate if price changed by >0.1% to avoid floating point noise
-        let price_change_bps = if current_crx_price_usd > self.last_crx_price_usd {
-            ((current_crx_price_usd - self.last_crx_price_usd) as u128)
-                .checked_mul(10000)
-                .ok_or(ErrorCode::MathOverflow)?
-                .checked_div(self.last_crx_price_usd as u128)
-                .ok_or(ErrorCode::MathOverflow)? as u64
-        } else {
-            ((self.last_crx_price_usd - current_crx_price_usd) as u128)
-                .checked_mul(10000)
-                .ok_or(ErrorCode::MathOverflow)?
-                .checked_div(self.last_crx_price_usd as u128)
-                .ok_or(ErrorCode::MathOverflow)? as u64
-        };
-
-        // Threshold: 10 bps = 0.1% change minimum
-        if price_change_bps < 10 {
-            return Ok(()); // Price hasn't changed enough, skip recalculation
-        }
-
-        // Recalculate virtual reserves using same logic as pool creation
-        let (new_virtual_quote, new_virtual_base) =
-            crate::utils::oracle::calculate_virtual_reserves_for_market_cap(
-                self.target_market_cap_usd,
-                self.token_total_supply,
-                current_crx_price_usd,
-            )?;
-
-        // Update virtual reserves atomically
-        self.virtual_quote_reserves = new_virtual_quote;
-        self.virtual_base_reserves = new_virtual_base;
-
-        // Update cached price
-        self.last_crx_price_usd = current_crx_price_usd;
-
-        Ok(())
-    }
-
     /// Check and update phase based on accumulated CRX (graduation at $40k)
     /// Returns true if phase changed
     pub fn check_phase_transition(&mut self) -> Result<bool> {
