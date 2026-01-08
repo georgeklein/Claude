@@ -1,0 +1,25 @@
+{
+  "name": "scale-amm-economic-simulations",
+  "version": "1.0.0",
+  "description": "Economic simulations for Scale AMM launch modeling",
+  "main": "economic-model.ts",
+  "scripts": {
+    "simulate": "ts-node economic-model.ts",
+    "simulate:watch": "nodemon --exec ts-node economic-model.ts"
+  },
+  "dependencies": {
+    "bn.js": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.1",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Agent 9 - Economic Modeling Expert",
+  "license": "MIT"
+}
