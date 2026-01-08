@@ -24,8 +24,12 @@ pub fn get_crx_price_usd(
     // CRITICAL: Reject negative or zero prices (prevents division by zero and negative cast bugs)
     require!(price_feed.price > 0, ErrorCode::InvalidCrxPrice);
 
-    // Check price freshness
-    let price_age = clock.unix_timestamp - price_feed.publish_time;
+    // Check price freshness - use checked arithmetic to prevent overflow
+    let price_age = clock
+        .unix_timestamp
+        .checked_sub(price_feed.publish_time)
+        .ok_or(ErrorCode::OraclePriceStale)?;
+
     require!(
         price_age <= max_age_seconds,
         ErrorCode::OraclePriceStale
