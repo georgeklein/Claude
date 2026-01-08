@@ -2,10 +2,11 @@
 
 <img width="335" height="149" alt="image" src="https://github.com/user-attachments/assets/679e0b5f-b379-42bb-a6a4-44417618292a" />
 
-
 **Tokenize everything on Solana with $CRX**
 
 Launch tokens at any USD market cap with zero upfront capital. Built to power the Creator platform and grow the $CRX ecosystem.
+
+Quick start guide with SDK examples, pool types, token launch options, and economics
 
 ---
 
