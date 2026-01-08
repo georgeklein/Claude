@@ -1,6 +1,6 @@
 # Scale AMM
 
-**Production-ready bonding curve protocol for Solana token launches.**
+**Production-ready bonding curve protocol powering $CRX on Solana.**
 
 Scale AMM is an automated market maker for token launches featuring dynamic virtual liquidity, dual-phase bonding curves, and oracle-based price discovery.
 
