@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
-use crate::state::{Config, Pool, CurvePhase};
+use crate::state::{Config, Pool, CurvePhase, UserPosition};
 use crate::errors::ErrorCode;
 use crate::events::{TradeExecuted, PoolGraduated, PhaseTransition};
 
@@ -60,6 +60,16 @@ pub struct Sell<'info> {
     )]
     pub fee_recipient_account: Account<'info, TokenAccount>,
 
+    /// User position for WAA tracking (must exist for sells)
+    #[account(
+        mut,
+        seeds = [b"pos", pool.key().as_ref(), user.key().as_ref()],
+        bump = user_position.bump,
+        constraint = user_position.pool == pool.key() @ ErrorCode::Unauthorized,
+        constraint = user_position.user == user.key() @ ErrorCode::Unauthorized,
+    )]
+    pub user_position: Account<'info, UserPosition>,
+
     #[account(mut)]
     pub user: Signer<'info>,
 
@@ -115,8 +125,8 @@ pub fn handler(
         0, // No fee in calculation
     )?;
 
-    // Calculate fee from OUTPUT (in quote tokens, not base tokens)
-    let fee_in_quote = if current_fee_bps > 0 {
+    // Calculate base fee from OUTPUT (in quote tokens, not base tokens)
+    let base_fee_in_quote = if current_fee_bps > 0 {
         let fee = (quote_output_before_fee as u128)
             .checked_mul(current_fee_bps as u128)
             .ok_or(ErrorCode::MathOverflow)?
@@ -127,9 +137,33 @@ pub fn handler(
         0
     };
 
-    // Final output to user (after fee)
+    // Calculate WAA-based extra sell fee (anti-sniper)
+    let user_position = &ctx.accounts.user_position;
+    let extra_fee_bps = user_position.calculate_extra_sell_fee_bps(clock.slot);
+    let extra_fee_in_quote = if extra_fee_bps > 0 {
+        let fee = (quote_output_before_fee as u128)
+            .checked_mul(extra_fee_bps as u128)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(10000)
+            .ok_or(ErrorCode::MathOverflow)? as u64;
+        std::cmp::max(fee, 1)
+    } else {
+        0
+    };
+
+    // Total fee (base + extra)
+    let total_fee_in_quote = base_fee_in_quote
+        .checked_add(extra_fee_in_quote)
+        .ok_or(ErrorCode::MathOverflow)?;
+
+    msg!("💰 Sell Fees:");
+    msg!("   Base fee: {} CRX ({} bps)", base_fee_in_quote, current_fee_bps);
+    msg!("   Extra WAA fee: {} CRX ({} bps)", extra_fee_in_quote, extra_fee_bps);
+    msg!("   Total fee: {} CRX", total_fee_in_quote);
+
+    // Final output to user (after total fee)
     let quote_output = quote_output_before_fee
-        .checked_sub(fee_in_quote)
+        .checked_sub(total_fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
 
     // Slippage protection (CRITICAL SECURITY FIX from PumpSwap)
@@ -179,8 +213,8 @@ pub fn handler(
         quote_output, // User gets output after fee
     )?;
 
-    // Transfer 3: Fee in QUOTE tokens from pool to creator
-    if fee_in_quote > 0 {
+    // Transfer 3: Total fee (base + WAA) in QUOTE tokens from pool to creator
+    if total_fee_in_quote > 0 {
         let fee_cpi_accounts = Transfer {
             from: ctx.accounts.quote_vault.to_account_info(),
             to: ctx.accounts.fee_recipient_account.to_account_info(),
@@ -192,7 +226,7 @@ pub fn handler(
                 fee_cpi_accounts,
                 signer,
             ),
-            fee_in_quote,
+            total_fee_in_quote,
         )?;
     }
 
@@ -242,8 +276,17 @@ pub fn handler(
         .checked_add(quote_output)
         .ok_or(ErrorCode::MathOverflow)?;
     pool.total_fees_collected = pool.total_fees_collected
-        .checked_add(fee_in_quote)  // Track fees in CRX for consistency
+        .checked_add(total_fee_in_quote)  // Track total fees (base + WAA) in CRX
         .ok_or(ErrorCode::MathOverflow)?;
+
+    // Update user position - reduce tracked amount after sell
+    let user_position = &mut ctx.accounts.user_position;
+    user_position.update_on_sell(base_amount)?;
+
+    msg!("📊 Position updated: avg_entry_slot={}, tracked_amount={}",
+        user_position.avg_entry_slot,
+        user_position.tracked_amount
+    );
 
     // Capture pre-transition state for event
     let phase_before = pool.current_phase;
@@ -294,6 +337,11 @@ pub fn handler(
     let market_cap_usd = pool.get_market_cap_usd()?;
     let anti_sniper_active = pool.is_anti_sniper_active(clock.slot, config.anti_sniper_window_slots);
 
+    // Calculate effective fee bps (base + WAA)
+    let effective_fee_bps = current_fee_bps
+        .checked_add(extra_fee_bps as u16)
+        .unwrap_or(current_fee_bps);
+
     emit!(TradeExecuted {
         pool: pool.key(),
         user: ctx.accounts.user.key(),
@@ -301,8 +349,8 @@ pub fn handler(
         is_buy: false,
         input_amount: base_amount,
         output_amount: quote_output,
-        fee_amount: fee_in_quote,  // Report fee in CRX
-        fee_bps: current_fee_bps,
+        fee_amount: total_fee_in_quote,  // Report total fee (base + WAA) in CRX
+        fee_bps: effective_fee_bps,      // Effective fee including WAA penalty
         phase: pool.current_phase,
         price_after,
         quote_reserves_after,
@@ -316,8 +364,9 @@ pub fn handler(
 
     msg!("✅ Sell executed!");
     msg!("   Base In: {} tokens (from user)", base_amount);
-    msg!("   Quote Out: {} CRX (to user, after {} bps fee)", quote_output, current_fee_bps);
-    msg!("   Fee to Creator: {} CRX", fee_in_quote);
+    msg!("   Quote Out: {} CRX (to user, after {} bps effective fee)", quote_output, effective_fee_bps);
+    msg!("   Total Fee to Creator: {} CRX (base: {}, WAA: {})",
+        total_fee_in_quote, base_fee_in_quote, extra_fee_in_quote);
     let (new_quote_res, new_base_res) = pool.get_pricing_reserves();
     msg!("   New Price: {} CRX per token",
         (new_quote_res as f64) / (new_base_res as f64)
