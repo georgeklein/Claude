@@ -94,7 +94,7 @@ pub fn handler(
     // Get correct reserves based on phase (virtual or real)
     let (quote_reserve, base_reserve) = pool.get_pricing_reserves();
 
-    msg!("💰 Buy Request:");
+    msg!("Buy Request:");
     msg!("   Quote Amount: {} CRX", quote_amount);
     msg!("   Current Phase: {:?}", pool.current_phase);
     msg!("   Fee: {} bps", current_fee_bps);
@@ -121,7 +121,7 @@ pub fn handler(
             ErrorCode::AntiSniperActive
         );
 
-        msg!("🛡️  Anti-sniper active: max {} tokens", max_trade_amount);
+        msg!("Anti-sniper active: max {} tokens", max_trade_amount);
     }
 
     // CRITICAL FEE LOGIC: Take fee "off the cuff" BEFORE swap
@@ -270,7 +270,7 @@ pub fn handler(
     // Update weighted average entry slot
     user_position.update_on_buy(base_output, clock.slot)?;
 
-    msg!("📊 WAA updated: avg_entry_slot={}, tracked_amount={}",
+    msg!("WAA updated: avg_entry_slot={}, tracked_amount={}",
         user_position.avg_entry_slot,
         user_position.tracked_amount
     );
@@ -344,7 +344,7 @@ pub fn handler(
         timestamp: clock.unix_timestamp,
     });
 
-    msg!("✅ Buy executed!");
+    msg!("Buy executed!");
     msg!("   Quote In: {} CRX (total paid by user)", quote_amount);
     msg!("   Swap Amount: {} CRX (after {} bps fee)", swap_amount, current_fee_bps);
     msg!("   Base Out: {} tokens", base_output);
@@ -363,7 +363,7 @@ pub fn handler(
     }
 
     if transitioned {
-        msg!("🎉 Phase transition occurred!");
+        msg!("Phase transition occurred!");
     }
 
     // CRITICAL: Validate reserves match actual vault balances
