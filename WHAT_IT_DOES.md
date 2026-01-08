@@ -1,7 +1,9 @@
 # Scale AMM - What It Does
 
+**Complete protocol explanation: bonding curves, phases, fees, oracle integration**
+
 ## Overview
-**Bonding curve AMM powering $CRX on Solana with dynamic USD-denominated pricing.**
+Bonding curve AMM powering $CRX on Solana with dynamic USD-denominated pricing.
 
 ---
 
