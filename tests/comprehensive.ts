@@ -32,10 +32,21 @@ describe("Scale AMM - Comprehensive Test Suite", () => {
   let trader2: Keypair;
 
   // Helper: Create mock Pyth oracle account
-  async function createMockOracle(): Promise<Keypair> {
+  async function createMockOracle(price: number = 200_000_000, conf: number = 1_000_000, expo: number = -8, publishTime?: number): Promise<Keypair> {
     const oracle = Keypair.generate();
     const space = 8 + 8 + 8 + 4 + 8;
     const lamports = await provider.connection.getMinimumBalanceForRentExemption(space);
+
+    // Write oracle data as PythPriceFeed struct
+    const data = Buffer.alloc(space);
+    const discriminator = Buffer.from([0x9a, 0x27, 0x1c, 0x8f, 0x3e, 0x2b, 0x45, 0x67]);
+    discriminator.copy(data, 0);
+    data.writeBigInt64LE(BigInt(price), 8);
+    data.writeBigUInt64LE(BigInt(conf), 16);
+    data.writeInt32LE(expo, 24);
+    const timestamp = publishTime !== undefined ? publishTime : Math.floor(Date.now() / 1000);
+    data.writeBigInt64LE(BigInt(timestamp), 28);
+
     const createIx = SystemProgram.createAccount({
       fromPubkey: provider.wallet.publicKey,
       newAccountPubkey: oracle.publicKey,
@@ -43,7 +54,25 @@ describe("Scale AMM - Comprehensive Test Suite", () => {
       space,
       programId: program.programId,
     });
-    await provider.sendAndConfirm(new anchor.web3.Transaction().add(createIx), [oracle]);
+
+    const tx = new anchor.web3.Transaction().add(createIx);
+    await provider.sendAndConfirm(tx, [oracle]);
+
+    // Write data to the account
+    const accountInfo = await provider.connection.getAccountInfo(oracle.publicKey);
+    if (accountInfo) {
+      await provider.connection._rpcRequest('setAccount', [
+        oracle.publicKey.toBase58(),
+        {
+          lamports: accountInfo.lamports,
+          data: [data.toString('base64'), 'base64'],
+          owner: program.programId.toBase58(),
+          executable: false,
+          rentEpoch: accountInfo.rentEpoch,
+        },
+      ]);
+    }
+
     return oracle;
   }
 
@@ -830,8 +859,7 @@ describe("Scale AMM - Comprehensive Test Suite", () => {
     });
 
     it("Should verify comprehensive accounting integrity", async () => {
-      const poolBefore = await program.account.pool.fetch(sysPool);
-      const feesBefore = poolBefore.totalFeesCollected;
+      const feeBalanceBefore = await getAccount(provider.connection, feeRecipientCrxAccount);
 
       await executeTrade(sysPool, sysQuoteVault, sysBaseVault, sysBaseMint, trader1, true, new anchor.BN(10_000_000), new anchor.BN(0));
 
@@ -843,8 +871,10 @@ describe("Scale AMM - Comprehensive Test Suite", () => {
       expect(poolAfter.realQuoteReserves.toString()).to.equal(quoteVaultAccount.amount.toString());
       expect(poolAfter.realBaseReserves.toString()).to.equal(baseVaultAccount.amount.toString());
 
-      // Verify fee tracking
-      expect(poolAfter.totalFeesCollected.gt(feesBefore)).to.be.true;
+      // Verify fee collection
+      const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
+      const feeCollected = Number(feeBalanceAfter.amount) - Number(feeBalanceBefore.amount);
+      expect(feeCollected).to.be.greaterThan(0);
     });
   });
 });

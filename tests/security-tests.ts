@@ -865,11 +865,14 @@ describe("Security Test Suite - Error Conditions & Attack Simulations", () => {
       );
 
       // Both pay same fees
+      const feeBalanceBefore = await getAccount(provider.connection, feeRecipientCrxAccount);
+
       await executeTrade(pool, quoteVault, baseVault, baseMint, sybil1, true, new anchor.BN(10_000_000), new anchor.BN(0));
       await executeTrade(pool, quoteVault, baseVault, baseMint, sybil2, true, new anchor.BN(10_000_000), new anchor.BN(0));
 
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.totalFeesCollected.toNumber()).to.be.greaterThan(0);
+      const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
+      const feeCollected = Number(feeBalanceAfter.amount) - Number(feeBalanceBefore.amount);
+      expect(feeCollected).to.be.greaterThan(0);
       console.log("  ✅ Sybil attack INEFFECTIVE (same fees for all wallets)");
     });
   });

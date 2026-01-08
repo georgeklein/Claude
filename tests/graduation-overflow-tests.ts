@@ -215,7 +215,10 @@ describe("Graduation Edge Cases & Math Overflow Protection", () => {
       const poolBefore = await program.account.pool.fetch(pool);
       expect(poolBefore.currentPhase).to.deep.equal({ preBonding: {} });
 
-      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(graduationThreshold), new anchor.BN(0));
+      // Account for 0.25% fee (25 bps): to get exactly threshold in reserves, need threshold / (1 - 0.0025)
+      // graduationThreshold / 0.9975 = graduationThreshold * 10000 / 9975
+      const buyAmount = Math.ceil((graduationThreshold * 10000) / 9975);
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(buyAmount), new anchor.BN(0));
 
       const poolAfter = await program.account.pool.fetch(pool);
       expect(poolAfter.currentPhase).to.deep.equal({ graduated: {} });
@@ -235,8 +238,12 @@ describe("Graduation Edge Cases & Math Overflow Protection", () => {
         1_000_000_000_000
       );
 
-      const almostThreshold = graduationThreshold - 1_000_000;
-      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(almostThreshold), new anchor.BN(0));
+      // Buy amount that results in threshold - 1 in reserves after fee
+      // We want real_quote_reserves to be exactly graduationThreshold - 1
+      // So we calculate: (threshold - 1) / 0.9975
+      const targetReserves = graduationThreshold - 1;
+      const buyAmount = Math.floor((targetReserves * 10000) / 9975);
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(buyAmount), new anchor.BN(0));
 
       const poolAfter = await program.account.pool.fetch(pool);
       expect(poolAfter.currentPhase).to.deep.equal({ preBonding: {} });
@@ -256,16 +263,19 @@ describe("Graduation Edge Cases & Math Overflow Protection", () => {
         1_000_000_000_000
       );
 
-      // Multiple small buys
+      // Multiple small buys - each 5B becomes 4.9875B in reserves after 0.25% fee
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(5_000_000_000), new anchor.BN(0));
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(5_000_000_000), new anchor.BN(0));
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(5_000_000_000), new anchor.BN(0));
 
       let poolCheck = await program.account.pool.fetch(pool);
       expect(poolCheck.currentPhase).to.deep.equal({ preBonding: {} });
+      // After 3 * 5B buys: ~14.9625B in reserves (3 * 4.9875B)
 
-      // Last buy pushes over
-      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(6_000_000_000), new anchor.BN(0));
+      // Last buy: need to add ~5.0375B to reserves to reach 20B
+      // Buy amount = 5.0375B / 0.9975 = ~5.0503B
+      const lastBuyAmount = Math.ceil(((graduationThreshold - poolCheck.realQuoteReserves.toNumber()) * 10000) / 9975);
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(lastBuyAmount), new anchor.BN(0));
 
       const poolFinal = await program.account.pool.fetch(pool);
       expect(poolFinal.currentPhase).to.deep.equal({ graduated: {} });
@@ -367,7 +377,9 @@ describe("Graduation Edge Cases & Math Overflow Protection", () => {
         1_000_000_000_000
       );
 
-      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(graduationThreshold), new anchor.BN(0));
+      // Account for fees to reach threshold
+      const buyAmount = Math.ceil((graduationThreshold * 10000) / 9975);
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(buyAmount), new anchor.BN(0));
 
       const poolAfter = await program.account.pool.fetch(pool);
       const quoteVaultAccount = await getAccount(provider.connection, quoteVault);
@@ -420,7 +432,9 @@ describe("Graduation Edge Cases & Math Overflow Protection", () => {
         1_000_000_000_000
       );
 
-      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(graduationThreshold), new anchor.BN(0));
+      // Account for fees to reach threshold
+      const buyAmount = Math.ceil((graduationThreshold * 10000) / 9975);
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(buyAmount), new anchor.BN(0));
 
       const poolAfter = await program.account.pool.fetch(pool);
       const quoteVaultAccount = await getAccount(provider.connection, quoteVault);
@@ -445,7 +459,9 @@ describe("Graduation Edge Cases & Math Overflow Protection", () => {
         1_000_000_000_000
       );
 
-      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(graduationThreshold), new anchor.BN(0));
+      // Account for fees to reach threshold
+      const buyAmount = Math.ceil((graduationThreshold * 10000) / 9975);
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(buyAmount), new anchor.BN(0));
 
       const poolAfter = await program.account.pool.fetch(pool);
       expect(poolAfter.currentPhase).to.deep.equal({ graduated: {} });
@@ -521,10 +537,13 @@ describe("Graduation Edge Cases & Math Overflow Protection", () => {
       );
 
       // Large trade with fee calculation
+      const feeBalanceBefore = await getAccount(provider.connection, feeRecipientCrxAccount);
+
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(100_000_000_000), new anchor.BN(0));
 
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.totalFeesCollected.toNumber()).to.be.greaterThan(0);
+      const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
+      const feeCollected = Number(feeBalanceAfter.amount) - Number(feeBalanceBefore.amount);
+      expect(feeCollected).to.be.greaterThan(0);
     });
 
     it("5. Should protect WAA calculation with extreme values", async () => {

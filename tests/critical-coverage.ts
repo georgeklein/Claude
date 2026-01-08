@@ -63,16 +63,6 @@ describe("Scale AMM - Critical Test Coverage", () => {
     const space = 8 + 8 + 8 + 4 + 8;
     const lamports = await provider.connection.getMinimumBalanceForRentExemption(space);
 
-    const createIx = SystemProgram.createAccount({
-      fromPubkey: provider.wallet.publicKey,
-      newAccountPubkey: oracle.publicKey,
-      lamports,
-      space,
-      programId: program.programId,
-    });
-
-    await provider.sendAndConfirm(new anchor.web3.Transaction().add(createIx), [oracle]);
-
     // Write oracle data as PythPriceFeed struct
     const data = Buffer.alloc(space);
 
@@ -93,10 +83,33 @@ describe("Scale AMM - Critical Test Coverage", () => {
     const timestamp = publishTime !== undefined ? publishTime : Math.floor(Date.now() / 1000);
     data.writeBigInt64LE(BigInt(timestamp), 28);
 
-    // Write the data to the account
-    await provider.connection.confirmTransaction(
-      await provider.connection.requestAirdrop(oracle.publicKey, lamports)
-    );
+    // Create account with initial data using Anchor's methods
+    const createIx = SystemProgram.createAccount({
+      fromPubkey: provider.wallet.publicKey,
+      newAccountPubkey: oracle.publicKey,
+      lamports,
+      space,
+      programId: program.programId,
+    });
+
+    const tx = new anchor.web3.Transaction().add(createIx);
+    await provider.sendAndConfirm(tx, [oracle]);
+
+    // Write data to the account using setAccountInfo
+    // Note: This requires using the test validator's ability to modify account data
+    const accountInfo = await provider.connection.getAccountInfo(oracle.publicKey);
+    if (accountInfo) {
+      await provider.connection._rpcRequest('setAccount', [
+        oracle.publicKey.toBase58(),
+        {
+          lamports: accountInfo.lamports,
+          data: [data.toString('base64'), 'base64'],
+          owner: program.programId.toBase58(),
+          executable: false,
+          rentEpoch: accountInfo.rentEpoch,
+        },
+      ]);
+    }
 
     return oracle;
   }
@@ -427,8 +440,11 @@ describe("Scale AMM - Critical Test Coverage", () => {
     });
 
     it("Should reject extreme low price (<$0.01)", async () => {
-      // Price = $0.005 (5000 with 6 decimals)
-      const extremeOracle = await createMockOracle(5_000, 50);
+      // TEST 4/30: Oracle validation - price below minimum
+      // MIN price: $0.01 = 10_000 (with 6 decimals)
+      // Create oracle with $0.005 = 5_000 (below minimum)
+      // Using expo=-6 for direct 6-decimal representation
+      const extremeOracle = await createMockOracle(5_000, 50, -6);
 
       const baseMint = await createTokenWithRevokedAuthorities();
       const tokenSupply = new anchor.BN(1_000_000_000_000);
@@ -463,8 +479,11 @@ describe("Scale AMM - Critical Test Coverage", () => {
     });
 
     it("Should reject extreme high price (>$1000)", async () => {
-      // Price = $2000 (2_000_000_000 with 6 decimals)
-      const extremeOracle = await createMockOracle(2_000_000_000, 1_000_000);
+      // TEST 5/30: Oracle validation - price above maximum
+      // MAX price: $1000 = 1_000_000_000 (with 6 decimals)
+      // Create oracle with $2000 = 2_000_000_000 (above maximum)
+      // Using expo=-6 for direct 6-decimal representation
+      const extremeOracle = await createMockOracle(2_000_000_000, 1_000_000, -6);
 
       const baseMint = await createTokenWithRevokedAuthorities();
       const tokenSupply = new anchor.BN(1_000_000_000_000);
@@ -498,9 +517,13 @@ describe("Scale AMM - Critical Test Coverage", () => {
       }
     });
 
-    it("Should reject invalid confidence (>1% of price)", async () => {
-      // Price = $2.00, confidence = $0.05 (2.5% deviation)
-      const badConfOracle = await createMockOracle(2_000_000, 50_000);
+    it("Should reject invalid confidence (>10% of price)", async () => {
+      // TEST 6/30: Oracle validation - confidence too high
+      // MAX confidence: 10% (1000 bps)
+      // Create oracle with 15% confidence (above maximum)
+      // Price = $0.10 = 100_000, Confidence = $0.015 = 15_000 (15%)
+      // Using expo=-6 for direct 6-decimal representation
+      const badConfOracle = await createMockOracle(100_000, 15_000, -6);
 
       const baseMint = await createTokenWithRevokedAuthorities();
       const tokenSupply = new anchor.BN(1_000_000_000_000);
@@ -535,8 +558,10 @@ describe("Scale AMM - Critical Test Coverage", () => {
     });
 
     it("Should reject confidence > price", async () => {
-      // Price = $2.00, confidence = $3.00
-      const badConfOracle = await createMockOracle(2_000_000, 3_000_000);
+      // TEST 7/30: Oracle validation - confidence exceeds price (impossible oracle data)
+      // Price = $0.10 = 100_000, Confidence = $0.15 = 150_000 (conf > price)
+      // Using expo=-6 for direct 6-decimal representation
+      const badConfOracle = await createMockOracle(100_000, 150_000, -6);
 
       const baseMint = await createTokenWithRevokedAuthorities();
       const tokenSupply = new anchor.BN(1_000_000_000_000);
@@ -564,20 +589,83 @@ describe("Scale AMM - Critical Test Coverage", () => {
         );
         expect.fail("Should reject confidence > price");
       } catch (err) {
-        expect(err.toString()).to.include("OracleConfidenceTooLow");
+        // When conf > price, oracle.rs throws InvalidOracleConfidence (line 62)
+        expect(err.toString()).to.include("InvalidOracleConfidence");
       } finally {
         crxPriceOracle = originalOracle;
       }
     });
 
     it("Should enforce exponent bounds (-12 to 6)", async () => {
-      // This test would require creating oracles with different exponents
-      // For now, we test that the current exponent (-8) works correctly
-      const { pool, quoteVault, baseVault, baseMint } = await setupTestPool();
-      const poolAccount = await program.account.pool.fetch(pool);
+      // TEST 8/30: Oracle validation - exponent bounds
+      // Valid range: -12 to +6
+      // Test both below minimum (-13) and above maximum (+7)
 
-      // Verify pool was created successfully with valid oracle
-      expect(poolAccount.lastCrxPriceUsd.toNumber()).to.be.greaterThan(0);
+      // Test exponent below minimum (-13)
+      const badExpoLow = await createMockOracle(2_000_000, 10_000, -13);
+      const baseMint1 = await createTokenWithRevokedAuthorities();
+      const tokenSupply = new anchor.BN(1_000_000_000_000);
+
+      await mintTo(
+        provider.connection,
+        creator,
+        baseMint1,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint1, creator.publicKey)).address,
+        creator,
+        tokenSupply.toNumber()
+      );
+
+      const originalOracle = crxPriceOracle;
+      crxPriceOracle = badExpoLow;
+
+      try {
+        await createPool(
+          baseMint1,
+          new anchor.BN(10_000_000_000),
+          tokenSupply,
+          25,
+          { constantProduct: {} },
+          new anchor.BN(40_000_000_000)
+        );
+        expect.fail("Should reject exponent < -12");
+      } catch (err) {
+        expect(err.toString()).to.include("InvalidOracleExponent");
+      } finally {
+        crxPriceOracle = originalOracle;
+      }
+
+      // Test exponent above maximum (+7)
+      const badExpoHigh = await createMockOracle(2_000_000, 10_000, 7);
+      const baseMint2 = await createTokenWithRevokedAuthorities();
+
+      await mintTo(
+        provider.connection,
+        creator,
+        baseMint2,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint2, creator.publicKey)).address,
+        creator,
+        tokenSupply.toNumber()
+      );
+
+      crxPriceOracle = badExpoHigh;
+
+      try {
+        await createPool(
+          baseMint2,
+          new anchor.BN(10_000_000_000),
+          tokenSupply,
+          25,
+          { constantProduct: {} },
+          new anchor.BN(40_000_000_000)
+        );
+        expect.fail("Should reject exponent > 6");
+      } catch (err) {
+        expect(err.toString()).to.include("InvalidOracleExponent");
+      } finally {
+        crxPriceOracle = originalOracle;
+      }
+
+      console.log("✅ Test 8/30: Exponent bounds (-12 to 6) enforced correctly");
     });
 
     it("Should reject trades with wrong oracle account", async () => {

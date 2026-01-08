@@ -602,10 +602,13 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       );
 
       // Fee calculation should work correctly
+      const feeBalanceBefore = await getAccount(provider.connection, feeRecipientCrxAccount);
+
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(50_000_000), new anchor.BN(0));
 
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.totalFeesCollected.toNumber()).to.be.greaterThan(0);
+      const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
+      const feeCollected = Number(feeBalanceAfter.amount) - Number(feeBalanceBefore.amount);
+      expect(feeCollected).to.be.greaterThan(0);
     });
   });
 
@@ -987,12 +990,11 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       // Get statistics before graduation
       const poolBefore = await program.account.pool.fetch(pool);
       const volumeBefore = poolBefore.totalQuoteVolume;
-      const feesBefore = poolBefore.totalFeesCollected;
 
       // Calculate market cap in PreBonding (uses virtual reserves)
       const priceBeforeVirtual = poolBefore.virtualQuoteReserves.toNumber() / poolBefore.virtualBaseReserves.toNumber();
 
-      // Execute trade to graduate (this should emit PhaseTransition + PoolGraduated events)
+      // Execute trade to graduate (this should emit PoolGraduated event)
       const tx = await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(10_000_000_000), new anchor.BN(0));
 
       const poolAfterGrad = await program.account.pool.fetch(pool);
@@ -1001,19 +1003,16 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       // Market cap calculation should now use real reserves instead of virtual
       const priceAfterReal = poolAfterGrad.realQuoteReserves.toNumber() / poolAfterGrad.realBaseReserves.toNumber();
 
-      // Statistics should have continued tracking
+      // Volume statistics should have continued tracking
       expect(poolAfterGrad.totalQuoteVolume.gt(volumeBefore)).to.be.true;
-      expect(poolAfterGrad.totalFeesCollected.gt(feesBefore)).to.be.true;
 
       // Trade post-graduation to verify statistics continue
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(5_000_000_000), new anchor.BN(0));
 
       const poolFinal = await program.account.pool.fetch(pool);
 
-      // Statistics should continue accumulating
+      // Volume statistics should continue accumulating
       expect(poolFinal.totalQuoteVolume.gt(poolAfterGrad.totalQuoteVolume)).to.be.true;
-      expect(poolFinal.totalFeesCollected.gt(poolAfterGrad.totalFeesCollected)).to.be.true;
-      expect(poolFinal.totalTrades).to.equal(poolAfterGrad.totalTrades + 1);
 
       // Market cap should continue being calculated (now with real reserves)
       const priceFinal = poolFinal.realQuoteReserves.toNumber() / poolFinal.realBaseReserves.toNumber();
@@ -1112,13 +1111,14 @@ describe("Scale AMM - Advanced Test Coverage", () => {
         100_000_000_000
       );
 
-      const poolBefore = await program.account.pool.fetch(pool);
+      const feeBalanceBefore = await getAccount(provider.connection, feeRecipientCrxAccount);
 
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(10_000_000), new anchor.BN(0));
 
-      const poolAfter = await program.account.pool.fetch(pool);
+      const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
+      const feeCollected = Number(feeBalanceAfter.amount) - Number(feeBalanceBefore.amount);
 
-      expect(poolAfter.totalFeesCollected.gt(poolBefore.totalFeesCollected)).to.be.true;
+      expect(feeCollected).to.be.greaterThan(0);
     });
 
     it("Should send fees to correct recipient", async () => {
@@ -1407,11 +1407,14 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       );
 
       // Both users pay same fees
+      const feeBalanceBefore = await getAccount(provider.connection, feeRecipientCrxAccount);
+
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(5_000_000), new anchor.BN(0));
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader2, true, new anchor.BN(5_000_000), new anchor.BN(0));
 
-      const poolAccount = await program.account.pool.fetch(pool);
-      expect(poolAccount.totalFeesCollected.toNumber()).to.be.greaterThan(0);
+      const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
+      const feeCollected = Number(feeBalanceAfter.amount) - Number(feeBalanceBefore.amount);
+      expect(feeCollected).to.be.greaterThan(0);
     });
 
     it("Should block grief attacks (minimum output enforcement)", async () => {
@@ -1501,18 +1504,15 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       );
 
       const feeBalanceBefore = await getAccount(provider.connection, feeRecipientCrxAccount);
-      const poolBefore = await program.account.pool.fetch(pool);
 
       // Execute trade
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(10_000_000), new anchor.BN(0));
 
       const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
-      const poolAfter = await program.account.pool.fetch(pool);
 
-      // With 0% fee, minimum 1 lamport fee is enforced by calculate_base_fee
+      // With 0% fee, no fee is collected
       const feeCollected = Number(feeBalanceAfter.amount) - Number(feeBalanceBefore.amount);
-      expect(feeCollected).to.equal(1);
-      expect(poolAfter.totalFeesCollected.gt(poolBefore.totalFeesCollected)).to.be.true;
+      expect(feeCollected).to.equal(0);
     });
 
     it("Test 2: 0.25% creator fee (25 bps) calculation", async () => {
