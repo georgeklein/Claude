@@ -90,7 +90,7 @@ pub fn handler(
     // Get current phase parameters
     let current_fee_bps = pool.get_current_fee_bps();
 
-    msg!("💸 Sell Request:");
+    msg!("Sell Request:");
     msg!("   Base Amount: {} tokens", base_amount);
     msg!("   Current Phase: {:?}", pool.current_phase);
     msg!("   Fee: {} bps", current_fee_bps);
@@ -111,7 +111,7 @@ pub fn handler(
             ErrorCode::AntiSniperActive
         );
 
-        msg!("🛡️  Anti-sniper active: max {} tokens", max_trade_amount);
+        msg!("Anti-sniper active: max {} tokens", max_trade_amount);
     }
 
     // CRITICAL FEE LOGIC: Calculate output first, then extract fee from output
@@ -156,7 +156,7 @@ pub fn handler(
         .checked_add(extra_fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
 
-    msg!("💰 Sell Fees:");
+    msg!("Sell Fees:");
     msg!("   Base fee: {} CRX ({} bps)", base_fee_in_quote, current_fee_bps);
     msg!("   Extra WAA fee: {} CRX ({} bps)", extra_fee_in_quote, extra_fee_bps);
     msg!("   Total fee: {} CRX", total_fee_in_quote);
@@ -283,7 +283,7 @@ pub fn handler(
     let user_position = &mut ctx.accounts.user_position;
     user_position.update_on_sell(base_amount)?;
 
-    msg!("📊 Position updated: avg_entry_slot={}, tracked_amount={}",
+    msg!("Position updated: avg_entry_slot={}, tracked_amount={}",
         user_position.avg_entry_slot,
         user_position.tracked_amount
     );
@@ -362,7 +362,7 @@ pub fn handler(
         timestamp: clock.unix_timestamp,
     });
 
-    msg!("✅ Sell executed!");
+    msg!("Sell executed!");
     msg!("   Base In: {} tokens (from user)", base_amount);
     msg!("   Quote Out: {} CRX (to user, after {} bps effective fee)", quote_output, effective_fee_bps);
     msg!("   Total Fee to Creator: {} CRX (base: {}, WAA: {})",
@@ -380,7 +380,7 @@ pub fn handler(
     }
 
     if transitioned {
-        msg!("🎉 Phase transition occurred!");
+        msg!("Phase transition occurred!");
     }
 
     // CRITICAL: Validate reserves match actual vault balances
