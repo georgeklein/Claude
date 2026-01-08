@@ -206,6 +206,11 @@ pub fn handle_phase_transition(
     pool_key: Pubkey,
     clock: &Clock,
 ) -> Result<bool> {
+    // Early return if already graduated (saves ~2k CU)
+    if matches!(pool.current_phase, CurvePhase::Graduated) {
+        return Ok(false);
+    }
+
     // Capture pre-transition state
     let phase_before = pool.current_phase;
     let virtual_quote_before = pool.virtual_quote_reserves;
