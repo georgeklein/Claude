@@ -10,9 +10,9 @@ pub struct Sell<'info> {
     pub config: Account<'info, Config>,
     #[account(mut, seeds = [b"pool", pool.base_mint.as_ref()], bump = pool.bump)]
     pub pool: Account<'info, Pool>,
-    #[account(mut, constraint = quote_vault.key() == pool.quote_vault, constraint = quote_vault.authority == pool.key() @ ErrorCode::Unauthorized)]
+    #[account(mut, constraint = quote_vault.key() == pool.quote_vault, constraint = quote_vault.owner == pool.key() @ ErrorCode::Unauthorized)]
     pub quote_vault: Account<'info, TokenAccount>,
-    #[account(mut, constraint = base_vault.key() == pool.base_vault, constraint = base_vault.authority == pool.key() @ ErrorCode::Unauthorized)]
+    #[account(mut, constraint = base_vault.key() == pool.base_vault, constraint = base_vault.owner == pool.key() @ ErrorCode::Unauthorized)]
     pub base_vault: Account<'info, TokenAccount>,
     #[account(mut, constraint = user_quote_account.mint == pool.quote_mint, constraint = user_quote_account.owner == user.key())]
     pub user_quote_account: Account<'info, TokenAccount>,

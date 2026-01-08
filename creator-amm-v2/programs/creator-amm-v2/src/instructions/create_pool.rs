@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use crate::state::{Config, Pool, CurvePhase, CurveType};
-use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd, calculate_crx_thresholds, calculate_virtual_reserves_for_market_cap};
+use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd, calculate_virtual_reserves_for_market_cap};
 use crate::errors::ErrorCode;
 use crate::events::PoolCreated;
 

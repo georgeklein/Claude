@@ -342,10 +342,6 @@ describe("Creator AMM v2 - Comprehensive Test Suite", () => {
     // Initialize config
     await program.methods
       .initialize(
-        300,  // pre_bonding_fee_bps (3%)
-        new anchor.BN(40_000_000_000), // $40k
-        100,  // post_bonding_fee_bps (1%)
-        new anchor.BN(85_000_000_000), // $85k
         new anchor.BN(20), // anti_sniper_window_slots
         500,  // anti_sniper_max_trade_bps (5%)
         new anchor.BN(60), // oracle_max_age_seconds

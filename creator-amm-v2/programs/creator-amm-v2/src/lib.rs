@@ -15,24 +15,8 @@ pub mod creator_amm_v2 {
     use super::*;
 
     /// Initialize the Creator AMM v2 global configuration
-    ///
-    /// Sets up oracle integration, fee structures, and phase thresholds
-    ///
-    /// # Arguments
-    /// * `pre_bonding_fee_bps` - Fee during phase 1 (e.g., 300 = 3%)
-    /// * `pre_bonding_threshold_usd` - USD threshold for phase 1→2 (e.g., 40_000_000_000 = $40k)
-    /// * `post_bonding_fee_bps` - Fee during phase 2 (e.g., 100 = 1%)
-    /// * `graduation_threshold_usd` - USD threshold for graduation (e.g., 85_000_000_000 = $85k)
-    /// * `anti_sniper_window_slots` - Slots to enforce anti-sniper (e.g., 20 ≈ 8 seconds)
-    /// * `anti_sniper_max_trade_bps` - Max trade size during window (e.g., 500 = 5%)
-    /// * `oracle_max_age_seconds` - Max oracle price age (e.g., 60 seconds)
-    /// * `oracle_max_confidence_bps` - Max oracle confidence deviation (e.g., 100 = 1%)
     pub fn initialize(
         ctx: Context<Initialize>,
-        pre_bonding_fee_bps: u16,
-        pre_bonding_threshold_usd: u64,
-        post_bonding_fee_bps: u16,
-        graduation_threshold_usd: u64,
         anti_sniper_window_slots: u64,
         anti_sniper_max_trade_bps: u16,
         oracle_max_age_seconds: i64,
@@ -40,10 +24,6 @@ pub mod creator_amm_v2 {
     ) -> Result<()> {
         instructions::initialize::handler(
             ctx,
-            pre_bonding_fee_bps,
-            pre_bonding_threshold_usd,
-            post_bonding_fee_bps,
-            graduation_threshold_usd,
             anti_sniper_window_slots,
             anti_sniper_max_trade_bps,
             oracle_max_age_seconds,
