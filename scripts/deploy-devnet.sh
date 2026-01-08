@@ -1,9 +1,9 @@
 #!/bin/bash
 
 ################################################################################
-# Creator AMM v2 - Devnet Deployment Script
+# Scale AMM - Devnet Deployment Script
 #
-# This script automates the complete deployment of Creator AMM v2 to Solana devnet
+# This script automates the complete deployment of Scale AMM to Solana devnet
 # including program deployment, config initialization, and CRX token setup.
 #
 # Prerequisites:
@@ -644,7 +644,7 @@ generate_report() {
     REPORT_FILE="$PROJECT_DIR/DEPLOYMENT_REPORT_DEVNET.md"
 
     cat > "$REPORT_FILE" << EOF
-# Creator AMM v2 - Devnet Deployment Report
+# Scale AMM - Devnet Deployment Report
 
 **Date:** $(date)
 **Network:** Solana Devnet
@@ -791,7 +791,7 @@ main() {
     cat << "EOF"
 ╔════════════════════════════════════════════════════════════╗
 ║                                                            ║
-║     Creator AMM v2 - Devnet Deployment Script             ║
+║     Scale AMM - Devnet Deployment Script             ║
 ║                                                            ║
 ║     Automated deployment to Solana Devnet                 ║
 ║                                                            ║
@@ -820,7 +820,7 @@ EOF
     echo -e "${GREEN}║                                                          ║${NC}"
     echo -e "${GREEN}║  ✅ DEPLOYMENT COMPLETE!                                 ║${NC}"
     echo -e "${GREEN}║                                                          ║${NC}"
-    echo -e "${GREEN}║  Your Creator AMM v2 is now live on Solana Devnet!     ║${NC}"
+    echo -e "${GREEN}║  Your Scale AMM is now live on Solana Devnet!     ║${NC}"
     echo -e "${GREEN}║                                                          ║${NC}"
     echo -e "${GREEN}║  Next: Review DEPLOYMENT_REPORT_DEVNET.md               ║${NC}"
     echo -e "${GREEN}║        and run test scenarios from DEVNET_SIMULATION.md ║${NC}"
