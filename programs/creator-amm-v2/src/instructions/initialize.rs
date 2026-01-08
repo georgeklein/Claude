@@ -129,7 +129,7 @@ pub fn handler(
         timestamp: clock.unix_timestamp,
     });
 
-    msg!("Creator AMM v2 initialized!");
+    msg!("Scale AMM initialized!");
 
     Ok(())
 }
