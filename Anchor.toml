@@ -1,3 +1,6 @@
+# Scale AMM - Anchor Framework Configuration
+# Defines program IDs for localnet/devnet/mainnet and test scripts
+
 [toolchain]
 
 [features]
