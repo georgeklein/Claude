@@ -126,6 +126,13 @@ pub fn handler(
         ErrorCode::SlippageExceeded
     );
 
+    // Minimum output validation (prevents dust trades)
+    const MIN_OUTPUT_AMOUNT: u64 = 1000; // 0.001 tokens (with 6 decimals)
+    require!(
+        base_output >= MIN_OUTPUT_AMOUNT,
+        ErrorCode::OutputTooSmall
+    );
+
     // Calculate protocol fee
     let base_output_before_fee = pool.calculate_output(
         quote_amount,
@@ -139,11 +146,15 @@ pub fn handler(
         .ok_or(ErrorCode::MathOverflow)?;
 
     // Convert fee to quote token equivalent for accounting
-    let fee_in_quote = (fee_amount as u128)
-        .checked_mul(quote_reserve as u128)
-        .ok_or(ErrorCode::MathOverflow)?
-        .checked_div(base_reserve as u128)
-        .ok_or(ErrorCode::MathOverflow)? as u64;
+    // Add precision buffer to prevent rounding to zero
+    let fee_in_quote = std::cmp::max(
+        (fee_amount as u128)
+            .checked_mul(quote_reserve as u128)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(base_reserve as u128)
+            .ok_or(ErrorCode::MathOverflow)? as u64,
+        if fee_amount > 0 { 1 } else { 0 } // Minimum 1 lamport fee if fee > 0
+    );
 
     // Transfer quote tokens from user to pool
     let cpi_accounts = Transfer {
@@ -195,10 +206,18 @@ pub fn handler(
 
     // Update reserves based on phase
     if matches!(pool.current_phase, CurvePhase::Graduated) {
-        // Post-graduation: Update REAL reserves only
-        // (Virtual reserves frozen at graduation)
+        // GRADUATED PHASE: Pure constant product (x*y=k)
+        // NO fees extracted to maintain invariant
+        // Add full input, subtract full output
+        pool.real_quote_reserves = pool.real_quote_reserves
+            .checked_add(quote_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        pool.real_base_reserves = pool.real_base_reserves
+            .checked_sub(base_output)
+            .ok_or(ErrorCode::MathOverflow)?;
+        // Virtual reserves frozen at graduation
     } else {
-        // Pre-graduation: Update VIRTUAL reserves for bonding curve
+        // PRE-BONDING PHASE: Update VIRTUAL reserves for bonding curve
         // CRITICAL: Must use before-fee amounts to maintain x*y=k invariant
         pool.virtual_quote_reserves = pool.virtual_quote_reserves
             .checked_add(quote_amount)
@@ -206,17 +225,17 @@ pub fn handler(
         pool.virtual_base_reserves = pool.virtual_base_reserves
             .checked_sub(base_output_before_fee)  // FIX: Use before-fee amount
             .ok_or(ErrorCode::MathOverflow)?;
-    }
 
-    // Update pool real reserves (subtract fee since it was transferred out)
-    pool.real_quote_reserves = pool.real_quote_reserves
-        .checked_add(quote_amount)
-        .ok_or(ErrorCode::MathOverflow)?
-        .checked_sub(fee_in_quote)
-        .ok_or(ErrorCode::MathOverflow)?;
-    pool.real_base_reserves = pool.real_base_reserves
-        .checked_sub(base_output)
-        .ok_or(ErrorCode::MathOverflow)?;
+        // Update real reserves (tracking actual vault balances with fees extracted)
+        pool.real_quote_reserves = pool.real_quote_reserves
+            .checked_add(quote_amount)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_sub(fee_in_quote)
+            .ok_or(ErrorCode::MathOverflow)?;
+        pool.real_base_reserves = pool.real_base_reserves
+            .checked_sub(base_output)
+            .ok_or(ErrorCode::MathOverflow)?;
+    }
 
     // Update statistics
     pool.total_quote_volume = pool.total_quote_volume
@@ -252,6 +271,20 @@ pub fn handler(
     if transitioned {
         msg!("🎉 Phase transition occurred!");
     }
+
+    // CRITICAL: Validate reserves match actual vault balances
+    // This prevents accounting bugs and ensures pool integrity
+    ctx.accounts.quote_vault.reload()?;
+    ctx.accounts.base_vault.reload()?;
+
+    require!(
+        pool.real_quote_reserves == ctx.accounts.quote_vault.amount,
+        ErrorCode::ReserveVaultMismatch
+    );
+    require!(
+        pool.real_base_reserves == ctx.accounts.base_vault.amount,
+        ErrorCode::ReserveVaultMismatch
+    );
 
     Ok(())
 }

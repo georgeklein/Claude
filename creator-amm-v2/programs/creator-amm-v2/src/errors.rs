@@ -70,4 +70,16 @@ pub enum ErrorCode {
 
     #[msg("Custom curve type not implemented - fork the protocol to add your own curve math")]
     CustomCurveNotImplemented,
+
+    #[msg("Pool reserves do not match vault balances - potential accounting error")]
+    ReserveVaultMismatch,
+
+    #[msg("Base token mint authority must be revoked to prevent rugpull")]
+    MintAuthorityNotRevoked,
+
+    #[msg("Base token freeze authority must be revoked to prevent freeze attacks")]
+    FreezeAuthorityNotRevoked,
+
+    #[msg("Output amount too small (dust trade)")]
+    OutputTooSmall,
 }

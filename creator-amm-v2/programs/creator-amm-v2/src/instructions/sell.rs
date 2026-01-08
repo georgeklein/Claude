@@ -117,6 +117,13 @@ pub fn handler(
         ErrorCode::SlippageExceeded
     );
 
+    // Minimum output validation (prevents dust trades)
+    const MIN_OUTPUT_AMOUNT: u64 = 1000; // 0.001 CRX (with 6 decimals)
+    require!(
+        quote_output >= MIN_OUTPUT_AMOUNT,
+        ErrorCode::OutputTooSmall
+    );
+
     // Calculate protocol fee
     let quote_output_before_fee = pool.calculate_output(
         base_amount,
@@ -179,28 +186,34 @@ pub fn handler(
 
     // Update reserves based on phase
     if matches!(pool.current_phase, CurvePhase::Graduated) {
-        // Post-graduation: Update REAL reserves only
-        // (Virtual reserves frozen at graduation)
+        // GRADUATED PHASE: Pure constant product (x*y=k)
+        // NO fees extracted to maintain invariant
+        // Add full input, subtract full output
+        pool.real_base_reserves = pool.real_base_reserves
+            .checked_add(base_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        pool.real_quote_reserves = pool.real_quote_reserves
+            .checked_sub(quote_output)
+            .ok_or(ErrorCode::MathOverflow)?;
+        // Virtual reserves frozen at graduation
     } else {
-        // Pre-graduation: Update VIRTUAL reserves for bonding curve
-        // CRITICAL: Must match actual token amounts for x*y=k invariant
-        // User sends base_amount tokens, receives quote_output CRX (after fee)
-        // So virtual reserves gain base_amount, lose quote_output_before_fee
+        // PRE-BONDING PHASE: Update VIRTUAL reserves for bonding curve
+        // CRITICAL: Must use before-fee amounts to maintain x*y=k invariant
         pool.virtual_base_reserves = pool.virtual_base_reserves
             .checked_add(base_amount)
             .ok_or(ErrorCode::MathOverflow)?;
         pool.virtual_quote_reserves = pool.virtual_quote_reserves
             .checked_sub(quote_output_before_fee)
             .ok_or(ErrorCode::MathOverflow)?;
-    }
 
-    // Update pool real reserves
-    pool.real_base_reserves = pool.real_base_reserves
-        .checked_add(base_amount)
-        .ok_or(ErrorCode::MathOverflow)?;
-    pool.real_quote_reserves = pool.real_quote_reserves
-        .checked_sub(quote_output_before_fee)
-        .ok_or(ErrorCode::MathOverflow)?;
+        // Update real reserves (tracking actual vault balances with fees extracted)
+        pool.real_base_reserves = pool.real_base_reserves
+            .checked_add(base_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        pool.real_quote_reserves = pool.real_quote_reserves
+            .checked_sub(quote_output_before_fee)
+            .ok_or(ErrorCode::MathOverflow)?;
+    }
 
     // Update statistics
     pool.total_base_volume = pool.total_base_volume
@@ -235,6 +248,20 @@ pub fn handler(
     if transitioned {
         msg!("🎉 Phase transition occurred!");
     }
+
+    // CRITICAL: Validate reserves match actual vault balances
+    // This prevents accounting bugs and ensures pool integrity
+    ctx.accounts.quote_vault.reload()?;
+    ctx.accounts.base_vault.reload()?;
+
+    require!(
+        pool.real_quote_reserves == ctx.accounts.quote_vault.amount,
+        ErrorCode::ReserveVaultMismatch
+    );
+    require!(
+        pool.real_base_reserves == ctx.accounts.base_vault.amount,
+        ErrorCode::ReserveVaultMismatch
+    );
 
     Ok(())
 }

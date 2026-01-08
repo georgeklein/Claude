@@ -159,9 +159,14 @@ impl Pool {
         current_slot < self.created_at_slot.saturating_add(anti_sniper_window)
     }
 
-    /// Get current fee (same across all phases, set at pool creation)
+    /// Get current fee based on phase
+    /// PreBonding: Uses pool's configured fee (0, 25, or 100 bps)
+    /// Graduated: NO fees (pure constant product x*y=k)
     pub fn get_current_fee_bps(&self) -> u16 {
-        self.fee_bps
+        match self.current_phase {
+            CurvePhase::PreBonding => self.fee_bps,
+            CurvePhase::Graduated => 0, // No fees after graduation
+        }
     }
 
     /// Get reserves to use for pricing (virtual pre-graduation, real post-graduation)

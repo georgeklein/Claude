@@ -132,6 +132,16 @@ pub fn handler(
     );
     require!(token_supply > 0, ErrorCode::InvalidTokenSupply);
 
+    // CRITICAL SECURITY: Validate mint authorities are revoked (prevents rugpull)
+    require!(
+        ctx.accounts.base_mint.mint_authority.is_none(),
+        ErrorCode::MintAuthorityNotRevoked
+    );
+    require!(
+        ctx.accounts.base_mint.freeze_authority.is_none(),
+        ErrorCode::FreezeAuthorityNotRevoked
+    );
+
     let config = &ctx.accounts.config;
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
