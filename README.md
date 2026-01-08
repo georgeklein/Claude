@@ -1,18 +1,125 @@
 # Scale AMM
 
-**Bonding curve protocol for token launches on Solana**
+**Tokenize everything on Solana with $CRX**
 
-Launch tokens at specific USD market caps with oracle-backed virtual liquidity. Automatic graduation to permanent AMM.
+Power the Creator platform. Launch tokens at any USD market cap with zero upfront capital. Built for AI-powered creation.
+
+---
+
+## What is Scale AMM?
+
+Scale AMM is the bonding curve protocol that powers the **Creator platform** and the **$CRX ecosystem**.
+
+**Primary Use (99%):** Fuel custom token concepts on Creator
+**Other Use (1%):** Enable developers to build AI-powered token tools
+
+Launch tokens at specific USD market caps using oracle-backed virtual liquidity. Automatic graduation to permanent AMM when targets are hit.
+
+---
+
+## Why Scale AMM?
+
+**Built for Creator:**
+- Launch tokens at any USD market cap without upfront capital
+- Oracle-adjusted virtual liquidity keeps USD prices stable
+- Automatic graduation to permanent AMM
+- All volume flows through $CRX (deflationary pressure)
+
+**Enable AI Builders:**
+- Simple 3-line SDK
+- AI agents can create and manage pools
+- Event listeners for automated strategies
+- TypeScript-first API
+
+**Grow $CRX Economy:**
+- Every trade uses $CRX
+- Graduated pools lock $CRX permanently
+- Protocol fees accumulate in $CRX
+- Creator fees paid in $CRX
+
+---
+
+## Quick Start
+
+```typescript
+import { Connection, Keypair } from '@solana/web3.js';
+import { ScaleAMM } from '@scale-amm/sdk';
+
+const scale = new ScaleAMM(connection, wallet);
+
+// Launch a token
+const pool = await scale.createPool({
+  baseMint: yourTokenMint,
+  supply: 1_000_000,
+  initialMarketCapUsd: 10_000,
+  graduationThresholdUsd: 85_000,
+});
+
+// Trade
+await scale.buy(pool.address, { crxAmount: 100 });
+await scale.sell(pool.address, { tokenAmount: 5000 });
+```
+
+---
+
+## How It Works
+
+### Virtual Liquidity
+```
+Launch at $10k market cap with $0 upfront
+Oracle adjusts reserves based on $CRX price
+USD market cap stays constant
+```
+
+### Automatic Graduation
+```
+When TVL hits $85k threshold:
+  → Pool converts to permanent AMM (x×y=k)
+  → Accumulated $CRX locked forever
+  → Continues trading indefinitely
+```
+
+### $CRX Flow
+```
+User trades SOL → CRX → Token
+Protocol earns 1% fees in $CRX
+Creator earns custom % in $CRX
+Graduated pools trap $CRX (deflationary)
+```
 
 ---
 
 ## Features
 
-- **Virtual Liquidity** - Launch at any USD market cap without upfront capital
-- **Dual-Phase Bonding Curve** - Virtual reserves → Real AMM at graduation
-- **Oracle Integration** - Real-time CRX price feeds via Pyth
-- **Anti-Sniper Protection** - WAA penalties + size limits during launch
+- **Virtual Liquidity** - Launch at any USD market cap with $0 upfront
+- **Oracle Integration** - Real-time $CRX price feeds via Pyth
+- **Anti-Sniper** - WAA penalties + size limits during launch
+- **Dual-Phase** - Virtual reserves → Real AMM at graduation
 - **Battle-Tested** - 179 tests, checked arithmetic everywhere
+
+---
+
+## For Creator Platform
+
+Scale AMM powers token launches on Creator:
+- Custom token concepts for your community
+- AI-generated token launches
+- Automated trading strategies
+- Event-driven integrations
+
+**Everything runs on $CRX.**
+
+---
+
+## For AI Builders
+
+Build AI agents that:
+- Create tokens automatically
+- Monitor and trade pools
+- React to market events
+- Execute complex strategies
+
+See [sdk/README.md](sdk/README.md) for complete API.
 
 ---
 
@@ -24,126 +131,42 @@ npm install @scale-amm/sdk @solana/web3.js
 
 ---
 
-## Quick Start
+## Documentation
 
-```typescript
-import { Connection, Keypair } from '@solana/web3.js';
-import { ScaleAMM } from '@scale-amm/sdk';
-
-const connection = new Connection('https://api.mainnet-beta.solana.com');
-const wallet = Keypair.fromSecretKey(yourSecretKey);
-const scale = new ScaleAMM(connection, wallet);
-
-// Create pool
-const pool = await scale.createPool({
-  baseMint: yourTokenMint,
-  supply: 1_000_000,
-  initialMarketCapUsd: 10_000,
-  graduationThresholdUsd: 85_000,
-});
-
-// Buy tokens
-await scale.buy(pool.address, {
-  crxAmount: 100,
-  slippage: 1.0,
-});
-
-// Sell tokens
-await scale.sell(pool.address, {
-  tokenAmount: 5000,
-  slippage: 1.0,
-});
-```
-
----
-
-## How It Works
-
-### Phase 1: Pre-Bonding (Virtual Liquidity)
-- Oracle calculates virtual reserves based on target USD market cap
-- Accumulates real CRX from trades
-- Anti-sniper active (10% penalty + 5% size limit in first 100 slots)
-
-### Phase 2: Graduated (Real AMM)
-- Transitions to constant product formula (x×y=k)
-- Real reserves locked permanently
-- Continues trading forever
-
----
-
-## Architecture
-
-**Virtual Liquidity Formula:**
-```
-virtual_reserves = (target_mcap_usd / crx_price_usd) × supply
-```
-
-Oracle adjusts reserves automatically:
-- CRX at $2 → 5,000 CRX virtual reserves
-- CRX at $1 → 10,000 CRX virtual reserves
-- USD market cap stays constant
-
-**Graduation Trigger:**
-```
-if total_value_locked_usd >= graduation_threshold_usd:
-    pool.phase = Graduated
-    pool.reserves = accumulated_real_crx
-```
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - 5-minute setup
+- **[sdk/README.md](sdk/README.md)** - Complete API reference
+- **[WHAT_IT_DOES.md](WHAT_IT_DOES.md)** - Protocol deep dive
+- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** - Pre-deploy requirements
 
 ---
 
 ## Security
 
-- ✅ Checked arithmetic everywhere (no overflows)
-- ✅ Oracle validation (staleness, confidence, exponent bounds)
+- ✅ Checked arithmetic everywhere
+- ✅ Oracle validation (staleness, confidence, bounds)
 - ✅ Slippage protection
-- ✅ Vault balance validation after every trade
+- ✅ Vault balance validation
 - ✅ Emergency pause mechanism
 - ✅ 179 tests (98% coverage)
-
----
-
-## Documentation
-
-- **[GETTING_STARTED.md](GETTING_STARTED.md)** - 5-minute setup guide
-- **[sdk/README.md](sdk/README.md)** - Complete SDK API reference
-- **[WHAT_IT_DOES.md](WHAT_IT_DOES.md)** - Protocol deep dive
-- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** - Pre-deploy requirements
 
 ---
 
 ## Development
 
 ```bash
-# Clone & install
 git clone https://github.com/georgeklein/Scale-AMM.git
 cd Scale-AMM
 npm install
-
-# Build
 anchor build
-
-# Test
 anchor test
-
-# Deploy to devnet
-anchor deploy --provider.cluster devnet
 ```
-
----
-
-## Program Instructions
-
-| Instruction | Description |
-|-------------|-------------|
-| `initialize` | Initialize protocol config (deployer only, one-time) |
-| `create_pool` | Create new bonding curve pool |
-| `buy` | Buy tokens with CRX |
-| `sell` | Sell tokens for CRX |
-| `set_paused` | Emergency pause/unpause (authority only) |
 
 ---
 
 ## License
 
 Apache-2.0
+
+---
+
+**Built for Creator. Powered by $CRX.**
