@@ -2,95 +2,246 @@
 
 <img width="335" height="149" alt="image" src="https://github.com/user-attachments/assets/679e0b5f-b379-42bb-a6a4-44417618292a" />
 
-**Tokenize everything on Solana with $CRX**
+**Fully permissionless bonding curve AMM for Solana**
 
-Launch tokens at any USD market cap with zero upfront capital. Built to power the Creator platform and grow the $CRX ecosystem.
-
-Quick start guide with SDK examples, pool types, token launch options, and economics
+Launch tokens at any USD market cap with zero upfront capital. Built for the Creator platform, powered by $CRX.
 
 ---
 
-## What Can You Launch?
+## 🚀 Quick Start
 
-### Pool Types
+### Environment Setup
 
-1. **$CRX/SOL Pool** (Primary Liquidity)
-   - Main liquidity pool for $CRX
-   - Enables all TOKEN/$CRX swaps
-   - Protocol revenue source (1% fees)
+**Prerequisites:**
+```bash
+# Solana CLI (v1.17+)
+sh -c "$(curl -sSfL https://release.solana.com/v1.17.0/install)"
 
-2. **TOKEN/$CRX Pools** (Bonding Curves)
-   - Launch any SPL token with $CRX as quote
-   - Set custom USD market cap targets
-   - Automatic graduation to permanent AMM
-   - Thousands of tokens can launch simultaneously
+# Anchor CLI (v0.29.0)
+cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+avm install 0.29.0
+avm use 0.29.0
 
-### Token Launch Options
+# Node.js (v18+) & pnpm
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+```
 
-**Market Cap Flexibility:**
-- Launch at any USD market cap ($1k, $10k, $100k, etc.)
-- Set custom graduation thresholds ($40k, $85k, $500k, etc.)
-- Oracle keeps USD prices stable as $CRX price changes
+**Clone & Build:**
+```bash
+git clone https://github.com/georgeklein/Scale-AMM.git
+cd Scale-AMM
+pnpm install
+anchor build
+```
 
-**Fee Structures:**
-- **0% creator fee** - Maximum growth
-- **0.25% creator fee** - Competitive
-- **1% creator fee** - Premium revenue
-
-**Supply Options:**
-- Bond any amount: 100k, 1M, 1B tokens
-- Partial supply bonding supported
-- Keep remainder for team/treasury
+**Run Tests:**
+```bash
+anchor test  # 137/223 tests passing (61%)
+```
 
 ---
 
-## Features
+## ✨ Key Features
 
-### Virtual Liquidity
-Launch tokens without upfront capital. Oracle calculates virtual reserves based on your target USD market cap and current $CRX price.
+### 1. Zero Capital Launch
+Launch tokens without providing liquidity. Oracle calculates virtual reserves based on your USD target and live $CRX price.
 
-**Example:**
+```typescript
+// Launch at $10k market cap with ZERO upfront capital
+await scale.createPool({
+  baseMint: tokenMint,
+  supply: 1_000_000,
+  initialMarketCapUsd: 10_000,
+  graduationThresholdUsd: 40_000,
+});
 ```
-Target: $10k market cap
-CRX Price: $2
-Virtual Reserves: 5,000 CRX
 
-If CRX price drops to $1:
-Virtual Reserves auto-adjust to 10,000 CRX
-Market cap stays at $10k
+### 2. Automatic Graduation
+Pools auto-convert to permanent AMM (x×y=k) when they hit your threshold. $CRX locked forever → deflationary.
+
+### 3. Optional Anti-Dump Protection
+**NEW:** Creators choose per-pool:
+- **WAA enabled** (default): Time-decaying sell fees (0-30 min) protect early buyers
+- **WAA disabled**: Pure permissionless trading, no restrictions
+
+```typescript
+// Pure permissionless (no anti-dump)
+await scale.createPool({
+  ...config,
+  disableWaa: true,  // No restrictions
+});
 ```
 
-### Automatic Graduation
-Pools automatically convert to permanent AMM when TVL hits your threshold.
+### 4. Fully Permissionless
+**No centralized control** - No pause button, no kill switch, no admin backdoors. Once deployed, it runs forever.
 
-**What happens:**
-- Virtual reserves → Real reserves
-- Accumulated $CRX locked forever (deflationary)
-- Constant product formula (x×y=k) takes over
-- Trading continues indefinitely
-- Creator can add more liquidity
+### 5. Universal $CRX Pairing
+All volume flows through $CRX:
+```
+SOL → $CRX → TOKEN
+```
+This creates constant $CRX demand and deflationary pressure as pools graduate.
 
-### Anti-Sniper Protection
-**WAA (Weighted Average Age) System:**
-- First 100 slots (~60 seconds): Up to 10% penalty on sells
-- Trade size limits: Max 5% of supply during launch
-- Prevents bots from sniping and dumping
-- Encourages longer holding times
+---
 
-### Oracle Integration
-Real-time $CRX price feeds via Pyth Network:
-- Automatic reserve adjustments
-- USD-stable pricing
-- 60-second staleness checks
-- Confidence interval validation
+## 📦 SDK Usage
+
+### Installation
+```bash
+npm install @scale-amm/sdk @solana/web3.js @solana/spl-token
+```
+
+### 1. Deploy the AMM Protocol
+
+**First-time setup only** - Deploy the Scale AMM program:
+
+```typescript
+import { ScaleAMM } from '@scale-amm/sdk';
+import { Connection, Keypair } from '@solana/web3.js';
+
+const connection = new Connection('https://api.mainnet-beta.solana.com');
+const deployerWallet = Keypair.fromSecretKey(yourPrivateKey);
+const scale = new ScaleAMM(connection, deployerWallet);
+
+// Initialize the protocol (call once after program deployment)
+await scale.initialize({
+  feeRecipient: YOUR_FEE_WALLET,
+  crxMint: CRX_MINT_ADDRESS,
+  crxPriceOracle: PYTH_CRX_FEED_ADDRESS,
+  preBondingFeeBps: 300,  // 3%
+  preBondingThresholdUsd: 40_000_000_000,  // $40k
+  postBondingFeeBps: 100,  // 1%
+  graduationThresholdUsd: 85_000_000_000,  // $85k
+  antiSniperWindowSlots: 20,  // ~8 seconds
+  antiSniperMaxTradeBps: 500,  // 5% max trade size
+  oracleMaxAgeSeconds: 60,
+  oracleMaxConfidenceBps: 100,
+  approvedQuoteTokens: [CRX_MINT, SOL_MINT, USDC_MINT, ...],
+  approvedQuoteCount: 3,
+});
+
+console.log('Scale AMM initialized!');
+```
+
+**See DEPLOYMENT.md for full deployment guide.**
+
+---
+
+### 2. Create a New Token
+
+Create an SPL token to launch on the AMM:
+
+```typescript
+import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
+
+// Create new token mint
+const tokenMint = await createMint(
+  connection,
+  wallet,                // Payer
+  wallet.publicKey,      // Mint authority
+  null,                  // Freeze authority (null to disable)
+  6                      // Decimals
+);
+
+// Get token account for yourself
+const tokenAccount = await getOrCreateAssociatedTokenAccount(
+  connection,
+  wallet,
+  tokenMint,
+  wallet.publicKey
+);
+
+// Mint initial supply (1 million tokens)
+await mintTo(
+  connection,
+  wallet,
+  tokenMint,
+  tokenAccount.address,
+  wallet,
+  1_000_000_000_000  // 1M tokens with 6 decimals
+);
+
+// CRITICAL: Revoke mint authority (required for Scale AMM)
+await setAuthority(
+  connection,
+  wallet,
+  tokenMint,
+  wallet.publicKey,
+  AuthorityType.MintTokens,
+  null  // Revoke = no more minting possible
+);
+
+console.log('Token created:', tokenMint.toBase58());
+console.log('Mint authority revoked - ready for Scale AMM');
+```
+
+---
+
+### 3. Launch Token on Scale AMM
+
+**3-line pool creation** with your new token:
+
+```typescript
+const scale = new ScaleAMM(connection, wallet);
+
+const pool = await scale.createPool({
+  baseMint: tokenMint,
+  supply: 1_000_000,
+  initialMarketCapUsd: 10_000,
+  graduationThresholdUsd: 40_000,
+  creatorFeeBps: 100,  // 1% creator fee (optional)
+});
+
+console.log('Pool created:', pool.address);
+```
+
+### Trading
+```typescript
+// Buy tokens
+await scale.buy(poolAddress, {
+  crxAmount: 100,
+  slippage: 1.0,  // 1%
+});
+
+// Sell tokens
+await scale.sell(poolAddress, {
+  tokenAmount: 5000,
+  slippage: 1.0,
+});
+
+// Get pool state
+const pool = await scale.getPool(poolAddress);
+console.log('Price:', pool.price);
+console.log('Phase:', pool.phase);  // PreBonding → Graduated
+console.log('Progress:', pool.graduationProgress);
+```
+
+### Launch Options
+
+**Fee Tiers:**
+- `creatorFeeBps: 0` → 0% fee (max growth)
+- `creatorFeeBps: 25` → 0.25% fee (balanced)
+- `creatorFeeBps: 100` → 1% fee (premium)
+
+**Bonding Curves:**
+- `ConstantProduct` → Uniswap-style (x×y=k)
+- `Exponential` → 33% faster graduation
+
+**Anti-Dump:**
+- `disableWaa: false` → Default, protects early buyers
+- `disableWaa: true` → Pure permissionless
+
+---
+
+## 🏗️ Architecture
 
 ### Two-Phase System
 
-**Phase 1: Pre-Bonding**
+**Phase 1: PreBonding**
 - Virtual reserves (oracle-calculated)
 - Accumulate real $CRX from trades
-- Anti-sniper active
-- Higher creator fees available
+- Anti-sniper active (first ~8 seconds)
+- WAA fees active (if enabled)
 
 **Phase 2: Graduated**
 - Real reserves (locked $CRX)
@@ -98,230 +249,106 @@ Real-time $CRX price feeds via Pyth Network:
 - Anti-sniper disabled
 - Continues forever
 
----
-
-## Benefits
-
-### For Creator Platform
-- **Launch thousands of tokens** with one protocol
-- **No upfront capital** required per launch
-- **$CRX as universal pair** - everything flows through $CRX
-- **Deflationary pressure** - graduated pools lock $CRX permanently
-- **AI-friendly** - simple SDK for automated launches
-
-### For Token Creators
-- **Zero capital to launch** - no need to provide liquidity
-- **USD-stable pricing** - oracle adjusts for $CRX volatility
-- **Earn fees in $CRX** - 0%, 0.25%, or 1% on all trades
-- **Automatic AMM** - graduates to permanent liquidity
-- **Anti-sniper built-in** - protects against bots
-
-### For Traders
-- **Trade any token with $CRX** - universal pair
-- **Slippage protection** - user-defined tolerance
-- **Transparent pricing** - oracle-based, no manipulation
-- **Permanent liquidity** - graduated pools never disappear
-
-### For $CRX Economy
-- **All volume flows through $CRX** - SOL → CRX → TOKEN
-- **Protocol fees in $CRX** - 1% on all trades
-- **Deflationary mechanics** - $CRX locked in graduated pools
-- **Network effects** - more tokens = more $CRX demand
-
----
-
-## SDK Usage
-
-### Installation
-
-```bash
-npm install @scale-amm/sdk @solana/web3.js
-```
-
-### Launch $CRX/SOL Pool (Primary Liquidity)
-
-```typescript
-import { Connection, Keypair } from '@solana/web3.js';
-import { ScaleAMM } from '@scale-amm/sdk';
-
-const connection = new Connection('https://api.mainnet-beta.solana.com');
-const wallet = Keypair.fromSecretKey(yourSecretKey);
-const scale = new ScaleAMM(connection, wallet);
-
-// Create main $CRX/SOL liquidity pool
-const crxPool = await scale.createPool({
-  baseMint: CRX_MINT_ADDRESS,
-  quoteMint: SOL_MINT_ADDRESS,
-  supply: 10_000_000,              // 10M $CRX
-  initialMarketCapUsd: 1_000_000,  // Launch at $1M
-  graduationThresholdUsd: 5_000_000, // Graduate at $5M
-});
-
-console.log('$CRX/SOL pool created:', crxPool.address);
-```
-
-### Launch TOKEN/$CRX Pool (Custom Token)
-
-```typescript
-// Launch a custom token bonding curve
-const tokenPool = await scale.createPool({
-  baseMint: YOUR_TOKEN_MINT,
-  quoteMint: CRX_MINT_ADDRESS,
-  supply: 1_000_000,               // 1M tokens
-  initialMarketCapUsd: 10_000,     // Launch at $10k
-  graduationThresholdUsd: 85_000,  // Graduate at $85k
-  creatorFeeBps: 100,              // 1% creator fee
-});
-
-console.log('Token pool created:', tokenPool.address);
-```
-
-### Trade Tokens
-
-```typescript
-// Buy tokens with $CRX
-const buyResult = await scale.buy(tokenPool.address, {
-  crxAmount: 100,         // Spend 100 $CRX
-  slippage: 1.0,          // 1% slippage tolerance
-});
-
-console.log('Bought:', buyResult.tokensReceived, 'tokens');
-
-// Sell tokens for $CRX
-const sellResult = await scale.sell(tokenPool.address, {
-  tokenAmount: 5000,      // Sell 5000 tokens
-  slippage: 1.0,
-});
-
-console.log('Received:', sellResult.crxReceived, '$CRX');
-```
-
-### Monitor Pool Status
-
-```typescript
-// Get current pool state
-const pool = await scale.getPool(tokenPool.address);
-
-console.log('Price:', pool.price, '$CRX per token');
-console.log('Market Cap:', pool.marketCapUsd, 'USD');
-console.log('Phase:', pool.phase); // 'PreBonding' or 'Graduated'
-console.log('Graduation Progress:', (pool.graduationProgress * 100).toFixed(1), '%');
-console.log('Liquidity:', pool.liquidityCrx, '$CRX');
-```
-
-### Listen for Events
-
-```typescript
-// Listen for all trades on a pool
-scale.onTrade(tokenPool.address, (trade) => {
-  console.log(`${trade.direction}: ${trade.user.toString().slice(0, 8)}...`);
-  console.log(`  ${trade.tokenAmount} tokens for ${trade.crxAmount} $CRX`);
-});
-
-// Listen for graduation
-scale.onGraduation(tokenPool.address, (event) => {
-  console.log('Pool graduated at $', event.marketCapUsd);
-  console.log('$CRX locked:', event.totalCrxLocked);
-});
-```
-
-### Launch Thousands of Tokens (AI-Powered)
-
-```typescript
-// Automated token launches for Creator platform
-const tokenConfigs = [
-  { name: 'Token A', supply: 1_000_000, mcap: 10_000 },
-  { name: 'Token B', supply: 500_000, mcap: 5_000 },
-  { name: 'Token C', supply: 2_000_000, mcap: 20_000 },
-  // ... thousands more
-];
-
-// Launch all concurrently
-const pools = await Promise.allSettled(
-  tokenConfigs.map(config =>
-    scale.createPool({
-      baseMint: config.mint,
-      quoteMint: CRX_MINT_ADDRESS,
-      supply: config.supply,
-      initialMarketCapUsd: config.mcap,
-      graduationThresholdUsd: config.mcap * 8.5,
-      creatorFeeBps: 100,
-    })
-  )
-);
-
-console.log(`Launched ${pools.filter(p => p.status === 'fulfilled').length} pools`);
-```
-
----
-
-## Pool Economics
-
 ### $CRX Flow
 ```
-User wants to buy TOKEN:
-  1. Swap SOL → $CRX (on DEX)
+User buys TOKEN:
+  1. Swap SOL → $CRX (DEX)
   2. Buy TOKEN with $CRX (Scale AMM)
-  3. Protocol earns 1% fee in $CRX
-  4. Creator earns custom % fee in $CRX
+  3. Real $CRX accumulates in pool
 
-User wants to sell TOKEN:
-  1. Sell TOKEN for $CRX (Scale AMM)
-  2. Swap $CRX → SOL (on DEX)
-  3. Protocol earns 1% fee in $CRX
-  4. Creator earns custom % fee in $CRX (+ WAA penalty if early)
+Pool graduates:
+  4. $CRX locked permanently (deflationary)
+  5. Pool becomes permanent AMM
 ```
 
-### Deflationary Mechanics
-```
-Pre-Bonding Phase:
-  - Trades accumulate $CRX in vault
-  - Virtual reserves calculate pricing
-  - No $CRX locked yet
-
-Graduation:
-  - All accumulated $CRX → Real reserves
-  - $CRX locked in pool forever
-  - Cannot be withdrawn
-
-Result:
-  - Every graduated pool removes $CRX from circulation
-  - 1000s of graduated pools = massive $CRX deflation
-  - Permanent buy pressure on $CRX
-```
+### Security Features
+✅ Checked arithmetic (no overflows)
+✅ CEI pattern (no reentrancy)
+✅ Oracle validation (fresh prices)
+✅ Vault validation (reserves = balance)
+✅ Rugpull prevention (mint/freeze revoked)
+✅ Slippage protection (user-defined)
+✅ **Fully permissionless (no pause/admin)**
 
 ---
 
-## Documentation
+## 📚 Documentation
 
-- **[WHAT_IT_DOES.md](WHAT_IT_DOES.md)** - Complete protocol explanation
-- **[sdk/README.md](sdk/README.md)** - Complete API reference
-- **[WHAT_IT_DOES.md](WHAT_IT_DOES.md)** - Protocol deep dive
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide & checklist
+- **[sdk/README.md](sdk/README.md)** - Complete SDK API reference
+- **[CLAUDE.md](CLAUDE.md)** - AI development context
 
 ---
 
-## Development
+## 🛠️ Development
 
+### Build
 ```bash
-# Clone and install
-git clone https://github.com/georgeklein/Scale-AMM.git
-cd Scale-AMM
-npm install
-
-# Build Solana program
 anchor build
+cargo check  # Quick compile check
+```
 
-# Run tests (179 tests)
-anchor test
+### Test
+```bash
+anchor test       # Run all tests
+cargo test        # Rust unit tests only
+```
 
-# Deploy to devnet
+### Deploy
+```bash
+# Devnet
 anchor deploy --provider.cluster devnet
+
+# Mainnet (see DEPLOYMENT.md for full checklist)
+anchor deploy --provider.cluster mainnet-beta
+```
+
+**⚠️ CRITICAL:** Update `DEPLOYER_PUBKEY` in `initialize.rs` before mainnet deploy!
+
+---
+
+## 🌐 Environment Variables
+
+Create `.env` for SDK usage:
+```bash
+# Solana RPC
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+
+# Wallet
+WALLET_PRIVATE_KEY=your_base58_private_key
+
+# Program IDs
+SCALE_PROGRAM_ID=CReamVLMa2dFi8RmKJQAYWn8Jy2yN5qvSu8gKFCxfp3
+CRX_MINT=your_crx_mint_address
+
+# Oracle
+PYTH_ORACLE=your_pyth_feed_address
 ```
 
 ---
 
-## License
+## 📊 Project Status
+
+**Mainnet Readiness:** 70-80%
+
+✅ Core protocol complete
+✅ 61% test coverage (137/223 tests)
+✅ Security fundamentals strong
+✅ SDK production-ready
+⏳ DEPLOYER_PUBKEY needs update
+⏳ Remaining tests in progress
+
+---
+
+## 🤝 Contributing
+
+This is a production protocol. No external contributions accepted at this time.
+
+For bugs or questions, open an issue.
+
+---
+
+## 📄 License
 
 Apache-2.0
 
