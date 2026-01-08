@@ -1,3 +1,7 @@
+# Scale AMM - Rust Workspace Configuration
+#
+# Optimized release profile with overflow checks and LTO for production security
+
 [workspace]
 members = [
     "programs/*"
