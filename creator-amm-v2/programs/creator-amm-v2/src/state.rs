@@ -123,6 +123,9 @@ pub struct Pool {
     pub last_crx_price_usd: u64,          // 6 decimals
     pub last_price_update_slot: u64,
 
+    /// Emergency pause flag (authority can pause trading)
+    pub is_paused: bool,
+
     pub bump: u8,
 }
 
@@ -151,6 +154,7 @@ impl Pool {
         32 + // creator
         8 +  // last_crx_price_usd
         8 +  // last_price_update_slot
+        1 +  // is_paused
         1;   // bump
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
@@ -198,7 +202,7 @@ impl Pool {
                     msg!("   🔄 Switching from VIRTUAL to REAL reserves for pricing");
                     msg!("   Now a permanent constant-product AMM!");
                     msg!("   Pool address stays the same - No migration needed");
-                    msg!("   Fee remains: {} bps", self.fee_bps);
+                    msg!("   Trading fees removed: {} bps → 0 bps (no fees after graduation)", self.fee_bps);
 
                     // Transition to graduated phase
                     // NOW PRICING USES REAL RESERVES (PumpSwap-style)

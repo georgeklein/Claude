@@ -216,6 +216,8 @@ pub fn handler(
     pool.last_crx_price_usd = crx_price_usd;
     pool.last_price_update_slot = clock.slot;
 
+    pool.is_paused = false; // Pool starts unpaused
+
     pool.bump = ctx.bumps.pool;
 
     // Transfer initial base tokens from creator to pool

@@ -82,4 +82,7 @@ pub enum ErrorCode {
 
     #[msg("Output amount too small (dust trade)")]
     OutputTooSmall,
+
+    #[msg("Pool is paused - trading temporarily disabled")]
+    PoolPaused,
 }

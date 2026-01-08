@@ -74,6 +74,10 @@ pub fn handler(
     require!(quote_amount > 0, ErrorCode::InvalidAmount);
 
     let pool = &mut ctx.accounts.pool;
+
+    // Check if pool is paused (emergency stop)
+    require!(!pool.is_paused, ErrorCode::PoolPaused);
+
     let config = &ctx.accounts.config;
     let clock = Clock::get()?;
 
@@ -134,6 +138,14 @@ pub fn handler(
         ErrorCode::OutputTooSmall
     );
 
+    // CRITICAL: Validate sufficient liquidity in actual vault
+    // In PreBonding, virtual reserves >> real reserves, so user could request
+    // more output than vault actually has
+    require!(
+        base_output <= pool.real_base_reserves,
+        ErrorCode::InsufficientLiquidity
+    );
+
     // Calculate protocol fee
     let base_output_before_fee = pool.calculate_output(
         quote_amount,
@@ -191,19 +203,22 @@ pub fn handler(
     )?;
 
     // Transfer protocol fee to fee recipient (in CRX)
-    let fee_cpi_accounts = Transfer {
-        from: ctx.accounts.quote_vault.to_account_info(),
-        to: ctx.accounts.fee_recipient_account.to_account_info(),
-        authority: pool.to_account_info(),
-    };
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            fee_cpi_accounts,
-            signer,
-        ),
-        fee_in_quote,
-    )?;
+    // Skip if fee is zero (saves gas in Graduated phase where fees are 0)
+    if fee_in_quote > 0 {
+        let fee_cpi_accounts = Transfer {
+            from: ctx.accounts.quote_vault.to_account_info(),
+            to: ctx.accounts.fee_recipient_account.to_account_info(),
+            authority: pool.to_account_info(),
+        };
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                fee_cpi_accounts,
+                signer,
+            ),
+            fee_in_quote,
+        )?;
+    }
 
     // Update reserves based on phase
     if matches!(pool.current_phase, CurvePhase::Graduated) {

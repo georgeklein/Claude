@@ -24,6 +24,15 @@ pub fn get_crx_price_usd(
     // CRITICAL: Reject negative or zero prices (prevents division by zero and negative cast bugs)
     require!(price_feed.price > 0, ErrorCode::InvalidCrxPrice);
 
+    // CRITICAL: Validate exponent is within safe range for 10^expo
+    // 10^39 exceeds u128::MAX, so exponents must be in [-38, 38]
+    const MAX_SAFE_EXPONENT: i32 = 38;
+    const MIN_SAFE_EXPONENT: i32 = -38;
+    require!(
+        price_feed.expo >= MIN_SAFE_EXPONENT && price_feed.expo <= MAX_SAFE_EXPONENT,
+        ErrorCode::InvalidOracle
+    );
+
     // Check price freshness
     let price_age = clock.unix_timestamp - price_feed.publish_time;
     require!(
