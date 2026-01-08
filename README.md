@@ -1,4 +1,6 @@
 # Scale AMM
+<img width="335" height="149" alt="image" src="https://github.com/user-attachments/assets/679e0b5f-b379-42bb-a6a4-44417618292a" />
+
 
 ![Scale Logo](./assets/scale-logo.png)
 
