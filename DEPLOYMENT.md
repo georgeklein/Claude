@@ -180,28 +180,30 @@ solana address
 
 ---
 
-### Step 2: Automated Deployment + Initialization
+### Step 2: Deploy AMM Protocol (ONE-TIME)
 
-**One command deploys the program AND initializes the config automatically:**
+**Deploy the Scale AMM protocol and initialize global configuration:**
 
 ```bash
 # Devnet (testing)
-npm run deploy:devnet
+npm run deploy:amm:devnet
 
 # Testnet (pre-production)
-npm run deploy:testnet
+npm run deploy:amm:testnet
 
 # Mainnet (production)
-npm run deploy:mainnet
+npm run deploy:amm:mainnet
 ```
 
 **What happens automatically:**
-1. ✅ Checks deployer balance (requires ~5 SOL)
+1. ✅ Checks deployer balance (requires 2-5 SOL)
 2. ✅ Builds the program (`anchor build`)
 3. ✅ Deploys to cluster (`anchor deploy`)
 4. ✅ **Initializes config** (prevents front-running)
 5. ✅ Verifies deployment
 6. ✅ Generates deployment report
+
+**This is a ONE-TIME operation per network.** After this, use Step 3 to create individual pools.
 
 **Output example:**
 ```
@@ -242,7 +244,85 @@ Status: READY FOR PRODUCTION
 
 ---
 
-### Step 3: Verify Deployment
+### Step 3: Create Token Pools
+
+**After AMM deployment, create individual token pools:**
+
+```bash
+# Create a pool on devnet
+npm run create:pool:devnet
+
+# Or specify parameters directly
+ts-node scripts/create-pool.ts devnet \
+  <TOKEN_MINT> \
+  <SUPPLY> \
+  <INITIAL_MCAP_USD> \
+  <GRADUATION_THRESHOLD_USD>
+```
+
+**Example - Create SOL pool:**
+```bash
+ts-node scripts/create-pool.ts devnet \
+  So11111111111111111111111111111111111111112 \
+  1000000 \
+  10000 \
+  40000
+```
+
+**Parameters:**
+- `TOKEN_MINT`: SPL token mint address (must have revoked mint authority)
+- `SUPPLY`: Total token supply to deposit into pool
+- `INITIAL_MCAP_USD`: Initial market cap in USD (e.g., 10000 = $10k)
+- `GRADUATION_THRESHOLD_USD`: Graduation threshold in USD (e.g., 40000 = $40k)
+
+**Pool creation output:**
+```
+🏊 Scale AMM Pool Creator
+📍 Cluster: devnet
+
+✅ Configuration loaded
+   Creator: 7xK...abc
+   Program: CReamVLMa2dFi8RmKJQAYWn8Jy2yN5qvSu8gKFCxfp3
+
+💰 Checking creator balance...
+   Balance: 1.5000 SOL
+✅ Sufficient balance
+
+🔍 Verifying token mint...
+   Token: So11111111111111111111111111111111111111112
+✅ Token verified
+
+🏗️  Creating pool...
+   Token: So11111111111111111111111111111111111111112
+   Supply: 1000000
+   Initial Market Cap: $10k
+   Graduation Threshold: $40k
+   Creator Fee: 1%
+   Curve Type: ConstantProduct
+   WAA Enabled: true
+
+✅ Pool created successfully
+   Transaction: 5Kx...xyz
+   Pool Address: 8aB...pool
+
+✨ ════════════════════════════════════════════ ✨
+✨                                              ✨
+✨  🎉 POOL CREATED!                            ✨
+✨                                              ✨
+✨  Pool Address: 8aB...pool                    ✨
+✨  Token: So11111111111111111111111111111112   ✨
+✨  Network: devnet                             ✨
+✨                                              ✨
+✨ ════════════════════════════════════════════ ✨
+```
+
+**Cost per pool:** ~0.02 SOL
+
+**You can create multiple pools** - repeat this step for each token pair.
+
+---
+
+### Step 4: Verify Deployment
 
 ```bash
 # Check program is deployed
@@ -262,50 +342,7 @@ anchor run verify-deployment
 - [ ] Fee recipient correct
 - [ ] Oracle configured
 - [ ] Parameters match expectations
-
----
-
-### Step 4: Create Test Pool
-
-```typescript
-// Create a test pool with small values
-const testPool = await scale.createPool({
-  baseMint: TEST_TOKEN_MINT,
-  supply: 10_000,
-  initialMarketCapUsd: 100,  // $100 test
-  graduationThresholdUsd: 1_000,  // $1k graduation
-  creatorFeeBps: 100,
-});
-
-console.log('Test pool created:', testPool.address);
-```
-
-**Verify:**
-- [ ] Pool created successfully
-- [ ] Virtual reserves calculated correctly
-- [ ] Can execute buy transaction
-- [ ] Can execute sell transaction
-- [ ] Fees collected properly
-
----
-
-### Step 5: Production Launch
-
-Once test pool works:
-
-```typescript
-// Launch primary $CRX/SOL pool
-const crxPool = await scale.createPool({
-  baseMint: CRX_MINT,
-  quoteMint: SOL_MINT,
-  supply: 10_000_000,  // 10M $CRX
-  initialMarketCapUsd: 1_000_000,  // $1M launch
-  graduationThresholdUsd: 5_000_000,  // $5M graduation
-  creatorFeeBps: 100,  // 1% protocol fee
-});
-
-console.log('$CRX/SOL pool:', crxPool.address);
-```
+- [ ] At least one pool created and functional
 
 ---
 

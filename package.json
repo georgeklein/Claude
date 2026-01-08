@@ -5,9 +5,12 @@
   "scripts": {
     "test": "anchor test",
     "build": "anchor build",
-    "deploy:devnet": "ts-node scripts/deploy.ts devnet",
-    "deploy:testnet": "ts-node scripts/deploy.ts testnet",
-    "deploy:mainnet": "ts-node scripts/deploy.ts mainnet"
+    "deploy:amm:devnet": "ts-node scripts/deploy-amm.ts devnet",
+    "deploy:amm:testnet": "ts-node scripts/deploy-amm.ts testnet",
+    "deploy:amm:mainnet": "ts-node scripts/deploy-amm.ts mainnet",
+    "create:pool:devnet": "ts-node scripts/create-pool.ts devnet",
+    "create:pool:testnet": "ts-node scripts/create-pool.ts testnet",
+    "create:pool:mainnet": "ts-node scripts/create-pool.ts mainnet"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.29.0",

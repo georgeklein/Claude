@@ -1,10 +1,12 @@
 #!/usr/bin/env ts-node
 
 /**
- * Scale AMM - Automated Deployment Script
+ * Scale AMM - Protocol Deployment Script
  *
- * Handles both program deployment and initialization in one command.
- * Works for devnet, testnet, and mainnet.
+ * Deploys the Scale AMM protocol and initializes global configuration.
+ * This is a ONE-TIME operation per network.
+ *
+ * After deployment, use create-pool.ts to create individual token pools.
  *
  * PREREQUISITES:
  * 1. Wallet keypair must already exist (default: ~/.config/solana/id.json)
@@ -15,13 +17,13 @@
  * 3. Environment variables configured in .env file
  *
  * Usage:
- *   npm run deploy:devnet
- *   npm run deploy:testnet
- *   npm run deploy:mainnet
+ *   npm run deploy:amm:devnet
+ *   npm run deploy:amm:testnet
+ *   npm run deploy:amm:mainnet
  *
  * Or directly:
- *   ts-node scripts/deploy.ts devnet
- *   ts-node scripts/deploy.ts mainnet
+ *   ts-node scripts/deploy-amm.ts devnet
+ *   ts-node scripts/deploy-amm.ts mainnet
  */
 
 import * as anchor from "@coral-xyz/anchor";
