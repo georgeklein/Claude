@@ -1,14 +1,17 @@
-# Anchor
+# Scale AMM - Git Ignore Rules
+# Prevents committing secrets, keys, build artifacts, and sensitive files
+
+# Anchor build outputs
 .anchor
 target/
 **/*.rs.bk
 node_modules
 test-ledger
 
-# IDL
+# IDL binaries
 *.so
 
-# Keys (NEVER commit these!)
+# CRITICAL: Never commit keypairs or wallet files!
 *.json
 !package.json
 !tsconfig.json
