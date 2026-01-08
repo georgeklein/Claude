@@ -1,5 +1,7 @@
 # Contributing to Scale AMM
 
+**Contributor guidelines: fork, test, PR workflow**
+
 Thanks for your interest! To contribute:
 
 1. Fork the repository
