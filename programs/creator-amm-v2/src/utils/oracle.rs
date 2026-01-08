@@ -134,7 +134,7 @@ pub fn calculate_virtual_reserves_for_market_cap(
     require!(virtual_quote > 0, ErrorCode::InvalidVirtualReserves);
     require!(virtual_base > 0, ErrorCode::InvalidVirtualReserves);
 
-    msg!("💡 Calculated virtual reserves:");
+    msg!("Calculated virtual reserves:");
     msg!("   Target MC: ${}", target_market_cap_usd as f64 / 1_000_000.0);
     msg!("   CRX Price: ${}", crx_price_usd as f64 / 1_000_000.0);
     msg!("   Virtual CRX: {}", virtual_quote);
