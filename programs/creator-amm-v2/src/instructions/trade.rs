@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use crate::constants::*;
 use crate::state::{Config, Pool, CurvePhase};
 use crate::errors::ErrorCode;
 use crate::events::{TradeExecuted, PoolGraduated};
@@ -22,6 +23,7 @@ pub fn validate_trade_preconditions(
 
 /// Anti-sniper protection check for both buy and sell
 /// Returns Ok if trade is allowed, Err if blocked
+#[inline]
 pub fn check_anti_sniper_protection(
     pool: &Pool,
     config: &Config,
@@ -33,7 +35,7 @@ pub fn check_anti_sniper_protection(
         let max_trade_amount = (base_reserve as u128)
             .checked_mul(config.anti_sniper_max_trade_bps as u128)
             .ok_or(ErrorCode::MathOverflow)?
-            .checked_div(10000)
+            .checked_div(BPS_DENOMINATOR as u128)
             .ok_or(ErrorCode::MathOverflow)? as u64;
 
         require!(
@@ -61,7 +63,7 @@ pub fn calculate_base_fee(
     let fee = (amount as u128)
         .checked_mul(fee_bps as u128)
         .ok_or(ErrorCode::MathOverflow)?
-        .checked_div(10000)
+        .checked_div(BPS_DENOMINATOR as u128)
         .ok_or(ErrorCode::MathOverflow)? as u64;
 
     // Return calculated fee (may be 0 for small amounts)
@@ -87,7 +89,6 @@ pub fn validate_slippage(
 pub fn validate_minimum_output(
     output_amount: u64,
 ) -> Result<()> {
-    const MIN_OUTPUT_AMOUNT: u64 = 1000; // 0.001 tokens (with 6 decimals)
     require!(
         output_amount >= MIN_OUTPUT_AMOUNT,
         ErrorCode::OutputTooSmall
@@ -204,8 +205,7 @@ pub fn handle_phase_transition(
         return Ok(false);
     }
 
-    // Capture pre-transition state
-    let phase_before = pool.current_phase;
+    // Capture pre-transition state for event
     let virtual_quote_before = pool.virtual_quote_reserves;
     let virtual_base_before = pool.virtual_base_reserves;
 

@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use crate::constants::*;
 use crate::state::{Config, Pool, CurvePhase, CurveType};
 use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd, calculate_virtual_reserves_for_market_cap};
 use crate::errors::ErrorCode;
@@ -118,7 +119,7 @@ pub fn handler(
 
     // Validate fee is one of the allowed values
     require!(
-        fee_bps == 0 || fee_bps == 25 || fee_bps == 100,
+        fee_bps == FEE_TIER_FREE || fee_bps == FEE_TIER_LOW || fee_bps == FEE_TIER_STANDARD,
         ErrorCode::InvalidFee
     );
 
@@ -127,12 +128,6 @@ pub fn handler(
         matches!(curve_type, CurveType::ConstantProduct | CurveType::Exponential),
         ErrorCode::CustomCurveNotImplemented
     );
-
-    // Validation constants
-    const MIN_MARKET_CAP_USD: u64 = 1_000_000_000; // $1k minimum with 6 decimals
-    const MAX_MARKET_CAP_USD: u64 = 1_000_000_000_000; // $1M maximum with 6 decimals
-    const MIN_GRADUATION_USD: u64 = 5_000_000_000; // $5k minimum graduation
-    const MAX_GRADUATION_USD: u64 = 10_000_000_000_000; // $10M maximum graduation
 
     require!(
         target_market_cap_usd >= MIN_MARKET_CAP_USD,
@@ -178,7 +173,7 @@ pub fn handler(
 
     // Validate CRX price is reasonable ($0.01 to $1000)
     require!(
-        crx_price_usd >= 10_000 && crx_price_usd <= 1_000_000_000,
+        crx_price_usd >= CRX_PRICE_MIN_USD && crx_price_usd <= CRX_PRICE_MAX_USD,
         ErrorCode::InvalidCrxPrice
     );
 
@@ -192,7 +187,7 @@ pub fn handler(
 
     // Step 3: Calculate dynamic graduation threshold in CRX
     let graduation_threshold_crx = (graduation_threshold_usd as u128)
-        .checked_mul(1_000_000u128) // CRX decimals
+        .checked_mul(CRX_DECIMALS as u128)
         .ok_or(ErrorCode::MathOverflow)?
         .checked_div(crx_price_usd as u128)
         .ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
@@ -241,9 +236,10 @@ pub fn handler(
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     token::transfer(cpi_ctx, token_supply)?;
 
-    // Calculate initial price and market cap for event
+    // Calculate initial price and market cap for event (optimized to avoid redundant calculations)
     let initial_price = pool.get_spot_price()?;
-    let initial_market_cap_usd = pool.get_market_cap_usd()?;
+    let market_cap_crx = pool.get_market_cap_crx_from_price(initial_price)?;
+    let initial_market_cap_usd = pool.get_market_cap_usd_from_crx(market_cap_crx)?;
 
     // Emit event for indexers
     emit!(PoolCreated {

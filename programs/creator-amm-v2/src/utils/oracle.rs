@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use crate::constants::*;
 use crate::errors::ErrorCode;
 
 /// Pyth-compatible price feed account data
@@ -76,7 +77,7 @@ pub fn get_crx_price_usd(
     // Pyth exponents typically range from -12 to 0 for USD prices
     // We allow up to +6 to handle edge cases, but cap to prevent overflow
     require!(
-        price_feed.expo >= -12 && price_feed.expo <= 6,
+        price_feed.expo >= ORACLE_EXPONENT_MIN && price_feed.expo <= ORACLE_EXPONENT_MAX,
         ErrorCode::InvalidOracleExponent
     );
 
@@ -86,13 +87,13 @@ pub fn get_crx_price_usd(
         (price_feed.price as u128)
             .checked_mul(10u128.pow(price_feed.expo as u32))
             .ok_or(ErrorCode::MathOverflow)?
-            .checked_mul(1_000_000) // Convert to 6 decimals
+            .checked_mul(USD_DECIMALS as u128)
             .ok_or(ErrorCode::MathOverflow)?
     } else {
         // Negative exponent: divide
         let divisor = 10u128.pow(price_feed.expo.abs() as u32);
         (price_feed.price as u128)
-            .checked_mul(1_000_000) // Convert to 6 decimals
+            .checked_mul(USD_DECIMALS as u128)
             .ok_or(ErrorCode::MathOverflow)?
             .checked_div(divisor)
             .ok_or(ErrorCode::MathOverflow)?
@@ -113,7 +114,7 @@ pub fn calculate_virtual_reserves_for_market_cap(
     // Step 1: Calculate price per token in USD
     // price_per_token = market_cap / supply
     let price_per_token_usd = (target_market_cap_usd as u128)
-        .checked_mul(1_000_000) // Add precision
+        .checked_mul(USD_DECIMALS as u128)
         .ok_or(ErrorCode::MathOverflow)?
         .checked_div(token_supply as u128)
         .ok_or(ErrorCode::MathOverflow)?;
@@ -121,7 +122,7 @@ pub fn calculate_virtual_reserves_for_market_cap(
     // Step 2: Convert USD price to CRX price
     // price_in_crx = price_in_usd / crx_price_usd
     let price_per_token_crx = price_per_token_usd
-        .checked_mul(1_000_000) // CRX decimals
+        .checked_mul(CRX_DECIMALS as u128)
         .ok_or(ErrorCode::MathOverflow)?
         .checked_div(crx_price_usd as u128)
         .ok_or(ErrorCode::MathOverflow)?;
@@ -132,7 +133,7 @@ pub fn calculate_virtual_reserves_for_market_cap(
     let virtual_crx_reserves = price_per_token_crx
         .checked_mul(token_supply as u128)
         .ok_or(ErrorCode::MathOverflow)?
-        .checked_div(1_000_000) // Remove precision
+        .checked_div(USD_DECIMALS as u128)
         .ok_or(ErrorCode::MathOverflow)?;
 
     require!(

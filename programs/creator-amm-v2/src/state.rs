@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use crate::constants::*;
 
 /// Global configuration for Scale AMM
 #[account]
@@ -247,9 +248,9 @@ impl Pool {
                     .ok_or(ErrorCode::MathOverflow)?;
 
                 let input_scaled = (input_amount as u128)
-                    .checked_mul(150)
+                    .checked_mul(EXPONENTIAL_CURVE_NUMERATOR)
                     .ok_or(ErrorCode::MathOverflow)?
-                    .checked_div(100)
+                    .checked_div(EXPONENTIAL_CURVE_DENOMINATOR)
                     .ok_or(ErrorCode::MathOverflow)?;
 
                 let denominator = (input_reserve as u128)
@@ -263,14 +264,14 @@ impl Pool {
         };
 
         // Apply fee (fee is taken from output)
-        let fee_multiplier = 10000u128
+        let fee_multiplier = (BPS_DENOMINATOR as u128)
             .checked_sub(fee_bps as u128)
             .ok_or(ErrorCode::InvalidFee)?;
 
         let output_with_fee = output_before_fee
             .checked_mul(fee_multiplier)
             .ok_or(ErrorCode::MathOverflow)?
-            .checked_div(10000u128)
+            .checked_div(BPS_DENOMINATOR as u128)
             .ok_or(ErrorCode::MathOverflow)?;
 
         // Ensure output fits in u64
@@ -291,7 +292,7 @@ impl Pool {
         require!(base_reserves > 0, ErrorCode::InvalidReserves);
 
         let price = (quote_reserves as u128)
-            .checked_mul(1_000_000_000) // 9 decimals for precision
+            .checked_mul(PRICE_PRECISION as u128)
             .ok_or(ErrorCode::MathOverflow)?
             .checked_div(base_reserves as u128)
             .ok_or(ErrorCode::MathOverflow)?;
@@ -312,7 +313,7 @@ impl Pool {
         let market_cap = (self.token_total_supply as u128)
             .checked_mul(price as u128)
             .ok_or(ErrorCode::MathOverflow)?
-            .checked_div(1_000_000_000) // Remove precision
+            .checked_div(PRICE_PRECISION as u128)
             .ok_or(ErrorCode::MathOverflow)?;
 
         Ok(market_cap as u64)
@@ -331,7 +332,7 @@ impl Pool {
         let mc_usd = (mc_crx as u128)
             .checked_mul(self.last_crx_price_usd as u128)
             .ok_or(ErrorCode::MathOverflow)?
-            .checked_div(1_000_000) // CRX has 6 decimals
+            .checked_div(CRX_DECIMALS as u128)
             .ok_or(ErrorCode::MathOverflow)?;
 
         Ok(mc_usd as u64)
@@ -436,46 +437,34 @@ impl UserPosition {
     /// - T3: 4500 slots (~30min) - 0% fee
     #[inline]
     pub fn calculate_extra_sell_fee_bps(&self, current_slot: u64) -> Result<u64> {
-        // Constants
-        const T1: u64 = 75;       // ~30 seconds
-        const T2: u64 = 750;      // ~5 minutes
-        const T3: u64 = 4500;     // ~30 minutes
-        const F1: u64 = 1000;     // 10.00%
-        const F2: u64 = 100;      // 1.00%
-
-        // Pre-computed constants for optimization
-        const DECAY_RANGE: u64 = F1 - F2;   // 900
-        const TIME_RANGE_1: u64 = T2 - T1;  // 675
-        const TIME_RANGE_2: u64 = T3 - T2;  // 3750
-
         // Calculate age in slots
         let age = current_slot.saturating_sub(self.avg_entry_slot);
 
         // Piecewise linear decay - optimized with early returns
-        if age <= T1 {
-            return Ok(F1); // 0-30s: full 10% fee
+        if age <= WAA_TIER1_SLOTS {
+            return Ok(WAA_FEE_MAX); // 0-30s: full 10% fee
         }
 
-        if age <= T2 {
+        if age <= WAA_TIER2_SLOTS {
             // 30s-5m: decay from 10% → 1%
             // extra = F2 + (F1 - F2) * (T2 - age) / (T2 - T1)
-            let time_remaining = T2.saturating_sub(age);
-            let decay_component = DECAY_RANGE
+            let time_remaining = WAA_TIER2_SLOTS.saturating_sub(age);
+            let decay_component = WAA_DECAY_RANGE
                 .checked_mul(time_remaining)
                 .ok_or(ErrorCode::MathOverflow)?
-                .checked_div(TIME_RANGE_1)
+                .checked_div(WAA_TIME_RANGE_1)
                 .ok_or(ErrorCode::MathOverflow)?;
-            return Ok(F2.saturating_add(decay_component));
+            return Ok(WAA_FEE_MIN.saturating_add(decay_component));
         }
 
-        if age <= T3 {
+        if age <= WAA_TIER3_SLOTS {
             // 5m-30m: decay from 1% → 0%
             // extra = F2 * (T3 - age) / (T3 - T2)
-            let time_remaining = T3.saturating_sub(age);
-            let fee = F2
+            let time_remaining = WAA_TIER3_SLOTS.saturating_sub(age);
+            let fee = WAA_FEE_MIN
                 .checked_mul(time_remaining)
                 .ok_or(ErrorCode::MathOverflow)?
-                .checked_div(TIME_RANGE_2)
+                .checked_div(WAA_TIME_RANGE_2)
                 .ok_or(ErrorCode::MathOverflow)?;
             return Ok(fee);
         }
