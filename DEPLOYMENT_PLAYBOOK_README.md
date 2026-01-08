@@ -1,738 +1,371 @@
-# Scale AMM - Deployment Playbook
+# Scale AMM - Mainnet Deployment Playbook Summary
 
-**Complete mainnet deployment documentation package**
-
----
-
-## Overview
-
-This deployment playbook provides comprehensive guidance for launching Scale AMM to Solana mainnet. The protocol is **permissionless once deployed** - meaning there's no upgrade mechanism, no iteration, and no second chances. These documents ensure a successful, secure, and well-coordinated launch.
+**Created:** 2026-01-08
+**Status:** Ready for Use
 
 ---
 
-## Document Structure
+## What Has Been Created
 
-### 📘 Core Documents (4 files)
+I've created a definitive **ONE-SHOT DEPLOYMENT PLAYBOOK** for Scale AMM mainnet launch.
 
-| Document | Size | Purpose | When to Use |
-|----------|------|---------|-------------|
-| **MAINNET_DEPLOYMENT_GUIDE.md** | 74 KB | Complete reference guide | Read fully during prep (Week 2-3) |
-| **LAUNCH_DAY_CHECKLIST.md** | 6.7 KB | Quick reference for deployment | Keep open during launch day |
-| **DEPLOYMENT_ARTIFACTS_TEMPLATE.md** | 15 KB | Record-keeping template | Fill out during/after deployment |
-| **GO_NO_GO_DECISION_FORM.md** | 14 KB | Pre-launch decision template | Use at T-24h meeting |
+**New File:** `/home/user/Claude/MAINNET_DEPLOYMENT_PLAYBOOK.md` (1,200+ lines)
 
-### 📋 Related Documents (Already existed)
-
-| Document | Purpose |
-|----------|---------|
-| **DEPLOYMENT_CHECKLIST.md** | Basic checklist (now superseded by comprehensive guide) |
-| **DEPLOYER_WARNING.md** | Critical warning about DEPLOYER_PUBKEY |
-| **CLAUDE.md** | Project context and conventions |
+This consolidates and enhances existing deployment documentation into a single, actionable guide.
 
 ---
 
-## How to Use This Playbook
+## Why This Matters
 
-### Phase 1: Preparation (Weeks 1-2)
+Scale AMM is a **PERMISSIONLESS Solana protocol**, which means:
+- ❌ **NO UPGRADES** after deployment
+- ❌ **NO ROLLBACKS** once deployed  
+- ❌ **NO SECOND CHANCES** - must be perfect first time
+- ✅ **ONE PATH FORWARD** - new deployment if critical bugs found
 
-**Week 1: Development & Testing**
-1. Read **CLAUDE.md** for project context
-2. Read **WHAT_IT_DOES.md** for protocol understanding
-3. Complete all code development
-4. Implement 103 tests (currently 7,252 lines of tests)
-5. Run security checks
+**This is a ONE-SHOT DEPLOYMENT. You must get it right the first time.**
 
-**Week 2: Pre-Launch Preparation**
-1. **READ MAINNET_DEPLOYMENT_GUIDE.md IN FULL** (required for all team members)
-   - Section 1: Complete all pre-launch checklist items
-   - Section 7: Understand risk mitigation strategies
-   - Section 5: Memorize emergency response procedures
+---
 
-2. Deploy to devnet using `scripts/deploy-devnet.sh`
+## Critical Blocker: DEPLOYER_PUBKEY
 
-3. Run 72-hour soak test on devnet:
-   - 10,000+ trades
-   - Multiple pools
-   - Test graduation mechanics
-   - Test emergency pause
-   - Monitor for exploits
+**THE #1 BLOCKER TO DEPLOYMENT**
 
-4. Complete performance optimization:
-   - Target: <50k compute units per trade
-   - Currently: ~100k CU (acceptable but needs optimization)
+**File:** `programs/creator-amm-v2/src/instructions/initialize.rs:23`
 
-5. Set up infrastructure:
-   - RPC providers (primary + backup)
-   - Monitoring dashboard
-   - Alert system
-   - Multisig wallet
-
-### Phase 2: Pre-Launch (Week 3, T-24h)
-
-**T-24 Hours: Go/No-Go Meeting**
-
-1. **Use GO_NO_GO_DECISION_FORM.md:**
-   - All stakeholders meet
-   - Review every checklist item
-   - Verify critical blockers (ALL must be YES)
-   - Vote GO or NO-GO
-   - Document decision with signatures
-
-2. **Critical Verification (T-4 hours):**
-   ```bash
-   # MOST IMPORTANT CHECK:
-   grep "DEPLOYER_PUBKEY" programs/creator-amm-v2/src/instructions/initialize.rs
-   # MUST show your actual wallet, NOT "11111111111111111111111111111111"
-
-   # If still shows placeholder, DO NOT DEPLOY!
-   ```
-
-3. **Team Assembly (T-1 hour):**
-   - All team members in war room
-   - Roles confirmed
-   - Scripts tested
-   - Emergency contacts shared
-
-### Phase 3: Launch Day (T-0)
-
-**USE LAUNCH_DAY_CHECKLIST.md FOR THIS PHASE**
-
-Keep this file open in a window during deployment. Check off items as you go.
-
-**Key Timeline:**
-```
-T-30m:  Deploy program to mainnet
-T-25m:  Verify deployment
-T-20m:  Initialize config (CRITICAL - must be within 1 minute of deploy!)
-T-18m:  Verify config
-T-15m:  Create CRX/SOL pool
-T-10m:  Execute test trades
-T-5m:   Verify accounting
-T+0m:   Soft launch (private community)
-T+2h:   Public announcement (if stable)
+**Current State (BLOCKER):**
+```rust
+pub const DEPLOYER_PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
 ```
 
-**Most Critical Step:**
-```bash
-# Immediately after deployment (within 60 seconds):
-npx ts-node scripts/initialize-mainnet.ts
+**Why This Blocks:**
+- Without updating, ANYONE can initialize the protocol after you deploy
+- This is a **front-running attack** that permanently bricks the protocol
+- Once someone else initializes, you've lost control forever
 
-# This MUST succeed. You're racing front-runners.
-# But DEPLOYER_PUBKEY protection means only you can initialize.
+**MUST Change To:**
+```rust
+pub const DEPLOYER_PUBKEY: Pubkey = pubkey!("YOUR_ACTUAL_WALLET_ADDRESS");
 ```
 
-### Phase 4: During & After Deployment
-
-**USE DEPLOYMENT_ARTIFACTS_TEMPLATE.md**
-
-Fill this out in real-time during deployment:
-
-1. **During Deployment:**
-   - Program ID and transaction signature
-   - Config PDA address
-   - Timestamps for each step
-   - Any issues encountered
-
-2. **First 24 Hours:**
-   - Transaction metrics
-   - Pool creation stats
-   - User engagement
-   - Any incidents
-
-3. **After 24 Hours:**
-   - Complete all sections
-   - Add lessons learned
-   - Get team sign-off
-   - Commit to repository as `DEPLOYMENT_ARTIFACTS_MAINNET_[DATE].md`
-
----
-
-## Quick Reference: Critical Checks
-
-### Before Deployment
-
-**The #1 Blocker:**
+**Verification Command:**
 ```bash
 grep "11111111111111111111111111111111" programs/creator-amm-v2/src/instructions/initialize.rs
-```
-**MUST return NOTHING**. If it shows the placeholder, DO NOT DEPLOY!
-
-**Run These Commands:**
-```bash
-# Verify DEPLOYER_PUBKEY is your wallet
-solana address
-# Should match the DEPLOYER_PUBKEY in initialize.rs
-
-# Clean build
-anchor clean && anchor build
-# Must complete with 0 errors
-
-# Run all tests
-anchor test
-# Must be 100% passing
-
-# Check binary size
-ls -lh target/deploy/creator_amm_v2.so
-# Must be <500 KB
-
-# Verify Solana config
-solana config get
-# Must show mainnet-beta
-
-# Check balance
-solana balance
-# Must have >5 SOL
-```
-
-### Launch Day Commands
-
-**Deployment:**
-```bash
-anchor deploy --provider.cluster mainnet-beta 2>&1 | tee logs/mainnet-deploy.log
-```
-
-**Initialize (IMMEDIATELY after deploy):**
-```bash
-npx ts-node scripts/initialize-mainnet.ts
-```
-
-**Emergency Pause (if needed):**
-```bash
-npx ts-node scripts/emergency-pause.ts
+# MUST return NOTHING. If you see the constant, DO NOT DEPLOY.
 ```
 
 ---
 
-## Document Details
+## Complete Blocker List (12 Critical Items)
 
-### MAINNET_DEPLOYMENT_GUIDE.md (74 KB)
+All of these MUST be resolved before deployment:
 
-**Complete reference covering:**
+| # | Blocker | Verification |
+|---|---------|--------------|
+| 1 | DEPLOYER_PUBKEY is placeholder | `grep "11111..." initialize.rs` returns NOTHING |
+| 2 | Unchecked arithmetic exists | `rg "unwrap\(\)"` returns ZERO results |
+| 3 | Oracle validation incomplete | Manual code review passes |
+| 4 | Tests failing | `anchor test` shows 100% pass rate |
+| 5 | Devnet soak test incomplete | 72 hours, 10k+ trades, 0 exploits |
+| 6 | Security tests failing | All security tests pass |
+| 7 | Build fails | `anchor build` completes with 0 errors |
+| 8 | Program size >500KB | Binary <500KB |
+| 9 | Team unavailable | All key personnel confirmed available |
+| 10 | Monitoring not operational | Alert system tested |
+| 11 | No RPC provider | Primary + Backup RPCs confirmed |
+| 12 | Deployer has <5 SOL | Balance ≥5 SOL verified |
 
-**Section 1: Pre-Launch Checklist** (11 subsections)
-- Code verification (DEPLOYER_PUBKEY, security)
-- Build verification (clean build, binary size)
-- Test suite (103 tests, >95% coverage)
-- Devnet testing (72-hour soak test)
-- Performance (compute units)
-- Infrastructure (RPC, monitoring, multisig)
-- Legal & compliance
-- Team readiness
-- Documentation
+**If ANY blocker is not resolved, deployment is NO-GO.**
 
-**Section 2: Launch Sequence** (detailed timeline)
-- T-24h: Final review
+---
+
+## What's in the Playbook
+
+### 1. Pre-Deployment Phase (Day -3 to -1)
+- Go/No-Go decision meeting (60 min structured format)
+- 8 verification commands to run live
+- Complete blockers list with verification steps
+- Deployment artifacts checklist
+
+### 2. Devnet Soak Test Protocol (72 Hours)
+**Complete TypeScript script provided** for automated testing:
+- Target: 10,000+ trades over 72 hours
+- Success rate requirement: ≥99%
+- Exploit tolerance: ZERO
+- Hour-by-hour manual testing checklist
+- Every-5-minutes monitoring protocol
+- 9 success criteria (all must pass)
+
+### 3. Deployment Day Sequence (Day 0)
+**Step-by-step with exact commands:**
 - T-4h: Team assembly
-- T-1h: Final verification
-- T-0: Deploy, initialize, test
+- T-1h: Final verification (8 commands)
+- T-30m: Deploy program (**POINT OF NO RETURN**)
+- T-0: Initialize config (**RACE CONDITION** - within 1 minute!)
+- T+5m: Create CRX/SOL pool
+- T+10m: Test trades
+- T+30m: Soft launch
 - T+2h: Public announcement
 
-**Section 3: Post-Launch Monitoring**
-- First 24 hours (maximum intensity)
-- First week (high vigilance)
-- First month (steady state)
-- Ongoing monitoring
+### 4. Post-Launch Monitoring (Day 0-7)
+- First 24 hours: Maximum intensity (hourly checks)
+- First week: High vigilance (twice-daily checks)
+- Alert thresholds with response times
+- Success metrics for Day 1, Week 1, Month 1
 
-**Section 4: Rollback Procedures**
-- What's possible (limited - permissionless protocol)
-- Emergency pause procedure
-- "Rollback" via new deployment
+### 5. Emergency Procedures
+**5 complete runbooks:**
+1. Exploit Detected → Emergency pause within 5 min
+2. Oracle Failure → Switch to backup or pause
+3. RPC Provider Outage → Failover procedures
+4. High Transaction Failure → Investigation steps
+5. Wrong Wallet Initialized → Protocol compromised
 
-**Section 5: Emergency Response Plan**
-- Incident severity levels (P0-P3)
-- Response workflows
-- Communication chains
-- Escalation procedures
+**Complete scripts provided:**
+- `emergency-pause.ts` - Full implementation
+- `unpause.ts` - Resume trading  
+- `verify-config.ts` - Config verification
+- `verify-accounting.ts` - Reserves vs vaults check
 
-**Section 6: Communication Templates**
-- Pre-launch announcements
-- Incident communications (P0-P3)
-- Routine updates
-- Maintenance windows
-
-**Section 7: Risk Mitigation Strategies**
-- Pre-launch risks (DEPLOYER_PUBKEY, tests, security)
-- Launch risks (front-running, network congestion)
-- Post-launch risks (exploits, oracle, slippage)
-- Long-term risks (obsolescence, regulation)
-
-**Section 8: Go/No-Go Decision Criteria**
-- Critical must-haves (absolute blockers)
-- High-priority items (can waive with justification)
-- Nice-to-haves (not blockers)
-- Decision framework with examples
-
-**Appendices:**
-- Useful commands
-- Contact information template
-- Deployment artifacts checklist
-- Post-launch task list
-- Success metrics
+### 6. GO/NO-GO Decision Criteria
+- 12 critical blockers (any NO = automatic NO-GO)
+- 4 high-priority items (can waive with justification)
+- 6 nice-to-haves (not blockers)
+- Weighted voting: Tech Lead (50%), Security (30%), CEO (20%)
 
 ---
 
-### LAUNCH_DAY_CHECKLIST.md (6.7 KB)
+## Scripts Provided
 
-**Quick-reference single-page checklist:**
+All scripts are complete implementations in the playbook:
 
-- Pre-deployment checks (T-1 hour)
-- 10-step deployment sequence with commands
-- Emergency procedures (pause, retry)
-- Artifacts to save
-- Contact info template
-- Success criteria
-- Common issues & solutions
-- Decision points (when to announce, when to pause)
+**Deployment:**
+1. `initialize-mainnet.ts` - Config initialization
+2. `verify-config.ts` - Verify config state
+3. `emergency-pause.ts` - Emergency pause
+4. `unpause.ts` - Resume trading
 
-**How to use:**
-- Print or keep open in a window
-- Check off items as you complete them
-- Reference emergency procedures if needed
-- Have all team members follow along
+**Testing:**
+5. `soak-test-simulation.ts` - 72-hour automated trading
+6. `test-buy-mainnet.ts` - Buy test
+7. `test-sell-mainnet.ts` - Sell test
+8. `verify-accounting-mainnet.ts` - Accounting verification
 
----
-
-### DEPLOYMENT_ARTIFACTS_TEMPLATE.md (15 KB)
-
-**Comprehensive record-keeping template with 20 sections:**
-
-1. Deployment metadata
-2. Program deployment (ID, hash, transaction)
-3. Configuration initialization (parameters)
-4. CRX token information
-5. Oracle information
-6. Primary pool (CRX/SOL)
-7. Test trades (first buy, first sell)
-8. Authority & access control
-9. RPC & infrastructure
-10. Deployment timeline
-11. First 24 hours metrics (usage, performance, revenue)
-12. Issues & incidents (log any problems)
-13. Security events
-14. Communication log
-15. Team members
-16. Post-deployment actions
-17. Links & resources
-18. Backup & recovery
-19. Lessons learned
-20. Sign-off & verification
-
-**How to use:**
-- Open during deployment
-- Fill in real-time as events occur
-- Complete remaining sections in first 24 hours
-- Add lessons learned after retrospective
-- Get team sign-off
-- Commit to repository as official record
+**Monitoring:**
+9. `check-pool-health.ts` - Pool health
+10. `generate-soak-test-report.ts` - Soak test report
 
 ---
 
-### GO_NO_GO_DECISION_FORM.md (14 KB)
+## Quick Start Guide
 
-**Structured decision-making template for T-24h meeting:**
+### Step 1: Update DEPLOYER_PUBKEY (DO THIS FIRST!)
 
-**Critical Blockers (12 items - ALL must be YES):**
-1. DEPLOYER_PUBKEY updated
-2. No unchecked arithmetic
-3. Oracle validation complete
-4. All tests pass
-5. Devnet soak test complete
-6. Security tests pass
-7. Clean build succeeds
-8. Program size within limits
-9. Team available
-10. Monitoring operational
-11. RPC providers confirmed
-12. Multisig ready
+```bash
+# Get your wallet address
+solana address
 
-**High-Priority Items (4 items - can waive with justification):**
-13. Compute units acceptable (<100k)
-14. Code coverage >95%
-15. External security audit
-16. Monitoring dashboard
+# Edit initialize.rs
+nano programs/creator-amm-v2/src/instructions/initialize.rs
 
-**Nice-to-Haves (not blockers):**
-- Documentation, marketing, features
+# Change line 23 to YOUR wallet address
 
-**Includes:**
-- Discussion section for concerns
-- Individual vote forms (Tech Lead, Security Lead, CEO)
-- Weighted voting system (50/30/20)
-- Risk acceptance documentation
-- Signatures
-- Next steps (GO or NO-GO paths)
+# Verify (CRITICAL):
+grep "11111111111111111111111111111111" programs/creator-amm-v2/src/instructions/initialize.rs
+# Should return NOTHING
+```
 
-**How to use:**
-- Schedule meeting at T-24h before launch
-- All stakeholders attend
-- Review each item systematically
-- Document concerns and discuss
-- Vote (individual + weighted)
-- Record decision with signatures
-- Execute launch plan (GO) or gap resolution (NO-GO)
+### Step 2: Run Pre-Deployment Verification
+
+```bash
+# 1. Verify no unchecked arithmetic
+rg "unwrap\(\)" programs/creator-amm-v2/src/ --type rust | grep -v test
+
+# 2. Run all tests
+anchor test
+
+# 3. Clean build
+anchor clean && anchor build
+
+# 4. Check program size
+ls -lh target/deploy/creator_amm_v2.so
+
+# 5. Verify deployer balance
+solana balance
+# Must be ≥5 SOL
+```
+
+### Step 3: Start Devnet Soak Test (72 hours before mainnet)
+
+```bash
+# Deploy to devnet
+./scripts/deploy-devnet.sh
+
+# Start soak test (script provided in playbook)
+nohup npx ts-node scripts/soak-test-simulation.ts > soak-test.log 2>&1 &
+
+# Monitor
+tail -f soak-test.log
+```
+
+### Step 4: Go/No-Go Meeting (T-24 hours)
+
+Use `GO_NO_GO_DECISION_FORM.md` template:
+- Review all 12 critical blockers
+- Review soak test results
+- Individual votes (weighted)
+- GO or NO-GO decision
+
+### Step 5: Launch Day (Day 0)
+
+Follow playbook section "Deployment Day Sequence" **EXACTLY**.
+
+**Critical timing:**
+- T-1h: Final verification (DO NOT SKIP)
+- T-30m: Deploy (POINT OF NO RETURN)
+- **T-0: Initialize (MUST be within 1 minute of deploy!)**
 
 ---
 
-## Pre-Launch Preparation Checklist
+## Emergency Runbooks
 
-**Use this to track your progress through Week 1-3:**
+### Exploit Detected
 
-### Week 1: Development
-- [ ] All features implemented
-- [ ] 103 tests implemented and passing
-- [ ] Code coverage >95%
-- [ ] No TODOs/FIXMEs in critical paths
-- [ ] All arithmetic is checked (no unwrap/panic)
-- [ ] Security review complete
+```bash
+# 1. Emergency pause (within 5 min)
+npx ts-node scripts/emergency-pause.ts
 
-### Week 2: Devnet Testing
-- [ ] DEPLOYER_PUBKEY updated (verify 3x times!)
-- [ ] Deployed to devnet successfully
-- [ ] 72-hour soak test running
-- [ ] 10,000+ trades executed
-- [ ] Multiple pools created and graduated
-- [ ] Emergency pause tested
-- [ ] Zero exploits discovered
+# 2. Notify team
+# Post in war room: "🚨 CRITICAL: Exploit detected. Protocol paused."
 
-### Week 3: Mainnet Preparation
-- [ ] All team members read MAINNET_DEPLOYMENT_GUIDE.md
-- [ ] RPC providers contracted (primary + backup)
-- [ ] Monitoring systems deployed
-- [ ] Alert system configured and tested
-- [ ] Multisig wallet created and tested
-- [ ] Communication templates customized
-- [ ] Emergency contact info shared
-- [ ] War room Discord channel created
-- [ ] Go/No-Go meeting scheduled
+# 3. Investigate (1-4 hours)
+# - Identify root cause
+# - Assess damage
+# - Develop fix
 
-### T-24 Hours
-- [ ] Go/No-Go meeting completed
-- [ ] Decision: GO (with conditions documented)
-- [ ] Launch time confirmed
-- [ ] Team assignments confirmed
-- [ ] All team members available and ready
+# 4. Communicate (within 15 min of pause)
+# Tweet: "Scale AMM temporarily paused for emergency maintenance..."
+# (Full templates in playbook Section 6)
 
-### T-4 Hours
-- [ ] Team assembled in war room
-- [ ] DEPLOYER_PUBKEY verified one final time
-- [ ] Clean build completed
-- [ ] Solana CLI configured for mainnet
-- [ ] Deployer wallet has >5 SOL
-- [ ] Initialize script ready and tested
-- [ ] Monitoring systems live
+# 5. Resolution
+# - Fix and unpause (if minor)
+# - Deploy new version (if critical)
+```
 
-### T-0 (Launch)
-- [ ] Follow LAUNCH_DAY_CHECKLIST.md step-by-step
-- [ ] Fill out DEPLOYMENT_ARTIFACTS_TEMPLATE.md in real-time
+### Oracle Failure
+
+```bash
+# 1. Verify oracle down
+# Check Pyth status page
+
+# 2. If Pyth down globally:
+# - Wait for Pyth team
+# - Communicate to users
+
+# 3. If only our feed:
+# - Switch to backup oracle (if exists)
+# - Or emergency pause
+```
+
+### RPC Outage
+
+```bash
+# 1. Switch to backup
+export RPC_URL="<BACKUP_RPC>"
+
+# 2. Update .env.mainnet
+
+# 3. Verify backup working
+solana cluster-version --url $RPC_URL
+```
 
 ---
 
 ## Success Criteria
 
-### Launch Day Success (T+24h)
+### Day 1
+- ✅ Uptime >99%
+- ✅ Transaction success rate >99%
+- ✅ Zero security incidents
+- ✅ >10 pools created
+- ✅ >$10k volume
 
-✅ **Technical:**
-- Uptime >99%
-- Transaction success rate >99%
-- Zero security incidents
-- Reserves match vault balances
-- Fees collecting correctly
+### Week 1
+- ✅ Uptime >99.5%
+- ✅ TVL >$100k
+- ✅ >100 pools created
+- ✅ At least 1 graduation
 
-✅ **Adoption:**
-- >10 pools created
-- >$10k volume
-- >50 unique users
-- Positive community sentiment
-
-✅ **Team:**
-- All systems monitored
-- No critical incidents
-- Team morale high
-- Lessons documented
-
-### Week 1 Success (T+7 days)
-
-✅ **Growth:**
-- TVL >$100k
-- >100 pools created
-- >$100k volume
-- >500 unique users
-
-✅ **Product:**
-- At least 1 token graduated
-- No critical bugs discovered
-- User feedback positive
-
-✅ **Business:**
-- Protocol revenue >$1k
-- Ecosystem developing
-- Partnerships forming
-
-### Month 1 Success (T+30 days)
-
-✅ **Scale:**
-- TVL >$1M
-- >1,000 pools
-- >$1M volume
-- >5,000 unique users
-
-✅ **Maturity:**
-- Protocol stable and battle-tested
-- Feature roadmap for months 2-6
-- Community self-sustaining
-- Competitors emerging (validation!)
+### Month 1
+- ✅ TVL >$1M
+- ✅ >1,000 pools
+- ✅ Protocol operating smoothly
 
 ---
 
-## Emergency Scenarios
+## Files Overview
 
-### Scenario 1: Initialize Transaction Fails
+### New Files (Created Today)
+1. **`MAINNET_DEPLOYMENT_PLAYBOOK.md`** - Complete 1,200+ line playbook
+2. **`DEPLOYMENT_PLAYBOOK_README.md`** - This summary (YOU ARE HERE)
 
-**Symptoms:** Transaction rejected, error message shown
-
-**Response:**
-1. Read error message carefully
-2. Check parameters in script (likely issue)
-3. Verify wallet has SOL for fees
-4. Retry IMMEDIATELY (clock is ticking)
-5. If repeated failure, check DEPLOYER_PUBKEY matches
-
-**Time Pressure:** You have ~60-120 seconds before front-runners could attempt (but DEPLOYER_PUBKEY protection means only you can succeed)
+### Existing Files (Referenced)
+3. `MAINNET_DEPLOYMENT_GUIDE.md` - Comprehensive 3,180-line guide
+4. `LAUNCH_DAY_CHECKLIST.md` - Quick reference
+5. `GO_NO_GO_DECISION_FORM.md` - Decision template
+6. `DEPLOYMENT_CHECKLIST.md` - Pre-launch checklist
+7. `DEPLOYER_WARNING.md` - DEPLOYER_PUBKEY warning
 
 ---
 
-### Scenario 2: Test Trades Fail After Deploy
+## Next Steps
 
-**Symptoms:** Buy or sell transactions fail with error
+### Immediate (Today)
+- [ ] Read full playbook: `MAINNET_DEPLOYMENT_PLAYBOOK.md`
+- [ ] **Update DEPLOYER_PUBKEY** in initialize.rs (CRITICAL!)
+- [ ] Verify update with grep command
+- [ ] Commit change to git
 
-**Response:**
-1. Check error code: `solana confirm <TX_SIG> -v --url mainnet`
-2. Common errors:
-   - Slippage: Increase min_base_amount tolerance
-   - Oracle stale: Wait 30 seconds, retry
-   - Insufficient balance: Check wallet balances
-3. If critical bug discovered:
-   - Assess severity (see MAINNET_DEPLOYMENT_GUIDE Section 5)
-   - Consider emergency pause if funds at risk
-   - Communicate to team immediately
+### This Week
+- [ ] Complete all tests (target: 103 tests, 100% pass rate)
+- [ ] Prepare soak test scripts
+- [ ] Schedule go/no-go meeting (Day -3)
+- [ ] Set up monitoring infrastructure
+- [ ] Confirm RPC providers (primary + backup)
 
----
+### Day -3 (72 hours before launch)
+- [ ] Go/No-Go meeting
+- [ ] Start devnet soak test
+- [ ] Team assignments
+- [ ] War room setup
 
-### Scenario 3: Need to Emergency Pause
-
-**When to use:** ONLY for critical issues (exploit, critical bug, oracle failure, funds at risk)
-
-**How to pause:**
-```bash
-npx ts-node scripts/emergency-pause.ts
-```
-
-**Immediately after pausing:**
-1. Announce to users (within 5 minutes):
-   - Twitter: "Scale AMM trading paused for emergency maintenance"
-   - Discord: Detailed explanation
-2. Investigate root cause
-3. Assess impact (funds lost? users affected?)
-4. Develop mitigation plan
-5. Decide: Fix and resume, or deploy new version?
-
-**DO NOT pause for:**
-- High volatility (expected)
-- User complaints about losses
-- Feature requests
-- Competitor activity
+### Day 0 (Launch Day)
+- [ ] Follow playbook step-by-step
+- [ ] Save all artifacts
+- [ ] Monitor intensively
+- [ ] Communicate proactively
 
 ---
 
-### Scenario 4: Oracle Issues
+## Important Reminders
 
-**Symptoms:** Transactions failing with "OraclePriceStale" or "OracleConfidenceTooLow"
-
-**Response:**
-1. Check oracle account: `solana account <ORACLE_ADDRESS> --url mainnet`
-2. Check Pyth website for feed status
-3. If temporary: Wait for oracle to update (usually <60 seconds)
-4. If persistent:
-   - Contact oracle provider (Pyth Discord)
-   - Consider switching to backup oracle (if admin function exists)
-   - May need emergency pause if prolonged
+1. **DEPLOYER_PUBKEY** is the #1 blocker - Check it 3+ times
+2. **Initialize within 1 minute** of deployment - Have script ready
+3. **You cannot upgrade** - Get it right the first time
+4. **Emergency pause** is your safety net - Test on devnet first
+5. **Communication is key** - Keep users informed, use provided templates
 
 ---
 
-## Team Roles & Responsibilities
+## Document Information
 
-### Deploy Lead (Technical Lead)
-- Execute deployment commands
-- Initialize config
-- Create primary pool
-- Technical decision-making
-- Final authority on pause decisions
-
-### Security Lead
-- Monitor for exploits in real-time
-- Review transaction patterns
-- Incident response coordination
-- Post-mortem investigation
-
-### Infrastructure Lead
-- RPC health monitoring
-- Monitoring systems operation
-- Alert system management
-- Oracle status tracking
-
-### Communications Lead
-- User announcements (soft + public launch)
-- Incident communication
-- Social media updates
-- Community management
-
-### Support Lead
-- User question triage
-- Bug report collection
-- FAQ updates
-- Discord/Telegram moderation
+**Created:** 2026-01-08
+**Playbook:** `MAINNET_DEPLOYMENT_PLAYBOOK.md` (1,200+ lines)
+**This Summary:** `DEPLOYMENT_PLAYBOOK_README.md`
+**Status:** Ready for use
 
 ---
 
-## Critical Reminders
+**Good luck with your mainnet deployment! 🚀**
 
-### Before You Deploy
-
-1. **DEPLOYER_PUBKEY MUST be your actual wallet** (not `11111...`)
-   - Check 3 times before deployment
-   - This is the #1 cause of failed deployments
-   - No second chances on mainnet
-
-2. **Initialize within 1 minute of deployment**
-   - Have script ready to run
-   - Don't troubleshoot on mainnet - test on devnet first
-   - DEPLOYER_PUBKEY protection prevents front-running
-
-3. **You cannot upgrade after deployment**
-   - Permissionless = permanent
-   - Any bugs require new deployment (different program ID)
-   - Users must migrate manually
-   - Get it right the first time!
-
-4. **Test EVERYTHING on devnet first**
-   - Same commands you'll use on mainnet
-   - Same parameters
-   - Same scripts
-   - Time yourself - practice the 1-minute window
-
-5. **Emergency pause is your safety net**
-   - But use sparingly (protocol reputation)
-   - Only for critical issues
-   - Have clear criteria for when to pause
-
----
-
-## Additional Resources
-
-### Related Documentation
-
-- **README.md** - Project overview and setup
-- **WHAT_IT_DOES.md** - Protocol mechanics explained
-- **CLAUDE.md** - Project context, conventions, commands
-- **SDK_IMPROVEMENTS.md** - Future SDK enhancements
-- **TOKEN_LAUNCH_FEATURES.md** - Token launch features
-
-### External Resources
-
-- **Solana Documentation:** https://docs.solana.com
-- **Anchor Framework:** https://www.anchor-lang.com
-- **Pyth Network:** https://pyth.network
-- **Solana Explorer:** https://explorer.solana.com
-
-### Tools
-
-- **Solana CLI:** `solana --version` (must be 1.17+)
-- **Anchor CLI:** `anchor --version` (must be 0.29.0)
-- **Node.js:** `node --version` (must be 18+)
-
----
-
-## Questions & Support
-
-### During Preparation
-
-If you have questions while preparing for launch:
-1. Re-read the relevant section in MAINNET_DEPLOYMENT_GUIDE.md
-2. Test on devnet to understand the behavior
-3. Discuss with team in preparation meetings
-4. Document your questions and answers for others
-
-### During Launch
-
-If issues arise during launch:
-1. Stay calm - you have prepared for this
-2. Follow emergency procedures in LAUNCH_DAY_CHECKLIST.md
-3. Use war room Discord for team coordination
-4. Reference MAINNET_DEPLOYMENT_GUIDE Section 5 (Emergency Response)
-5. Prioritize user fund safety over everything else
-
-### After Launch
-
-For post-launch issues:
-1. Monitor dashboards and alerts
-2. Triage issues by severity (P0-P3)
-3. Follow incident response workflow
-4. Document everything in DEPLOYMENT_ARTIFACTS
-5. Conduct post-mortem for major incidents
-
----
-
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2026-01-08 | Initial comprehensive deployment playbook created |
-
----
-
-## Final Thoughts
-
-**This is a major undertaking.** You're deploying a permissionless, immutable protocol to mainnet. There are no second chances, no upgrades, no take-backs.
-
-**But you're prepared.**
-
-You have:
-- ✅ Comprehensive documentation (74 KB guide)
-- ✅ Step-by-step checklists
-- ✅ Emergency procedures
-- ✅ Risk mitigation strategies
-- ✅ Communication templates
-- ✅ 72 hours of devnet testing
-- ✅ 103 tests with >95% coverage
-- ✅ Security-focused design
-- ✅ Experienced team
-
-**Trust your preparation. Follow the process. Stay calm under pressure.**
-
-**When in doubt:**
-1. Pause and assess
-2. Consult the guide
-3. Discuss with team
-4. Make informed decisions
-5. Document everything
-
-**You've got this. 🚀**
-
----
-
-## Quick Navigation
-
-**Need something specific?**
-
-- 📘 **Full reference?** → MAINNET_DEPLOYMENT_GUIDE.md
-- ✅ **Launch day commands?** → LAUNCH_DAY_CHECKLIST.md
-- 📝 **Record keeping?** → DEPLOYMENT_ARTIFACTS_TEMPLATE.md
-- 🔍 **Go/No-Go decision?** → GO_NO_GO_DECISION_FORM.md
-- ⚠️ **DEPLOYER_PUBKEY warning?** → DEPLOYER_WARNING.md
-- 📋 **Basic checklist?** → DEPLOYMENT_CHECKLIST.md
-
----
-
-**Good luck with your mainnet launch!**
-
-**Remember: Permissionless is powerful. Permissionless is permanent. Deploy wisely.**
+**The most important thing: Update DEPLOYER_PUBKEY before you do ANYTHING else.**
