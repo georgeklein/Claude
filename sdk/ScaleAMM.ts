@@ -606,6 +606,7 @@ export class ScaleAMM {
         .accounts({
           config: configPda,
           pool,
+          crxPriceOracle: configData.crxPriceOracle,
           quoteVault: quoteVaultPda,
           baseVault: baseVaultPda,
           userQuoteAccount: userQuoteAccount.address,
@@ -707,6 +708,7 @@ export class ScaleAMM {
         .accounts({
           config: configPda,
           pool,
+          crxPriceOracle: configData.crxPriceOracle,
           quoteVault: quoteVaultPda,
           baseVault: baseVaultPda,
           userQuoteAccount: userQuoteAccount.address,

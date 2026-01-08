@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::{Config, Pool, UserPosition};
 use crate::errors::ErrorCode;
+use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd};
 use super::trade::{self, TradeDirection};
 
 #[derive(Accounts)]
@@ -21,6 +22,12 @@ pub struct Sell<'info> {
         bump = pool.bump,
     )]
     pub pool: Account<'info, Pool>,
+
+    /// CRX price oracle (required for virtual reserve updates)
+    #[account(
+        constraint = crx_price_oracle.key() == config.crx_price_oracle @ ErrorCode::InvalidOracle
+    )]
+    pub crx_price_oracle: Account<'info, PythPriceFeed>,
 
     #[account(
         mut,
@@ -92,6 +99,15 @@ pub fn handler(
 
     // Shared validation: protocol pause and amount check
     trade::validate_trade_preconditions(config, base_amount)?;
+
+    // CRITICAL FIX: Update virtual reserves based on current CRX price (PreBonding only)
+    // This maintains USD-pegged target market cap despite CRX price fluctuations
+    let current_crx_price_usd = get_crx_price_usd(
+        &ctx.accounts.crx_price_oracle,
+        config.oracle_max_age_seconds,
+        config.oracle_max_confidence_bps,
+    )?;
+    pool.update_virtual_reserves_if_needed(current_crx_price_usd)?;
 
     // Get current phase parameters
     let current_fee_bps = pool.get_current_fee_bps();
