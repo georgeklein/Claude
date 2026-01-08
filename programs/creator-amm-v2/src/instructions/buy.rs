@@ -82,10 +82,14 @@ pub fn handler(
     quote_amount: u64,      // Amount of CRX to spend
     min_base_amount: u64,   // Minimum tokens to receive (slippage protection)
 ) -> Result<()> {
+    let config = &ctx.accounts.config;
+
+    // CRITICAL: Check if protocol is paused (emergency stop)
+    require!(!config.is_paused, ErrorCode::ProtocolPaused);
+
     require!(quote_amount > 0, ErrorCode::InvalidAmount);
 
     let pool = &mut ctx.accounts.pool;
-    let config = &ctx.accounts.config;
     let clock = Clock::get()?;
 
     // Get current phase parameters
@@ -93,12 +97,6 @@ pub fn handler(
 
     // Get correct reserves based on phase (virtual or real)
     let (quote_reserve, base_reserve) = pool.get_pricing_reserves();
-
-    msg!("Buy Request:");
-    msg!("   Quote Amount: {} CRX", quote_amount);
-    msg!("   Current Phase: {:?}", pool.current_phase);
-    msg!("   Fee: {} bps", current_fee_bps);
-    msg!("   Using {} reserves", if matches!(pool.current_phase, CurvePhase::Graduated) { "REAL" } else { "VIRTUAL" });
 
     // Anti-sniper protection check (only PreBonding phase)
     if pool.is_anti_sniper_active(clock.slot, config.anti_sniper_window_slots) {
@@ -270,11 +268,6 @@ pub fn handler(
     // Update weighted average entry slot
     user_position.update_on_buy(base_output, clock.slot)?;
 
-    msg!("WAA updated: avg_entry_slot={}, tracked_amount={}",
-        user_position.avg_entry_slot,
-        user_position.tracked_amount
-    );
-
     // Capture pre-transition state for event
     let phase_before = pool.current_phase;
     let virtual_quote_before = pool.virtual_quote_reserves;
@@ -345,22 +338,6 @@ pub fn handler(
     });
 
     msg!("Buy executed!");
-    msg!("   Quote In: {} CRX (total paid by user)", quote_amount);
-    msg!("   Swap Amount: {} CRX (after {} bps fee)", swap_amount, current_fee_bps);
-    msg!("   Base Out: {} tokens", base_output);
-    msg!("   Fee to Creator: {} CRX", fee_in_quote);
-
-    let (new_quote_res, new_base_res) = pool.get_pricing_reserves();
-    msg!("   New Price: {} CRX per token",
-        (new_quote_res as f64) / (new_base_res as f64)
-    );
-
-    if matches!(pool.current_phase, CurvePhase::PreBonding) {
-        msg!("   Real CRX Accumulated: {} / {} (to graduation)",
-            pool.real_quote_reserves,
-            pool.graduation_threshold_crx
-        );
-    }
 
     if transitioned {
         msg!("Phase transition occurred!");

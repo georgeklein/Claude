@@ -14,21 +14,7 @@ declare_id!("CReamVLMa2dFi8RmKJQAYWn8Jy2yN5qvSu8gKFCxfp3");
 pub mod creator_amm_v2 {
     use super::*;
 
-    /// Initialize the Creator AMM v2 global configuration
-    ///
-    /// Sets up oracle integration, fee structures, phase thresholds, and quote token whitelist
-    ///
-    /// # Arguments
-    /// * `pre_bonding_fee_bps` - Fee during phase 1 (e.g., 300 = 3%)
-    /// * `pre_bonding_threshold_usd` - USD threshold for phase 1→2 (e.g., 40_000_000_000 = $40k)
-    /// * `post_bonding_fee_bps` - Fee during phase 2 (e.g., 100 = 1%)
-    /// * `graduation_threshold_usd` - USD threshold for graduation (e.g., 85_000_000_000 = $85k)
-    /// * `anti_sniper_window_slots` - Slots to enforce anti-sniper (e.g., 20 ≈ 8 seconds)
-    /// * `anti_sniper_max_trade_bps` - Max trade size during window (e.g., 500 = 5%)
-    /// * `oracle_max_age_seconds` - Max oracle price age (e.g., 60 seconds)
-    /// * `oracle_max_confidence_bps` - Max oracle confidence deviation (e.g., 100 = 1%)
-    /// * `approved_quote_tokens` - Array of 5 pubkeys for whitelisted quote tokens (Tier 2)
-    /// * `approved_quote_count` - How many of the 5 slots are used (0-5)
+    /// Initialize global configuration
     pub fn initialize(
         ctx: Context<Initialize>,
         pre_bonding_fee_bps: u16,
@@ -57,38 +43,7 @@ pub mod creator_amm_v2 {
         )
     }
 
-    /// Create a new bonding curve pool with dynamic virtual liquidity
-    ///
-    /// **CORE INNOVATION:** Calculates virtual reserves based on:
-    /// - Target market cap in USD
-    /// - Live CRX price from oracle
-    /// - Token supply
-    ///
-    /// This allows launching at specific market caps regardless of CRX price!
-    ///
-    /// # Example
-    /// ```
-    /// Target MC: $10,000 USD
-    /// Token Supply: 1,000,000
-    /// CRX Price: $2.00 (from oracle)
-    /// Fee: 0.25% (25 bps)
-    /// Curve: Exponential
-    /// Graduation: $40,000 USD
-    ///
-    /// Result:
-    /// - Virtual CRX: 5,000 CRX
-    /// - Virtual Tokens: 1,000,000
-    /// - Initial Price: 0.005 CRX per token
-    /// - Launches at exactly $10k market cap!
-    /// - Graduates when 20,000 CRX accumulated
-    /// ```
-    ///
-    /// # Arguments
-    /// * `target_market_cap_usd` - Desired initial market cap (6 decimals)
-    /// * `token_supply` - Total token supply to deposit
-    /// * `fee_bps` - Pool fee: 0 (0%), 25 (0.25%), or 100 (1%)
-    /// * `curve_type` - Bonding curve: ConstantProduct or Exponential
-    /// * `graduation_threshold_usd` - USD threshold for graduation ($5k - $10M)
+    /// Create bonding curve pool with dynamic virtual liquidity
     pub fn create_pool(
         ctx: Context<CreatePool>,
         target_market_cap_usd: u64,
@@ -107,17 +62,7 @@ pub mod creator_amm_v2 {
         )
     }
 
-    /// Buy base tokens with CRX (quote tokens)
-    ///
-    /// **Features:**
-    /// - Slippage protection via min_base_amount
-    /// - Anti-sniper protection in early slots
-    /// - Automatic phase transitions (PreBonding → PostBonding → Graduated)
-    /// - Dynamic fee based on current phase
-    ///
-    /// # Arguments
-    /// * `quote_amount` - Amount of CRX to spend
-    /// * `min_base_amount` - Minimum tokens to receive (prevents frontrunning)
+    /// Buy base tokens with quote tokens
     pub fn buy(
         ctx: Context<Buy>,
         quote_amount: u64,
@@ -126,17 +71,7 @@ pub mod creator_amm_v2 {
         instructions::buy::handler(ctx, quote_amount, min_base_amount)
     }
 
-    /// Sell base tokens for CRX (quote tokens)
-    ///
-    /// **Features:**
-    /// - Slippage protection via min_quote_amount
-    /// - Anti-sniper protection in early slots
-    /// - Automatic phase transitions
-    /// - Dynamic fee based on current phase
-    ///
-    /// # Arguments
-    /// * `base_amount` - Amount of tokens to sell
-    /// * `min_quote_amount` - Minimum CRX to receive (prevents frontrunning)
+    /// Sell base tokens for quote tokens
     pub fn sell(
         ctx: Context<Sell>,
         base_amount: u64,
@@ -145,37 +80,20 @@ pub mod creator_amm_v2 {
         instructions::sell::handler(ctx, base_amount, min_quote_amount)
     }
 
-    /// Update approved quote token whitelist (Admin only - Tier 2 permissioning)
-    ///
-    /// **TWO-TIER QUOTE TOKEN SYSTEM:**
-    /// - Tier 1 (Permissionless): CRX pairs - always allowed for anyone
-    /// - Tier 2 (Permissioned): SOL/USDC/USDT pairs - whitelist only
-    ///
-    /// This allows the protocol to:
-    /// 1. Start with CRX-only pairs (default: approved_quote_count = 0)
-    /// 2. Add premium quote tokens later (SOL, USDC, USDT) for vetted teams
-    /// 3. Control which tokens can be used as quote currency
-    ///
-    /// **Security:**
-    /// - Only protocol authority can call this
-    /// - Existing pools are unaffected
-    /// - New pools must check against updated whitelist
-    ///
-    /// # Arguments
-    /// * `approved_quote_tokens` - Array of 5 pubkeys for whitelisted tokens
-    /// * `approved_quote_count` - How many slots are active (0-5)
-    ///
-    /// # Example
-    /// ```
-    /// // Add SOL and USDC to whitelist
-    /// approved_quote_tokens = [SOL_MINT, USDC_MINT, Pubkey::default(), Pubkey::default(), Pubkey::default()]
-    /// approved_quote_count = 2
-    /// ```
+    /// Update approved quote token whitelist (Admin only)
     pub fn update_approved_quotes(
         ctx: Context<UpdateApprovedQuotes>,
         approved_quote_tokens: [Pubkey; 5],
         approved_quote_count: u8,
     ) -> Result<()> {
         instructions::update_approved_quotes::handler(ctx, approved_quote_tokens, approved_quote_count)
+    }
+
+    /// Emergency pause/unpause protocol (Admin only)
+    pub fn set_paused(
+        ctx: Context<SetPaused>,
+        paused: bool,
+    ) -> Result<()> {
+        instructions::set_paused::handler(ctx, paused)
     }
 }

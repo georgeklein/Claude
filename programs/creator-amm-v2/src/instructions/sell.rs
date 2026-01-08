@@ -81,19 +81,18 @@ pub fn handler(
     base_amount: u64,       // Amount of tokens to sell
     min_quote_amount: u64,  // Minimum CRX to receive (slippage protection)
 ) -> Result<()> {
+    let config = &ctx.accounts.config;
+
+    // CRITICAL: Check if protocol is paused (emergency stop)
+    require!(!config.is_paused, ErrorCode::ProtocolPaused);
+
     require!(base_amount > 0, ErrorCode::InvalidAmount);
 
     let pool = &mut ctx.accounts.pool;
-    let config = &ctx.accounts.config;
     let clock = Clock::get()?;
 
     // Get current phase parameters
     let current_fee_bps = pool.get_current_fee_bps();
-
-    msg!("Sell Request:");
-    msg!("   Base Amount: {} tokens", base_amount);
-    msg!("   Current Phase: {:?}", pool.current_phase);
-    msg!("   Fee: {} bps", current_fee_bps);
 
     // Get correct reserves based on phase (virtual or real)
     let (quote_reserve, base_reserve) = pool.get_pricing_reserves();
@@ -155,11 +154,6 @@ pub fn handler(
     let total_fee_in_quote = base_fee_in_quote
         .checked_add(extra_fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
-
-    msg!("Sell Fees:");
-    msg!("   Base fee: {} CRX ({} bps)", base_fee_in_quote, current_fee_bps);
-    msg!("   Extra WAA fee: {} CRX ({} bps)", extra_fee_in_quote, extra_fee_bps);
-    msg!("   Total fee: {} CRX", total_fee_in_quote);
 
     // Final output to user (after total fee)
     let quote_output = quote_output_before_fee
@@ -283,11 +277,6 @@ pub fn handler(
     let user_position = &mut ctx.accounts.user_position;
     user_position.update_on_sell(base_amount)?;
 
-    msg!("Position updated: avg_entry_slot={}, tracked_amount={}",
-        user_position.avg_entry_slot,
-        user_position.tracked_amount
-    );
-
     // Capture pre-transition state for event
     let phase_before = pool.current_phase;
     let virtual_quote_before = pool.virtual_quote_reserves;
@@ -363,21 +352,6 @@ pub fn handler(
     });
 
     msg!("Sell executed!");
-    msg!("   Base In: {} tokens (from user)", base_amount);
-    msg!("   Quote Out: {} CRX (to user, after {} bps effective fee)", quote_output, effective_fee_bps);
-    msg!("   Total Fee to Creator: {} CRX (base: {}, WAA: {})",
-        total_fee_in_quote, base_fee_in_quote, extra_fee_in_quote);
-    let (new_quote_res, new_base_res) = pool.get_pricing_reserves();
-    msg!("   New Price: {} CRX per token",
-        (new_quote_res as f64) / (new_base_res as f64)
-    );
-
-    if matches!(pool.current_phase, CurvePhase::PreBonding) {
-        msg!("   Real CRX Accumulated: {} / {} (to graduation)",
-            pool.real_quote_reserves,
-            pool.graduation_threshold_crx
-        );
-    }
 
     if transitioned {
         msg!("Phase transition occurred!");

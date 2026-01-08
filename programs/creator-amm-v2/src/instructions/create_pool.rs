@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use crate::state::{Config, Pool, CurvePhase, CurveType};
-use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd, calculate_crx_thresholds, calculate_virtual_reserves_for_market_cap};
+use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd, calculate_virtual_reserves_for_market_cap};
 use crate::errors::ErrorCode;
 use crate::events::PoolCreated;
 
@@ -181,8 +181,6 @@ pub fn handler(
         ErrorCode::InvalidCrxPrice
     );
 
-    msg!("CRX Price: ${}", crx_price_usd as f64 / 1_000_000.0);
-
     // Step 2: Calculate dynamic virtual reserves for target market cap
     let (virtual_quote_reserves, virtual_base_reserves) =
         calculate_virtual_reserves_for_market_cap(
@@ -197,13 +195,6 @@ pub fn handler(
         .ok_or(ErrorCode::MathOverflow)?
         .checked_div(crx_price_usd as u128)
         .ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
-
-    msg!("Graduation Threshold (Dynamic):");
-    msg!("   {} CRX = ${} USD",
-        graduation_threshold_crx,
-        graduation_threshold_usd as f64 / 1_000_000.0
-    );
-    msg!("   CRX Price at Launch: ${}", crx_price_usd as f64 / 1_000_000.0);
 
     // Initialize pool state
     pool.authority = pool.key();
@@ -275,17 +266,6 @@ pub fn handler(
     });
 
     msg!("Pool created successfully!");
-    msg!("Target Market Cap: ${}", target_market_cap_usd as f64 / 1_000_000.0);
-    msg!("Token Supply: {}", token_supply);
-    msg!("Initial Price: {} CRX per token",
-        (virtual_quote_reserves as f64) / (virtual_base_reserves as f64)
-    );
-    msg!("Virtual Reserves: {} CRX × {} tokens",
-        virtual_quote_reserves,
-        virtual_base_reserves
-    );
-    msg!("Phase: PreBonding (Fee: {} bps)", fee_bps);
-    msg!("Curve Type: {:?}", curve_type);
 
     Ok(())
 }

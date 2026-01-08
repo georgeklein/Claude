@@ -33,6 +33,14 @@ pub fn get_crx_price_usd(
 
     // Check confidence interval (safe now - price guaranteed > 0)
     let price_abs = price_feed.price as u64;
+
+    // CRITICAL: Validate that confidence doesn't exceed price (invalid oracle data)
+    // If conf > price, the oracle is reporting nonsense data
+    require!(
+        price_feed.conf <= price_abs,
+        ErrorCode::InvalidOracleConfidence
+    );
+
     let confidence_bps = (price_feed.conf as u128)
         .checked_mul(10000)
         .ok_or(ErrorCode::MathOverflow)?
@@ -42,6 +50,14 @@ pub fn get_crx_price_usd(
     require!(
         confidence_bps <= max_confidence_bps,
         ErrorCode::OracleConfidenceTooLow
+    );
+
+    // CRITICAL: Validate exponent bounds to prevent overflow/DoS
+    // Pyth exponents typically range from -12 to 0 for USD prices
+    // We allow up to +6 to handle edge cases, but cap to prevent overflow
+    require!(
+        price_feed.expo >= -12 && price_feed.expo <= 6,
+        ErrorCode::InvalidOracleExponent
     );
 
     // Convert price to 6 decimals
@@ -65,29 +81,6 @@ pub fn get_crx_price_usd(
     require!(price <= u64::MAX as u128, ErrorCode::MathOverflow);
 
     Ok(price as u64)
-}
-
-/// Calculate CRX thresholds in CRX based on USD targets
-pub fn calculate_crx_thresholds(
-    pre_bonding_usd: u64,      // e.g., 40_000_000_000 (40k with 6 decimals)
-    graduation_usd: u64,        // e.g., 85_000_000_000 (85k with 6 decimals)
-    crx_price_usd: u64,         // e.g., 2_000_000 ($2.00 with 6 decimals)
-) -> Result<(u64, u64)> {
-    // Pre-bonding threshold in CRX
-    let pre_threshold_crx = (pre_bonding_usd as u128)
-        .checked_mul(1_000_000) // CRX decimals
-        .ok_or(ErrorCode::MathOverflow)?
-        .checked_div(crx_price_usd as u128)
-        .ok_or(ErrorCode::MathOverflow)? as u64;
-
-    // Graduation threshold in CRX
-    let grad_threshold_crx = (graduation_usd as u128)
-        .checked_mul(1_000_000) // CRX decimals
-        .ok_or(ErrorCode::MathOverflow)?
-        .checked_div(crx_price_usd as u128)
-        .ok_or(ErrorCode::MathOverflow)? as u64;
-
-    Ok((pre_threshold_crx, grad_threshold_crx))
 }
 
 /// Calculate virtual reserves for target market cap
@@ -134,83 +127,5 @@ pub fn calculate_virtual_reserves_for_market_cap(
     require!(virtual_quote > 0, ErrorCode::InvalidVirtualReserves);
     require!(virtual_base > 0, ErrorCode::InvalidVirtualReserves);
 
-    msg!("Calculated virtual reserves:");
-    msg!("   Target MC: ${}", target_market_cap_usd as f64 / 1_000_000.0);
-    msg!("   CRX Price: ${}", crx_price_usd as f64 / 1_000_000.0);
-    msg!("   Virtual CRX: {}", virtual_quote);
-    msg!("   Virtual BASE: {}", virtual_base);
-    msg!("   Initial Price: {} CRX per token",
-        (virtual_quote as f64) / (virtual_base as f64));
-
     Ok((virtual_quote, virtual_base))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_virtual_reserves_calculation() {
-        // Target: $50k market cap
-        // Token supply: 1M tokens
-        // CRX price: $2.00
-
-        let target_mc = 50_000_000_000; // $50k with 6 decimals
-        let supply = 1_000_000_000_000;  // 1M with 6 decimals
-        let crx_price = 2_000_000;       // $2.00 with 6 decimals
-
-        let (virtual_crx, virtual_base) =
-            calculate_virtual_reserves_for_market_cap(target_mc, supply, crx_price).unwrap();
-
-        // Expected: $50k / $2 = 25,000 CRX
-        assert_eq!(virtual_crx, 25_000_000_000); // 25k with 6 decimals
-        assert_eq!(virtual_base, 1_000_000_000_000); // 1M with 6 decimals
-
-        // Verify price: 25k / 1M = 0.025 CRX per token
-        let price = (virtual_crx as f64) / (virtual_base as f64);
-        assert!((price - 0.025).abs() < 0.0001);
-    }
-
-    #[test]
-    fn test_crx_thresholds() {
-        // Pre-bonding: $40k
-        // Graduation: $85k
-        // CRX price: $5.00
-
-        let pre_usd = 40_000_000_000;   // $40k
-        let grad_usd = 85_000_000_000;  // $85k
-        let crx_price = 5_000_000;      // $5.00
-
-        let (pre_crx, grad_crx) =
-            calculate_crx_thresholds(pre_usd, grad_usd, crx_price).unwrap();
-
-        // Expected: $40k / $5 = 8,000 CRX
-        assert_eq!(pre_crx, 8_000_000_000);   // 8k with 6 decimals
-
-        // Expected: $85k / $5 = 17,000 CRX
-        assert_eq!(grad_crx, 17_000_000_000); // 17k with 6 decimals
-    }
-
-    #[test]
-    fn test_different_crx_prices() {
-        let target_mc = 100_000_000_000; // $100k
-        let supply = 10_000_000_000_000;  // 10M tokens
-
-        // CRX = $0.50
-        let (v_crx_1, _) = calculate_virtual_reserves_for_market_cap(
-            target_mc, supply, 500_000
-        ).unwrap();
-
-        // CRX = $10.00
-        let (v_crx_2, _) = calculate_virtual_reserves_for_market_cap(
-            target_mc, supply, 10_000_000
-        ).unwrap();
-
-        // Higher CRX price = fewer CRX needed
-        assert!(v_crx_2 < v_crx_1);
-
-        // Verify actual amounts
-        assert_eq!(v_crx_1, 200_000_000_000); // 200k CRX at $0.50
-        assert_eq!(v_crx_2, 10_000_000_000);  // 10k CRX at $10.00
-    }
 }

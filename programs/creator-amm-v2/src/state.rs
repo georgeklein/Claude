@@ -36,6 +36,9 @@ pub struct Config {
     pub approved_quote_tokens: [Pubkey; 5], // Whitelisted quote tokens (SOL, USDC, USDT, etc.)
     pub approved_quote_count: u8,           // How many slots are actually used (0-5)
 
+    /// Emergency pause flag - stops all trading when true
+    pub is_paused: bool,
+
     pub bump: u8,
 }
 
@@ -55,26 +58,19 @@ impl Config {
         8 +  // oracle_max_confidence_bps
         160 + // approved_quote_tokens (32 * 5 = 160 bytes)
         1 +  // approved_quote_count
+        1 +  // is_paused
         1;   // bump
 }
 
 /// Bonding curve type
-/// Creators can choose the curve shape at launch, or implement custom formulas
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CurveType {
     /// Constant product: x * y = k (Uniswap/Unisocks-style, balanced growth)
-    /// Best for: Standard fair launches, community tokens
     ConstantProduct,
 
     /// Exponential: y = (x * Y) / (X + 1.5*x) (steeper curve, faster price growth)
-    /// Best for: Hype/meme tokens, aggressive price discovery
     /// Reaches graduation threshold ~33% faster than constant product
     Exponential,
-
-    /// Custom: Allows on-chain programs to implement their own curve math
-    /// For advanced users experimenting with novel bonding curve designs
-    /// Must implement calculate_output_custom() in their program
-    Custom,
 }
 
 /// Bonding curve phase
@@ -196,16 +192,7 @@ impl Pool {
         match self.current_phase {
             CurvePhase::PreBonding => {
                 if self.real_quote_reserves >= self.graduation_threshold_crx {
-                    msg!("GRADUATION at $40k!");
-                    msg!("   Accumulated: {} CRX (threshold: {})",
-                        self.real_quote_reserves,
-                        self.graduation_threshold_crx
-                    );
-                    msg!("   Remaining tokens: {}", self.real_base_reserves);
-                    msg!("   Switching from VIRTUAL to REAL reserves for pricing");
-                    msg!("   Now a permanent constant-product AMM!");
-                    msg!("   Pool address stays the same - No migration needed");
-                    msg!("   Creator continues earning {} bps fees forever", self.fee_bps);
+                    msg!("Pool graduated!");
 
                     // Transition to graduated phase
                     // NOW PRICING USES REAL RESERVES (PumpSwap-style)
@@ -272,21 +259,6 @@ impl Pool {
                 numerator
                     .checked_div(denominator)
                     .ok_or(ErrorCode::MathOverflow)?
-            },
-            CurveType::Custom => {
-                // Custom curves not implemented in base protocol
-                // Advanced users can fork and implement custom math
-                // Or use CPI to call their own curve calculation program
-                //
-                // Ideas for custom curves:
-                // - Polynomial curves (quadratic, cubic)
-                // - Logarithmic curves (slower initial growth)
-                // - Sigmoid curves (S-shaped, controlled ramps)
-                // - Step functions (discrete price levels)
-                // - Hybrid curves (different formulas per phase)
-                //
-                // For now, return error to prevent misconfiguration
-                return Err(ErrorCode::CustomCurveNotImplemented.into());
             },
         };
 
@@ -405,7 +377,10 @@ impl UserPosition {
                 .checked_add(buy_amount as u128)
                 .ok_or(ErrorCode::MathOverflow)?;
 
-            self.avg_entry_slot = (numerator / denominator) as u64;
+            // CRITICAL: Use checked_div to prevent division by zero panic
+            self.avg_entry_slot = (numerator
+                .checked_div(denominator)
+                .ok_or(ErrorCode::MathOverflow)?) as u64;
             self.tracked_amount = self.tracked_amount
                 .checked_add(buy_amount)
                 .ok_or(ErrorCode::MathOverflow)?;
@@ -455,14 +430,18 @@ impl UserPosition {
             let time_remaining = T2 - age;
             let time_range = T2 - T1;
 
-            F2 + (decay_range * time_remaining) / time_range
+            // CRITICAL: Use saturating operations to prevent panic on division
+            // time_range is constant (T2 - T1 = 675), so division is safe, but use saturating for safety
+            F2 + (decay_range.saturating_mul(time_remaining)).saturating_div(time_range.max(1))
         } else if age <= T3 {
             // 5m-30m: decay from 1% → 0%
             // extra = F2 * (T3 - age) / (T3 - T2)
             let time_remaining = T3 - age;
             let time_range = T3 - T2;
 
-            (F2 * time_remaining) / time_range
+            // CRITICAL: Use saturating division to prevent panic
+            // time_range is constant (T3 - T2 = 3750), so division is safe, but use saturating for safety
+            (F2.saturating_mul(time_remaining)).saturating_div(time_range.max(1))
         } else {
             // 30m+: no extra fee
             0

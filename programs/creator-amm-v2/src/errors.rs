@@ -88,4 +88,13 @@ pub enum ErrorCode {
 
     #[msg("Invalid quote token count - must be between 0 and 5")]
     InvalidQuoteTokenCount,
+
+    #[msg("Oracle exponent out of safe bounds (-12 to 6) - potential overflow attack")]
+    InvalidOracleExponent,
+
+    #[msg("Oracle confidence exceeds price - invalid oracle data")]
+    InvalidOracleConfidence,
+
+    #[msg("Protocol is paused - all trading disabled")]
+    ProtocolPaused,
 }

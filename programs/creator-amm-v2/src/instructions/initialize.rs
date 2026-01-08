@@ -1,7 +1,13 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::pubkey;
 use crate::state::Config;
 use crate::errors::ErrorCode;
 use crate::events::ConfigInitialized;
+
+// CRITICAL SECURITY: Replace this with your actual deployer public key before deployment!
+// This prevents front-running attacks where a malicious actor initializes the protocol.
+// TODO: Set this to the deployer's actual public key
+pub const DEPLOYER_PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -19,8 +25,11 @@ pub struct Initialize<'info> {
     pub config: Account<'info, Config>,
 
     /// Protocol authority (becomes config.authority)
-    /// SECURITY NOTE: First caller wins! Deploy and initialize atomically.
-    #[account(mut)]
+    /// SECURITY: Restricted to hardcoded deployer to prevent front-running
+    #[account(
+        mut,
+        constraint = authority.key() == DEPLOYER_PUBKEY @ ErrorCode::Unauthorized
+    )]
     pub authority: Signer<'info>,
 
     /// Protocol fee recipient wallet
@@ -97,6 +106,8 @@ pub fn handler(
     config.approved_quote_tokens = approved_quote_tokens;
     config.approved_quote_count = approved_quote_count;
 
+    config.is_paused = false; // Start unpaused
+
     config.bump = ctx.bumps.config;
 
     // Emit event for indexers
@@ -119,23 +130,6 @@ pub fn handler(
     });
 
     msg!("Creator AMM v2 initialized!");
-    msg!("Pre-bonding: {} bps fee, ${} threshold",
-        pre_bonding_fee_bps,
-        pre_bonding_threshold_usd as f64 / 1_000_000.0
-    );
-    msg!("Post-bonding: {} bps fee, ${} graduation",
-        post_bonding_fee_bps,
-        graduation_threshold_usd as f64 / 1_000_000.0
-    );
-    msg!("Anti-sniper: {} slots, {} bps max trade",
-        anti_sniper_window_slots,
-        anti_sniper_max_trade_bps
-    );
-    msg!("Oracle: {}s max age, {} bps max confidence",
-        oracle_max_age_seconds,
-        oracle_max_confidence_bps
-    );
-    msg!("Approved quote tokens: {} slots configured", approved_quote_count);
 
     Ok(())
 }

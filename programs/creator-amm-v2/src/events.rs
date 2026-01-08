@@ -241,30 +241,3 @@ pub struct PhaseTransition {
     /// Timestamp when transition occurred
     pub timestamp: i64,
 }
-
-/// Emitted when anti-sniper protection is triggered (for monitoring)
-#[event]
-pub struct AntiSniperTriggered {
-    /// Pool address (indexed)
-    #[index]
-    pub pool: Pubkey,
-
-    /// User who triggered anti-sniper (indexed)
-    #[index]
-    pub user: Pubkey,
-
-    /// Attempted trade size
-    pub attempted_amount: u64,
-
-    /// Maximum allowed amount
-    pub max_allowed_amount: u64,
-
-    /// Slots remaining in anti-sniper window
-    pub slots_remaining: u64,
-
-    /// Slot when triggered
-    pub slot: u64,
-
-    /// Timestamp when triggered
-    pub timestamp: i64,
-}
