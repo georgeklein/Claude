@@ -342,16 +342,14 @@ for (const holding of portfolio) {
 
 ## Documentation
 
-- [SDK Design Document](../SDK_DESIGN.md) - Complete design philosophy and architecture
-- [API Reference](./API.md) - Full API documentation
-- [Examples](./examples.ts) - 15 complete examples
+- [Examples](./examples.ts) - Complete code examples
 - [Protocol Documentation](../README.md) - Scale AMM protocol overview
+- [Architecture](../ARCHITECTURE.md) - Technical architecture
+- [Security](../SECURITY.md) - Security considerations
 
 ## Support
 
-- **GitHub:** https://github.com/scale-amm/sdk
-- **Discord:** https://discord.gg/scale-amm
-- **Docs:** https://docs.scale-amm.xyz
+- **GitHub:** https://github.com/georgeklein/Scale-AMM
 
 ## License
 
