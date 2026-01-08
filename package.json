@@ -5,8 +5,9 @@
   "scripts": {
     "test": "anchor test",
     "build": "anchor build",
-    "deploy:devnet": "anchor deploy --provider.cluster devnet",
-    "deploy:mainnet": "echo '⚠️  STOP! Have you completed security audits?' && anchor deploy --provider.cluster mainnet"
+    "deploy:devnet": "ts-node scripts/deploy.ts devnet",
+    "deploy:testnet": "ts-node scripts/deploy.ts testnet",
+    "deploy:mainnet": "ts-node scripts/deploy.ts mainnet"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.29.0",

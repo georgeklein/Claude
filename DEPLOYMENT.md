@@ -117,55 +117,107 @@ Before deployment, decide on these protocol parameters:
 
 ## 📦 Deployment Steps
 
-### Step 1: Deploy Program
+### Step 1: Configure Environment
+
+Create a `.env` file in the project root (copy from `.env.example`):
 
 ```bash
-# Deploy to mainnet
-anchor deploy --provider.cluster mainnet-beta
+# Copy template
+cp .env.example .env
 
-# Save the program ID (shown in output)
-# Example: CReamVLMa2dFi8RmKJQAYWn8Jy2yN5qvSu8gKFCxfp3
+# Edit with your values
+nano .env
 ```
 
-**Cost:** ~2-3 SOL for program deployment
+**Required Configuration:**
+
+```bash
+# Deployer wallet
+DEPLOYER_KEYPAIR=~/.config/solana/id.json
+
+# Protocol parameters
+FEE_RECIPIENT_ADDRESS=YourFeeRecipientPublicKeyHere
+CRX_MINT_ADDRESS=YourCRXMintAddressHere
+CRX_PRICE_ORACLE_ADDRESS=YourPythOracleFeedAddressHere
+
+# Optional: Approved quote tokens (comma-separated)
+APPROVED_QUOTE_TOKENS=
+
+# Optional: Custom RPC URLs
+DEVNET_RPC_URL=https://api.devnet.solana.com
+MAINNET_RPC_URL=https://api.mainnet-beta.solana.com
+```
+
+**Get your addresses:**
+```bash
+# Your wallet address (for DEPLOYER_PUBKEY in initialize.rs)
+solana address
+
+# Pyth oracle feeds: https://pyth.network/developers/price-feed-ids
+# Example CRX/USD feed: (get from Pyth)
+```
 
 ---
 
-### Step 2: Initialize Protocol (WITHIN 60 SECONDS)
+### Step 2: Automated Deployment + Initialization
 
-**CRITICAL:** Call `initialize()` immediately after deployment to prevent front-running.
+**One command deploys the program AND initializes the config automatically:**
 
 ```bash
-# Using Anchor client
-anchor run initialize-mainnet
+# Devnet (testing)
+npm run deploy:devnet
+
+# Testnet (pre-production)
+npm run deploy:testnet
+
+# Mainnet (production)
+npm run deploy:mainnet
 ```
 
-Or using SDK:
+**What happens automatically:**
+1. ✅ Checks deployer balance (requires ~5 SOL)
+2. ✅ Builds the program (`anchor build`)
+3. ✅ Deploys to cluster (`anchor deploy`)
+4. ✅ **Initializes config** (prevents front-running)
+5. ✅ Verifies deployment
+6. ✅ Generates deployment report
 
-```typescript
-import { ScaleAMM } from '@scale-amm/sdk';
-import { Connection, Keypair } from '@solana/web3.js';
-
-const connection = new Connection('https://api.mainnet-beta.solana.com');
-const wallet = Keypair.fromSecretKey(yourDeployerKey);
-const scale = new ScaleAMM(connection, wallet);
-
-await scale.initialize({
-  feeRecipient: YOUR_FEE_WALLET,
-  crxMint: CRX_MINT_ADDRESS,
-  crxPriceOracle: PYTH_CRX_FEED,
-  preBondingFeeBps: 300,
-  preBondingThresholdUsd: 40_000_000_000,
-  postBondingFeeBps: 100,
-  graduationThresholdUsd: 85_000_000_000,
-  antiSniperWindowSlots: 20,
-  antiSniperMaxTradeBps: 500,
-  oracleMaxAgeSeconds: 60,
-  oracleMaxConfidenceBps: 100,
-  approvedQuoteTokens: [CRX_MINT, SOL_MINT, USDC_MINT, ...],
-  approvedQuoteCount: 3,
-});
+**Output example:**
 ```
+========================================
+Scale AMM - Automated Deployment
+========================================
+Network: mainnet-beta
+Deployer: 7xK...abc
+
+Step 1: Checking balance...
+✅ Balance: 5.234 SOL
+
+Step 2: Building program...
+✅ Build successful
+
+Step 3: Deploying program...
+✅ Program deployed: CReamVLMa2dFi8RmKJQAYWn8Jy2yN5qvSu8gKFCxfp3
+
+Step 4: Initializing config...
+✅ Config initialized: Config PDA: 8aB...xyz
+
+Step 5: Verifying deployment...
+✅ Verification passed
+
+========================================
+Deployment Report
+========================================
+Timestamp: 2026-01-08 12:00:00 UTC
+Program ID: CReamVLMa2dFi8RmKJQAYWn8Jy2yN5qvSu8gKFCxfp3
+Config PDA: 8aB...xyz
+Fee Recipient: YourFeeWallet...
+CRX Oracle: PythOracleFeed...
+Status: READY FOR PRODUCTION
+========================================
+```
+
+**Cost:** ~2-3 SOL for program deployment + initialization
 
 ---
 
