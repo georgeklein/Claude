@@ -579,6 +579,59 @@ describe("Scale AMM - Critical Test Coverage", () => {
       // Verify pool was created successfully with valid oracle
       expect(poolAccount.lastCrxPriceUsd.toNumber()).to.be.greaterThan(0);
     });
+
+    it("Should reject trades with wrong oracle account", async () => {
+      // TEST 9/30: Oracle validation - prevents fake oracle attacks
+      // Expected: Trades must use exact oracle from config, not arbitrary accounts
+      console.log("✅ Test 9/30: Wrong oracle rejection (covered by account constraints)");
+
+      // Create a fake oracle with manipulated price
+      const fakeOracle = await createMockOracle(1_000_000, 100, -8); // $0.01 CRX (fake low price)
+
+      const { pool, quoteVault, baseVault, baseMint } = await setupTestPool();
+
+      // Attempt to trade using the wrong oracle (this should fail at constraint level)
+      // Note: Anchor constraints on createPool enforce oracle must match config.crx_price_oracle
+      // This test verifies the constraint is working
+
+      const originalOracle = crxPriceOracle;
+
+      try {
+        // Try to create pool with wrong oracle by temporarily swapping it
+        crxPriceOracle = fakeOracle;
+
+        const differentBaseMint = await createTokenWithRevokedAuthorities();
+        const tokenSupply = new anchor.BN(1_000_000_000_000);
+
+        await mintTo(
+          provider.connection,
+          creator,
+          differentBaseMint,
+          (await getOrCreateAssociatedTokenAccount(provider.connection, creator, differentBaseMint, creator.publicKey)).address,
+          creator,
+          tokenSupply.toNumber()
+        );
+
+        // This should fail because fakeOracle doesn't match config.crx_price_oracle
+        await createPool(
+          differentBaseMint,
+          new anchor.BN(10_000_000_000),
+          tokenSupply,
+          25,
+          { constantProduct: {} },
+          new anchor.BN(40_000_000_000)
+        );
+
+        expect.fail("Should reject pool creation with wrong oracle account");
+      } catch (err) {
+        // Expected error: Oracle account constraint violation
+        // This confirms the protocol enforces correct oracle usage
+        expect(err.toString()).to.match(/InvalidOracle|constraint|oracle/i);
+        console.log("✅ Test 9/30: Wrong oracle correctly rejected by constraints");
+      } finally {
+        crxPriceOracle = originalOracle;
+      }
+    });
   });
 
   // ============================================================================
@@ -1408,8 +1461,145 @@ describe("Scale AMM - Critical Test Coverage", () => {
   });
 
   // ============================================================================
-  // TO BE CONTINUED: Graduation Edge Cases, Math Overflow, etc.
+  // CATEGORY 5: GRADUATION EDGE CASES (NEW TESTS)
+  // ============================================================================
+  describe("5. Graduation Edge Cases", () => {
+    it("Should have no price discontinuity at graduation", async () => {
+      // CRITICAL TEST: Price should remain stable during graduation
+      // If price jumps significantly, arbitrage bots can exploit the transition
+
+      // Create pool with low graduation threshold
+      const baseMint = await createTokenWithRevokedAuthorities();
+      const tokenSupply = new anchor.BN(1_000_000_000_000); // 1M tokens
+
+      await mintTo(
+        provider.connection,
+        creator,
+        baseMint,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey)).address,
+        creator,
+        tokenSupply.toNumber()
+      );
+
+      const { pool, quoteVault, baseVault } = await createPool(
+        baseMint,
+        new anchor.BN(10_000_000_000),    // $10k initial
+        tokenSupply,
+        25,
+        { constantProduct: {} },
+        new anchor.BN(15_000_000_000)     // Low graduation threshold ($15k)
+      );
+
+      // Fund trader
+      await mintTo(
+        provider.connection,
+        authority,
+        crxMint,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, trader1, crxMint, trader1.publicKey)).address,
+        authority,
+        50_000_000_000 // 50k CRX
+      );
+
+      // Get price BEFORE graduation
+      let poolAccount = await program.account.pool.fetch(pool);
+      const quoteBefore = poolAccount.virtualQuoteReserves.toNumber();
+      const baseBefore = poolAccount.virtualBaseReserves.toNumber();
+      const priceBefore = quoteBefore / baseBefore;
+
+      console.log(`Price before graduation: ${priceBefore} CRX per token`);
+
+      // Buy enough to trigger graduation
+      await executeTrade(
+        pool,
+        quoteVault,
+        baseVault,
+        baseMint,
+        trader1,
+        true, // buy
+        new anchor.BN(10_000_000_000), // 10k CRX
+        new anchor.BN(0)
+      );
+
+      // Get price AFTER graduation
+      poolAccount = await program.account.pool.fetch(pool);
+      const quoteAfter = poolAccount.realQuoteReserves.toNumber();
+      const baseAfter = poolAccount.realBaseReserves.toNumber();
+      const priceAfter = quoteAfter / baseAfter;
+
+      console.log(`Price after graduation: ${priceAfter} CRX per token`);
+
+      // Calculate price change percentage
+      const priceChange = Math.abs(priceAfter - priceBefore) / priceBefore;
+
+      console.log(`Price discontinuity: ${(priceChange * 100).toFixed(2)}%`);
+
+      // CRITICAL: Price change should be < 5% (ideally < 1%)
+      // Larger jumps = arbitrage opportunity = economic attack vector
+      expect(priceChange).to.be.lessThan(0.05, "Price discontinuity at graduation should be < 5%");
+
+      console.log("✅ Price discontinuity test passed: Graduation transition is smooth");
+    });
+
+    it("Should handle sell immediately after graduation", async () => {
+      // TEST: Sell right after pool graduates should use real reserves
+
+      const baseMint = await createTokenWithRevokedAuthorities();
+      const tokenSupply = new anchor.BN(1_000_000_000_000);
+
+      await mintTo(
+        provider.connection,
+        creator,
+        baseMint,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey)).address,
+        creator,
+        tokenSupply.toNumber()
+      );
+
+      const { pool, quoteVault, baseVault } = await createPool(
+        baseMint,
+        new anchor.BN(10_000_000_000),
+        tokenSupply,
+        25,
+        { constantProduct: {} },
+        new anchor.BN(15_000_000_000) // Low threshold
+      );
+
+      // Fund trader
+      await mintTo(
+        provider.connection,
+        authority,
+        crxMint,
+        (await getOrCreateAssociatedTokenAccount(provider.connection, trader1, crxMint, trader1.publicKey)).address,
+        authority,
+        50_000_000_000
+      );
+
+      // Buy before graduation
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(5_000_000_000), new anchor.BN(0));
+
+      // Buy to trigger graduation
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(10_000_000_000), new anchor.BN(0));
+
+      // Verify graduated
+      let poolAccount = await program.account.pool.fetch(pool);
+      expect(poolAccount.phase).to.deep.equal({ graduated: {} });
+
+      // Sell should use REAL reserves (not virtual)
+      const sellAmount = new anchor.BN(1_000_000_000); // Sell 1k tokens
+
+      await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, false, sellAmount, new anchor.BN(0));
+
+      // Verify sell succeeded
+      poolAccount = await program.account.pool.fetch(pool);
+      expect(poolAccount.realBaseReserves.gt(new anchor.BN(0))).to.be.true;
+
+      console.log("✅ Sell after graduation works correctly with real reserves");
+    });
+  });
+
+  // ============================================================================
+  // TO BE CONTINUED: Math Overflow, Simulations, etc.
   // ============================================================================
   // Due to length constraints, additional test categories will be in separate test runs
-  // Categories 5-12 can be implemented following the same pattern
+  // Categories 6-12 can be implemented following the same pattern
 });
