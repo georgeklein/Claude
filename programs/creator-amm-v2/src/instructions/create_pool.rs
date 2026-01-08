@@ -26,7 +26,7 @@ pub struct CreatePool<'info> {
     pub pool: Account<'info, Pool>,
 
     /// Quote token mint (CRX or approved tokens like SOL/USDC/USDT)
-    /// 🔒 TWO-TIER PERMISSIONING:
+    /// TWO-TIER PERMISSIONING:
     /// Tier 1 (Permissionless): CRX pairs - anyone can create
     /// Tier 2 (Permissioned): SOL/USDC/USDT pairs - whitelist only
     /// Validation happens in handler (see below)
@@ -96,7 +96,7 @@ pub fn handler(
     let config = &ctx.accounts.config;
     let quote_mint_key = ctx.accounts.quote_mint.key();
 
-    // 🔒 TWO-TIER QUOTE TOKEN VALIDATION
+    // TWO-TIER QUOTE TOKEN VALIDATION
     // Tier 1 (Permissionless): CRX pairs - anyone can create
     let is_crx = quote_mint_key == config.crx_mint;
 
@@ -110,9 +110,9 @@ pub fn handler(
     );
 
     if is_crx {
-        msg!("✅ Quote token: CRX (Tier 1 - Permissionless)");
+        msg!("Quote token: CRX (Tier 1 - Permissionless)");
     } else {
-        msg!("✅ Quote token: Approved whitelist token (Tier 2 - Permissioned)");
+        msg!("Quote token: Approved whitelist token (Tier 2 - Permissioned)");
     }
 
     // Validate fee is one of the allowed values
@@ -181,7 +181,7 @@ pub fn handler(
         ErrorCode::InvalidCrxPrice
     );
 
-    msg!("📊 CRX Price: ${}", crx_price_usd as f64 / 1_000_000.0);
+    msg!("CRX Price: ${}", crx_price_usd as f64 / 1_000_000.0);
 
     // Step 2: Calculate dynamic virtual reserves for target market cap
     let (virtual_quote_reserves, virtual_base_reserves) =
@@ -198,7 +198,7 @@ pub fn handler(
         .checked_div(crx_price_usd as u128)
         .ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
 
-    msg!("🎯 Graduation Threshold (Dynamic):");
+    msg!("Graduation Threshold (Dynamic):");
     msg!("   {} CRX = ${} USD",
         graduation_threshold_crx,
         graduation_threshold_usd as f64 / 1_000_000.0
@@ -274,18 +274,18 @@ pub fn handler(
         timestamp: clock.unix_timestamp,
     });
 
-    msg!("🚀 Pool created successfully!");
-    msg!("💰 Target Market Cap: ${}", target_market_cap_usd as f64 / 1_000_000.0);
-    msg!("🪙 Token Supply: {}", token_supply);
-    msg!("📈 Initial Price: {} CRX per token",
+    msg!("Pool created successfully!");
+    msg!("Target Market Cap: ${}", target_market_cap_usd as f64 / 1_000_000.0);
+    msg!("Token Supply: {}", token_supply);
+    msg!("Initial Price: {} CRX per token",
         (virtual_quote_reserves as f64) / (virtual_base_reserves as f64)
     );
-    msg!("📊 Virtual Reserves: {} CRX × {} tokens",
+    msg!("Virtual Reserves: {} CRX × {} tokens",
         virtual_quote_reserves,
         virtual_base_reserves
     );
-    msg!("🎯 Phase: PreBonding (Fee: {} bps)", fee_bps);
-    msg!("📈 Curve Type: {:?}", curve_type);
+    msg!("Phase: PreBonding (Fee: {} bps)", fee_bps);
+    msg!("Curve Type: {:?}", curve_type);
 
     Ok(())
 }
