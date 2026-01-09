@@ -19,7 +19,7 @@ use crate::events::ConfigInitialized;
 // Example:
 // pub const DEPLOYER_PUBKEY: Pubkey = pubkey!("YourActualWalletAddressHere12345678901234567890");
 //
-// See DEPLOYMENT_CHECKLIST.md for full details.
+// See DEPLOY.md for full details.
 pub const DEPLOYER_PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
 
 #[derive(Accounts)]

@@ -177,7 +177,7 @@ const pool = await scale.createPool({
   supply: 1_000_000_000,              // 1 billion tokens
   initialMarketCapUsd: 10_000,        // Launch at $10k market cap
   graduationThresholdUsd: 40_000,     // Graduate at $40k
-  creatorFeeBps: 100,                 // 1% creator fee
+  feeBps: 100,                        // Pool fee: 0, 25, or 100 bps
   curveType: 'ConstantProduct',       // or 'Exponential'
   disableWaa: false,                  // Enable anti-dump protection
 });
@@ -218,7 +218,7 @@ await scale.createPool({
   supply: 1_000_000_000,              // Total supply (no decimals)
   initialMarketCapUsd: 10_000,        // Starting market cap in USD
   graduationThresholdUsd: 40_000,     // Graduate at this market cap
-  creatorFeeBps: 100,                 // Creator fee (0-100 = 0-1%)
+  feeBps: 100,                        // Pool fee: 0, 25, or 100 bps
   curveType: 'ConstantProduct',       // Bonding curve type
   disableWaa: false,                  // Anti-dump protection
 });
@@ -250,8 +250,8 @@ console.log({
   price: pool.price,                    // Current CRX price per token
   marketCap: pool.marketCapUsd,         // Current USD market cap
   reserves: {
-    crx: pool.crxReserve,               // Real CRX in pool
-    token: pool.tokenReserve,           // Token reserve
+    crx: pool.liquidityCrx,             // Real CRX in pool
+    token: pool.liquidityTokens,        // Token reserve
   },
   graduation: {
     threshold: pool.graduationThreshold,
@@ -259,8 +259,7 @@ console.log({
     graduated: pool.phase === 'Graduated',
   },
   fees: {
-    creator: pool.creatorFeeBps,        // Creator fee (bps)
-    protocol: pool.protocolFeeBps,      // Protocol fee (bps)
+    poolFeeBps: pool.feeBps,            // Pool fee in basis points
   },
 });
 ```
@@ -271,20 +270,23 @@ console.log({
 
 ```typescript
 // Get quote before trading
-const quote = await scale.getQuote(poolAddress, {
-  type: 'buy',
-  crxAmount: 100,
-});
+const estimate = await scale.estimateBuy(poolAddress, 100); // 100 CRX
 
-console.log('Expected tokens:', quote.outputAmount);
-console.log('Price impact:', quote.priceImpact + '%');
-console.log('Fee:', quote.fee);
+console.log('Expected tokens:', estimate.output);
+console.log('Price impact:', estimate.priceImpact + '%');
+console.log('Fee:', estimate.fee);
 
-// Execute trade with slippage limit
+// Execute trade with slippage protection
 await scale.buy(poolAddress, {
   crxAmount: 100,
-  slippage: 1.0,          // Max 1% slippage
-  minOutputAmount: quote.outputAmount * 0.99,  // Or set exact minimum
+  slippage: 1.0,          // Max 1% slippage (built-in)
+});
+
+// Or for sells:
+const sellEstimate = await scale.estimateSell(poolAddress, 50_000); // 50k tokens
+await scale.sell(poolAddress, {
+  tokenAmount: 50_000,
+  slippage: 1.0,
 });
 ```
 
