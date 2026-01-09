@@ -14,6 +14,7 @@ import { expect } from "chai";
 import {
   createMint,
   getOrCreateAssociatedTokenAccount,
+  getAssociatedTokenAddress,
   mintTo,
   TOKEN_PROGRAM_ID,
   getAccount,
@@ -180,8 +181,9 @@ describe("CRITICAL: Complete Test Suite", () => {
     quoteAmount: anchor.BN,
     minBaseAmount: anchor.BN
   ) {
+    // Derive user position PDA (for WAA tracking)
     const [userPosition] = PublicKey.findProgramAddressSync(
-      [Buffer.from("user_position"), pool.toBuffer(), user.publicKey.toBuffer()],
+      [Buffer.from("pos"), pool.toBuffer(), user.publicKey.toBuffer()],
       program.programId
     );
 
@@ -198,21 +200,28 @@ describe("CRITICAL: Complete Test Suite", () => {
       user.publicKey
     );
 
+    // Fetch config to get protocol fee recipient
+    const configData = await program.account.config.fetch(config);
+
+    // Derive protocol fee recipient (config.feeRecipient's CRX account)
+    const protocolFeeRecipient = await getAssociatedTokenAddress(
+      crxMint,
+      configData.feeRecipient
+    );
+
     return await program.methods
       .buy(quoteAmount, minBaseAmount)
       .accounts({
         config,
         pool,
-        quoteMint: crxMint,
-        baseMint,
         quoteVault,
         baseVault,
         userQuoteAccount: userQuoteAccount.address,
         userBaseAccount: userBaseAccount.address,
+        feeRecipientAccount: feeRecipientCrxAccount,
+        protocolFeeRecipient,
         userPosition,
         user: user.publicKey,
-        crxPriceOracle: crxPriceOracle.publicKey,
-        feeRecipientQuoteAccount: feeRecipientCrxAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -232,8 +241,9 @@ describe("CRITICAL: Complete Test Suite", () => {
     baseAmount: anchor.BN,
     minQuoteAmount: anchor.BN
   ) {
+    // Derive user position PDA (for WAA tracking)
     const [userPosition] = PublicKey.findProgramAddressSync(
-      [Buffer.from("user_position"), pool.toBuffer(), user.publicKey.toBuffer()],
+      [Buffer.from("pos"), pool.toBuffer(), user.publicKey.toBuffer()],
       program.programId
     );
 
@@ -250,21 +260,28 @@ describe("CRITICAL: Complete Test Suite", () => {
       user.publicKey
     );
 
+    // Fetch config to get protocol fee recipient
+    const configData = await program.account.config.fetch(config);
+
+    // Derive protocol fee recipient (config.feeRecipient's CRX account)
+    const protocolFeeRecipient = await getAssociatedTokenAddress(
+      crxMint,
+      configData.feeRecipient
+    );
+
     return await program.methods
       .sell(baseAmount, minQuoteAmount)
       .accounts({
         config,
         pool,
-        quoteMint: crxMint,
-        baseMint,
         quoteVault,
         baseVault,
         userQuoteAccount: userQuoteAccount.address,
         userBaseAccount: userBaseAccount.address,
+        feeRecipientAccount: feeRecipientCrxAccount,
+        protocolFeeRecipient,
         userPosition,
         user: user.publicKey,
-        crxPriceOracle: crxPriceOracle.publicKey,
-        feeRecipientQuoteAccount: feeRecipientCrxAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([user])

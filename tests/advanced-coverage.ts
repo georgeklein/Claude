@@ -19,6 +19,7 @@ import { expect } from "chai";
 import {
   createMint,
   getOrCreateAssociatedTokenAccount,
+  getAssociatedTokenAddress,
   mintTo,
   TOKEN_PROGRAM_ID,
   getAccount,
@@ -120,6 +121,15 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       program.programId
     );
 
+    // Fetch config to get protocol fee recipient
+    const configData = await program.account.config.fetch(config);
+
+    // Derive protocol fee recipient (config.feeRecipient's CRX account)
+    const protocolFeeRecipient = await getAssociatedTokenAddress(
+      crxMint,
+      configData.feeRecipient
+    );
+
     const method = isBuy ? program.methods.buy(amount, minAmount) : program.methods.sell(amount, minAmount);
     await method
       .accounts({
@@ -130,6 +140,7 @@ describe("Scale AMM - Advanced Test Coverage", () => {
         userQuoteAccount: userQuoteAccount.address,
         userBaseAccount: userBaseAccount.address,
         feeRecipientAccount: feeRecipientCrxAccount,
+        protocolFeeRecipient,
         userPosition,
         user: user.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -831,10 +842,8 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       const poolBefore = await program.account.pool.fetch(pool);
       expect(poolBefore.currentPhase).to.deep.equal({ preBonding: {} });
 
-      // Anti-sniper should be active initially (within window)
-      const configAccount = await program.account.config.fetch(config);
-      const currentSlot = await provider.connection.getSlot();
-      const antiSniperActive = currentSlot < poolBefore.createdAtSlot.toNumber() + configAccount.antiSniperWindowSlots.toNumber();
+      // Note: Anti-sniper protection was removed from the protocol
+      // Tests now focus on WAA (Weighted Average Age) anti-dump protection instead
 
       // Execute trade to graduate
       await executeTrade(pool, quoteVault, baseVault, baseMint, trader1, true, new anchor.BN(10_000_000_000), new anchor.BN(0));
@@ -842,12 +851,6 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       // Verify phase transition
       const poolAfter = await program.account.pool.fetch(pool);
       expect(poolAfter.currentPhase).to.deep.equal({ graduated: {} });
-
-      // Anti-sniper should be inactive after graduation (graduated pools don't use anti-sniper)
-      const currentSlotAfter = await provider.connection.getSlot();
-      const antiSniperActiveAfter = poolAfter.currentPhase.hasOwnProperty('preBonding') &&
-                                    currentSlotAfter < poolAfter.createdAtSlot.toNumber() + configAccount.antiSniperWindowSlots.toNumber();
-      expect(antiSniperActiveAfter).to.be.false;
     });
 
     it("Should freeze virtual reserves at transition + switch pricing to real reserves", async () => {
@@ -1696,50 +1699,10 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       }
     });
 
-    it("Test 2: Only authority can pause protocol", async () => {
-      // Authority should be able to pause
-      await program.methods
-        .setPaused(true)
-        .accounts({
-          config,
-          authority: authority.publicKey,
-        })
-        .signers([authority])
-        .rpc();
-
-      let configAccount = await program.account.config.fetch(config);
-      expect(configAccount.isPaused).to.be.true;
-
-      // Unpause for other tests
-      await program.methods
-        .setPaused(false)
-        .accounts({
-          config,
-          authority: authority.publicKey,
-        })
-        .signers([authority])
-        .rpc();
-
-      configAccount = await program.account.config.fetch(config);
-      expect(configAccount.isPaused).to.be.false;
-
-      // Non-authority should fail
-      const unauthorized = Keypair.generate();
-      await airdrop(unauthorized.publicKey);
-
-      try {
-        await program.methods
-          .setPaused(true)
-          .accounts({
-            config,
-            authority: unauthorized.publicKey,
-          })
-          .signers([unauthorized])
-          .rpc();
-        expect.fail("Should prevent unauthorized pause");
-      } catch (err) {
-        expect(err.toString()).to.include("Unauthorized");
-      }
+    it.skip("Test 2: DEPRECATED - Protocol pause feature was removed", async () => {
+      // Note: The protocol pause/unpause feature was removed to reduce complexity
+      // Emergency controls are now handled through updateProtocolFee (set to 1000 = 10% to throttle)
+      // This test is skipped as the setPaused instruction no longer exists
     });
 
     it("Test 3: Cannot re-initialize config (one-time only)", async () => {

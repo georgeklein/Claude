@@ -21,6 +21,7 @@ import { expect } from "chai";
 import {
   createMint,
   getOrCreateAssociatedTokenAccount,
+  getAssociatedTokenAddress,
   mintTo,
   TOKEN_PROGRAM_ID,
   getAccount,
@@ -239,6 +240,9 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
       // 2. Trade updates reserves to match new vault balance
       // 3. Post-trade validation passes because reserves now match
       // FINDING: Direct transfers DO NOT corrupt the pool - they just donate tokens!
+      const configData = await program.account.config.fetch(config);
+      const protocolFeeRecipient = await getAssociatedTokenAddress(crxMint, configData.feeRecipient);
+
       await program.methods
         .buy(new anchor.BN(100_000), new anchor.BN(1))
         .accounts({
@@ -249,6 +253,7 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
           userQuoteAccount: traderCrxAccount.address,
           userBaseAccount: traderBaseAccount.address,
           feeRecipientAccount: feeRecipientCrxAccount,
+          protocolFeeRecipient,
           userPosition,
           user: trader.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -291,6 +296,9 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
       );
 
       // Buy some tokens
+      const configData2 = await program.account.config.fetch(config);
+      const protocolFeeRecipient2 = await getAssociatedTokenAddress(crxMint, configData2.feeRecipient);
+
       await program.methods
         .buy(new anchor.BN(1_000_000), new anchor.BN(1))
         .accounts({
@@ -301,6 +309,7 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
           userQuoteAccount: attackerCrxAccount.address,
           userBaseAccount: attackerBaseAccount.address,
           feeRecipientAccount: feeRecipientCrxAccount,
+          protocolFeeRecipient: protocolFeeRecipient2,
           userPosition,
           user: attacker.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -377,6 +386,9 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
       );
 
       // Execute buy
+      const configData3 = await program.account.config.fetch(config);
+      const protocolFeeRecipient3 = await getAssociatedTokenAddress(crxMint, configData3.feeRecipient);
+
       await program.methods
         .buy(new anchor.BN(100_000), new anchor.BN(1))
         .accounts({
@@ -387,6 +399,7 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
           userQuoteAccount: traderCrxAccount.address,
           userBaseAccount: traderBaseAccount.address,
           feeRecipientAccount: feeRecipientCrxAccount,
+          protocolFeeRecipient: protocolFeeRecipient3,
           userPosition,
           user: trader.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -438,6 +451,9 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
       );
 
       // Buy first
+      const configData4 = await program.account.config.fetch(config);
+      const protocolFeeRecipient4 = await getAssociatedTokenAddress(crxMint, configData4.feeRecipient);
+
       await program.methods
         .buy(new anchor.BN(1_000_000), new anchor.BN(1))
         .accounts({
@@ -448,6 +464,7 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
           userQuoteAccount: traderCrxAccount.address,
           userBaseAccount: traderBaseAccount.address,
           feeRecipientAccount: feeRecipientCrxAccount,
+          protocolFeeRecipient: protocolFeeRecipient4,
           userPosition,
           user: trader.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -462,6 +479,9 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
       const traderBalance = await getAccount(provider.connection, traderBaseAccount.address);
 
       // Sell half
+      const configData5 = await program.account.config.fetch(config);
+      const protocolFeeRecipient5 = await getAssociatedTokenAddress(crxMint, configData5.feeRecipient);
+
       await program.methods
         .sell(new anchor.BN(Number(traderBalance.amount) / 2), new anchor.BN(1))
         .accounts({
@@ -472,6 +492,7 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
           userQuoteAccount: traderCrxAccount.address,
           userBaseAccount: traderBaseAccount.address,
           feeRecipientAccount: feeRecipientCrxAccount,
+          protocolFeeRecipient: protocolFeeRecipient5,
           userPosition,
           user: trader.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,

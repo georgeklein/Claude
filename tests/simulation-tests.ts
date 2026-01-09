@@ -20,6 +20,7 @@ import { expect } from "chai";
 import {
   createMint,
   getOrCreateAssociatedTokenAccount,
+  getAssociatedTokenAddress,
   mintTo,
   TOKEN_PROGRAM_ID,
   getAccount,
@@ -172,6 +173,15 @@ describe("Scale AMM - Simulation Tests (LONG RUNNING)", () => {
       program.programId
     );
 
+    // Fetch config to get protocol fee recipient
+    const configData = await program.account.config.fetch(config);
+
+    // Derive protocol fee recipient (config.feeRecipient's CRX account)
+    const protocolFeeRecipient = await getAssociatedTokenAddress(
+      crxMint,
+      configData.feeRecipient
+    );
+
     const method = isBuy
       ? program.methods.buy(amount, minAmount)
       : program.methods.sell(amount, minAmount);
@@ -185,6 +195,7 @@ describe("Scale AMM - Simulation Tests (LONG RUNNING)", () => {
         userQuoteAccount: userQuoteAccount.address,
         userBaseAccount: userBaseAccount.address,
         feeRecipientAccount: feeRecipientCrxAccount,
+        protocolFeeRecipient,
         userPosition,
         user: user.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
