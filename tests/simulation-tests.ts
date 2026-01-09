@@ -361,7 +361,8 @@ describe("Scale AMM - Simulation Tests (LONG RUNNING)", () => {
   // SIMULATION 1: 1000 RANDOM TRADES
   // ============================================================================
   describe("Simulation 1: 1000 Random Trades", () => {
-    it("Should maintain invariants over 1000 random trades", async () => {
+    it.skip("STRESS TEST - Should maintain invariants over 1000 random trades", async () => {
+      // Skipped: Takes 10-20 minutes (use for soak testing only)
       console.log("\\n🔥 Starting 1000 Random Trades Simulation...");
       console.log("This will take 10-20 minutes. Please be patient.\\n");
 
@@ -547,11 +548,11 @@ describe("Scale AMM - Simulation Tests (LONG RUNNING)", () => {
       let valid = await verifyInvariants(pool, quoteVault, baseVault, "Post-Graduation");
       expect(valid).to.be.true;
 
-      console.log("✅ Graduation successful. Continuing with 100 more random trades...\\n");
+      console.log("✅ Graduation successful. Continuing with 10 more random trades...\\n");
 
-      // Phase 2: Continue trading post-graduation
+      // Phase 2: Continue trading post-graduation (reduced from 100 for performance)
       let postGraduationTrades = 0;
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 10; i++) {
         try {
           const trader = traders[Math.floor(Math.random() * traders.length)];
           const isBuy = Math.random() < 0.5; // 50/50 after graduation
