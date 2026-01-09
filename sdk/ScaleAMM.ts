@@ -386,6 +386,51 @@ export class ScaleAMM {
     return parsedData.parsed.info.decimals;
   }
 
+  /**
+   * Get or create all required token accounts for a trade
+   * Consolidates duplicate token account logic from buy/sell methods
+   *
+   * @internal
+   */
+  private async getTradeAccounts(
+    poolData: PoolData,
+    configData: any
+  ): Promise<{
+    userQuoteAccount: PublicKey;
+    userBaseAccount: PublicKey;
+    feeRecipientAccount: PublicKey;
+  }> {
+    // Get/create user quote account (CRX)
+    const userQuoteAccount = await getOrCreateAssociatedTokenAccount(
+      this.connection,
+      this.wallet.payer,
+      poolData.quoteMint,
+      this.wallet.publicKey
+    );
+
+    // Get/create user base account (token)
+    const userBaseAccount = await getOrCreateAssociatedTokenAccount(
+      this.connection,
+      this.wallet.payer,
+      poolData.baseMint,
+      this.wallet.publicKey
+    );
+
+    // Get/create fee recipient account
+    const feeRecipientAccount = await getOrCreateAssociatedTokenAccount(
+      this.connection,
+      this.wallet.payer,
+      poolData.quoteMint,
+      configData.feeRecipient
+    );
+
+    return {
+      userQuoteAccount: userQuoteAccount.address,
+      userBaseAccount: userBaseAccount.address,
+      feeRecipientAccount: feeRecipientAccount.address,
+    };
+  }
+
   // ==========================================================================
   // PROTOCOL SETUP (Admin Only)
   // ==========================================================================
@@ -720,29 +765,9 @@ export class ScaleAMM {
       const [quoteVaultPda] = this.deriveQuoteVaultPda(pool);
       const [baseVaultPda] = this.deriveBaseVaultPda(pool);
 
-      // Get/create user token accounts
-      const userQuoteAccount = await getOrCreateAssociatedTokenAccount(
-        this.connection,
-        this.wallet.payer,
-        poolData.quoteMint,
-        this.wallet.publicKey
-      );
-
-      const userBaseAccount = await getOrCreateAssociatedTokenAccount(
-        this.connection,
-        this.wallet.payer,
-        poolData.baseMint,
-        this.wallet.publicKey
-      );
-
-      // Get fee recipient account
+      // Fetch config and get all required token accounts
       const configData = await this.program.account.config.fetch(configPda);
-      const feeRecipientAccount = await getOrCreateAssociatedTokenAccount(
-        this.connection,
-        this.wallet.payer,
-        poolData.quoteMint,
-        configData.feeRecipient
-      );
+      const accounts = await this.getTradeAccounts(poolData, configData);
 
       // Build transaction with priority fees if specified
       const tx = this.program.methods
@@ -752,9 +777,9 @@ export class ScaleAMM {
           pool,
           quoteVault: quoteVaultPda,
           baseVault: baseVaultPda,
-          userQuoteAccount: userQuoteAccount.address,
-          userBaseAccount: userBaseAccount.address,
-          feeRecipientAccount: feeRecipientAccount.address,
+          userQuoteAccount: accounts.userQuoteAccount,
+          userBaseAccount: accounts.userBaseAccount,
+          feeRecipientAccount: accounts.feeRecipientAccount,
           user: this.wallet.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
         });
@@ -821,29 +846,9 @@ export class ScaleAMM {
       const [quoteVaultPda] = this.deriveQuoteVaultPda(pool);
       const [baseVaultPda] = this.deriveBaseVaultPda(pool);
 
-      // Get/create user token accounts
-      const userQuoteAccount = await getOrCreateAssociatedTokenAccount(
-        this.connection,
-        this.wallet.payer,
-        poolData.quoteMint,
-        this.wallet.publicKey
-      );
-
-      const userBaseAccount = await getOrCreateAssociatedTokenAccount(
-        this.connection,
-        this.wallet.payer,
-        poolData.baseMint,
-        this.wallet.publicKey
-      );
-
-      // Get fee recipient account
+      // Fetch config and get all required token accounts
       const configData = await this.program.account.config.fetch(configPda);
-      const feeRecipientAccount = await getOrCreateAssociatedTokenAccount(
-        this.connection,
-        this.wallet.payer,
-        poolData.quoteMint,
-        configData.feeRecipient
-      );
+      const accounts = await this.getTradeAccounts(poolData, configData);
 
       // Build transaction with priority fees if specified
       const tx = this.program.methods
@@ -853,9 +858,9 @@ export class ScaleAMM {
           pool,
           quoteVault: quoteVaultPda,
           baseVault: baseVaultPda,
-          userQuoteAccount: userQuoteAccount.address,
-          userBaseAccount: userBaseAccount.address,
-          feeRecipientAccount: feeRecipientAccount.address,
+          userQuoteAccount: accounts.userQuoteAccount,
+          userBaseAccount: accounts.userBaseAccount,
+          feeRecipientAccount: accounts.feeRecipientAccount,
           user: this.wallet.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
         });

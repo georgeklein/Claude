@@ -29,20 +29,11 @@ pub enum ErrorCode {
     #[msg("Invalid reserves configuration")]
     InvalidReserves,
 
-    #[msg("Oracle price is stale")]
-    OraclePriceStale,
-
-    #[msg("Oracle confidence interval too wide")]
-    OracleConfidenceTooLow,
-
     #[msg("Invalid target market cap")]
     InvalidMarketCap,
 
     #[msg("Invalid token supply")]
     InvalidTokenSupply,
-
-    #[msg("Invalid oracle account")]
-    InvalidOracle,
 
     #[msg("CRX price out of reasonable bounds")]
     InvalidCrxPrice,
@@ -70,10 +61,4 @@ pub enum ErrorCode {
 
     #[msg("Invalid quote token count - must be between 0 and 5")]
     InvalidQuoteTokenCount,
-
-    #[msg("Oracle exponent out of safe bounds (-12 to 6) - potential overflow attack")]
-    InvalidOracleExponent,
-
-    #[msg("Oracle confidence exceeds price - invalid oracle data")]
-    InvalidOracleConfidence,
 }

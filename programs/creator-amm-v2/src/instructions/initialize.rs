@@ -95,10 +95,6 @@ pub fn handler(
         ErrorCode::InvalidMarketCap
     );
 
-    // Validate oracle settings
-    require!(oracle_max_age_seconds > 0, ErrorCode::InvalidOracle);
-    require!(oracle_max_confidence_bps <= 1000, ErrorCode::OracleConfidenceTooLow); // Max 10%
-
     let config = &mut ctx.accounts.config;
     let clock = Clock::get()?;
 

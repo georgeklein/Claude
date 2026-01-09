@@ -88,23 +88,14 @@ pub const WAA_TIME_RANGE_1: u64 = WAA_TIER2_SLOTS - WAA_TIER1_SLOTS;
 pub const WAA_TIME_RANGE_2: u64 = WAA_TIER3_SLOTS - WAA_TIER2_SLOTS;
 
 // ============================================================================
-// Oracle Validation
+// CRX Price Validation
 // ============================================================================
-
-/// Minimum allowed oracle exponent
-pub const ORACLE_EXPONENT_MIN: i32 = -12;
-
-/// Maximum allowed oracle exponent
-pub const ORACLE_EXPONENT_MAX: i32 = 6;
 
 /// Minimum CRX price: $0.01 (with 6 decimals)
 pub const CRX_PRICE_MIN_USD: u64 = 10_000;
 
 /// Maximum CRX price: $1,000 (with 6 decimals)
 pub const CRX_PRICE_MAX_USD: u64 = 1_000_000_000;
-
-/// Maximum oracle confidence: 10% (1,000 bps out of 10,000)
-pub const MAX_ORACLE_CONFIDENCE_BPS: u64 = 1_000;
 
 // ============================================================================
 // Exponential Curve Constants
