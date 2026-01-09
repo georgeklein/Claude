@@ -34,14 +34,15 @@ pub fn handler(ctx: Context<UpdateCrxPrice>, new_price_usd: u64) -> Result<()> {
     // (graduation_threshold_crx = graduation_threshold_usd / crx_price_usd)
     if config.crx_price_usd > 0 {
         let price_ratio = (new_price_usd as u128)
-            .checked_mul(10000)
+            .checked_mul(crate::constants::PRICE_RATIO_BPS_MULTIPLIER)
             .ok_or(ErrorCode::MathOverflow)?
             .checked_div(config.crx_price_usd as u128)
             .ok_or(ErrorCode::InvalidCrxPrice)?;
 
-        // Ratio must be between 90% and 110% (9000-11000 bps)
+        // Ratio must be between 90% and 110%
         require!(
-            price_ratio >= 9000 && price_ratio <= 11000,
+            price_ratio >= crate::constants::CRX_PRICE_RATIO_MIN &&
+            price_ratio <= crate::constants::CRX_PRICE_RATIO_MAX,
             ErrorCode::InvalidCrxPrice
         );
     }

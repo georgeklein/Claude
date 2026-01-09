@@ -108,6 +108,18 @@ pub const CRX_PRICE_MIN_USD: u64 = 10_000;
 /// Maximum CRX price: $1,000 (with 6 decimals)
 pub const CRX_PRICE_MAX_USD: u64 = 1_000_000_000;
 
+/// Maximum CRX price change per update: 10% (prevents graduation manipulation)
+pub const CRX_PRICE_CHANGE_MAX_BPS: u128 = 1000;
+
+/// Minimum price ratio allowed: 90% (9000 bps)
+pub const CRX_PRICE_RATIO_MIN: u128 = 9000;
+
+/// Maximum price ratio allowed: 110% (11000 bps)
+pub const CRX_PRICE_RATIO_MAX: u128 = 11000;
+
+/// Basis points multiplier for ratio calculation
+pub const PRICE_RATIO_BPS_MULTIPLIER: u128 = 10000;
+
 // ============================================================================
 // Exponential Curve Constants
 // ============================================================================
