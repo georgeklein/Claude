@@ -12,12 +12,12 @@
  * ```
  */
 
-import { Connection, PublicKey, Transaction, Keypair, TransactionSignature, ComputeBudgetProgram, ConfirmOptions } from '@solana/web3.js';
+import { Connection, PublicKey, TransactionSignature, ComputeBudgetProgram } from '@solana/web3.js';
 import { Program, AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import { getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { CreatorAmmV2 } from './types/creator_amm_v2';
 import { IDL } from './types/creator_amm_v2';
-import { ScaleError, ErrorCode, translateAnchorError } from './errors';
+import { ScaleError, translateAnchorError } from './errors';
 
 // ============================================================================
 // INTERNAL TYPES (TypeScript Type Safety)
@@ -342,29 +342,6 @@ export class ScaleAMM {
       'CONFIRMATION_TIMEOUT',
       `Failed to confirm transaction after ${maxRetries + 1} attempts: ${lastError?.message}`
     );
-  }
-
-  /**
-   * Add priority fee instructions to transaction builder
-   *
-   * @internal
-   */
-  private addPriorityFee(
-    instructions: any[],
-    priorityFee?: number,
-    computeUnits?: number
-  ): void {
-    if (computeUnits) {
-      instructions.unshift(
-        ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnits })
-      );
-    }
-
-    if (priorityFee) {
-      instructions.unshift(
-        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFee })
-      );
-    }
   }
 
   /**
@@ -739,13 +716,13 @@ export class ScaleAMM {
    *   feeMinBps: 0,
    * });
    *
-   * // Enable aggressive anti-sniper (10% max fee)
+   * // Adjust WAA configuration (current defaults shown)
    * await scale.updateWaaConfig({
-   *   tier1Slots: 75,      // 30 seconds
-   *   tier2Slots: 750,     // 5 minutes
-   *   tier3Slots: 4500,    // 30 minutes
-   *   feeMaxBps: 1000,     // 10%
-   *   feeMinBps: 100,      // 1%
+   *   tier1Slots: 25,      // 10 seconds
+   *   tier2Slots: 150,     // 1 minute
+   *   tier3Slots: 750,     // 5 minutes
+   *   feeMaxBps: 300,      // 3%
+   *   feeMinBps: 50,       // 0.5%
    * });
    * ```
    */
@@ -1265,8 +1242,8 @@ export class ScaleAMM {
         const waaAge = currentSlot - waaSlot;
         const waaAgeSeconds = waaAge * 0.4; // ~400ms per slot
 
-        // WAA fee active if selling within 30 minutes (4,500 slots)
-        const hasWaaFee = waaAge < 4500;
+        // WAA fee active if selling within 5 minutes (750 slots)
+        const hasWaaFee = waaAge < 750;
 
         return {
           pool: positionData.pool,
