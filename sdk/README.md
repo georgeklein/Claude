@@ -149,6 +149,37 @@ await scale.updateApprovedQuotes([solMint, usdcMint, usdtMint]);
 
 ---
 
+#### `updateAuthority(newAuthority)`
+Transfer protocol authority to new wallet (authority only).
+
+**⚠️ CRITICAL: This is irreversible. Use with extreme caution.**
+
+**Parameters:**
+- `newAuthority` (PublicKey): New authority public key
+
+**Example:**
+```typescript
+// Transfer to multisig
+const squadsMultisig = new PublicKey('SQUADS...');
+await scale.updateAuthority(squadsMultisig);
+
+// Transfer to DAO
+const daoAuthority = new PublicKey('DAO...');
+await scale.updateAuthority(daoAuthority);
+```
+
+**Use cases:**
+- Upgrade to multisig (e.g., Squads)
+- Transfer to DAO governance
+- Rotate compromised keys
+
+**Security notes:**
+- One-step transfer (no acceptance required)
+- Irreversible - new authority has full control
+- Emits `AuthorityUpdated` event
+
+---
+
 ### Pool Operations
 
 #### `createPool(params)`

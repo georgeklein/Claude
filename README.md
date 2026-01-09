@@ -239,9 +239,15 @@ See `.env.example` for configuration.
 ✅ Graduation continuity (max 20% price jump)
 ✅ Slippage protection
 ✅ No pause button (fully permissionless)
+✅ Authority transferrable (upgrade to multisig/DAO)
 
 **Test Coverage:** 368 tests
 **Audits:** 20 AI agent security audits (see `docs/security/`)
+
+**Governance:**
+- Protocol authority set at initialization
+- Transferrable to multisig or DAO via `updateAuthority()`
+- Authority controls: protocol fees, CRX price updates, graduation thresholds
 
 ---
 

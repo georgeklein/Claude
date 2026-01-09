@@ -663,6 +663,59 @@ export class ScaleAMM {
     }
   }
 
+  /**
+   * Update protocol authority (admin only)
+   *
+   * Transfer control to a new authority wallet. This is irreversible.
+   * Only the current authority can call this.
+   *
+   * Use cases:
+   * - Upgrade to multisig (e.g., Squads)
+   * - Transfer to DAO governance
+   * - Rotate compromised keys
+   *
+   * @param newAuthority - New authority public key
+   *
+   * @example
+   * ```typescript
+   * // Transfer to multisig
+   * const squadsMultisig = new PublicKey('SQUADS...');
+   * await scale.updateAuthority(squadsMultisig);
+   *
+   * // Transfer to DAO
+   * const daoAuthority = new PublicKey('DAO...');
+   * await scale.updateAuthority(daoAuthority);
+   * ```
+   */
+  async updateAuthority(newAuthority: PublicKey): Promise<string> {
+    try {
+      // Validate new authority is not default pubkey
+      if (newAuthority.equals(PublicKey.default)) {
+        throw new ScaleError('INVALID_AUTHORITY', 'New authority cannot be default pubkey');
+      }
+
+      const [configPda] = this.deriveConfigPda();
+
+      // Fetch current config to check if authority is changing
+      const configData = await this.program.account.config.fetch(configPda);
+      if (newAuthority.equals(configData.authority)) {
+        throw new ScaleError('INVALID_AUTHORITY', 'New authority must be different from current authority');
+      }
+
+      const tx = await this.program.methods
+        .updateAuthority(newAuthority)
+        .accounts({
+          config: configPda,
+          authority: this.wallet.publicKey,
+        })
+        .rpc();
+
+      return tx;
+    } catch (error) {
+      throw translateAnchorError(error);
+    }
+  }
+
   // ==========================================================================
   // CREATOR OPERATIONS
   // ==========================================================================

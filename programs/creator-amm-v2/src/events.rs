@@ -242,3 +242,21 @@ pub struct ProtocolFeeUpdated {
     /// Timestamp when update occurred
     pub timestamp: i64,
 }
+
+/// Emitted when protocol authority is transferred
+#[event]
+pub struct AuthorityUpdated {
+    /// Previous authority (indexed)
+    #[index]
+    pub old_authority: Pubkey,
+
+    /// New authority (indexed)
+    #[index]
+    pub new_authority: Pubkey,
+
+    /// Slot when transfer occurred
+    pub slot: u64,
+
+    /// Timestamp when transfer occurred
+    pub timestamp: i64,
+}

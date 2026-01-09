@@ -105,4 +105,12 @@ pub mod creator_amm_v2 {
     ) -> Result<()> {
         instructions::update_protocol_fee::handler(ctx, new_protocol_fee_bps)
     }
+
+    /// Update protocol authority (Authority only)
+    pub fn update_authority(
+        ctx: Context<UpdateAuthority>,
+        new_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::update_authority::handler(ctx, new_authority)
+    }
 }

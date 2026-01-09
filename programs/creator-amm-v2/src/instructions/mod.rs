@@ -7,6 +7,7 @@ pub mod update_approved_quotes;
 pub mod update_crx_price;
 pub mod update_pool_graduation;
 pub mod update_protocol_fee;
+pub mod update_authority;
 
 pub use initialize::*;
 pub use create_pool::*;
@@ -16,3 +17,4 @@ pub use update_approved_quotes::*;
 pub use update_crx_price::*;
 pub use update_pool_graduation::*;
 pub use update_protocol_fee::*;
+pub use update_authority::*;
