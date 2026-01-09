@@ -203,7 +203,7 @@ pub fn update_statistics(
 pub fn update_crx_price(
     pool: &mut Pool,
     config: &Config,
-    clock: &Clock,
+    _clock: &Clock,
 ) -> Result<()> {
     let new_price = config.crx_price_usd;
 
@@ -212,7 +212,6 @@ pub fn update_crx_price(
     pool.refresh_virtual_reserves(new_price)?;
 
     pool.last_crx_price_usd = new_price;
-    pool.last_price_update_slot = clock.slot;
     Ok(())
 }
 

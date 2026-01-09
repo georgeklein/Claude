@@ -68,12 +68,6 @@ pub enum ErrorCode {
     #[msg("Oracle price is stale - please update CRX price (prevents flash loan exploitation)")]
     OraclePriceStale,
 
-    #[msg("Protocol is paused - trading temporarily disabled for security")]
-    ProtocolPaused,
-
-    #[msg("Graduation cooldown active - cannot sell immediately after graduation")]
-    GraduationCooldownActive,
-
     #[msg("Token-2022 not supported - use SPL Token standard (prevents transfer hook attacks)")]
     Token2022NotSupported,
 

@@ -96,14 +96,11 @@ pub fn handler(
     let new_graduation_threshold_crx = new_graduation_threshold_crx_u128 as u64;
 
     // Store old values for event
-    let old_graduation_threshold_usd = pool.graduation_threshold_crx
-        .checked_mul(crx_price_usd)
-        .ok_or(ErrorCode::MathOverflow)?
-        .checked_div(CRX_DECIMALS)
-        .ok_or(ErrorCode::ThresholdCalculationFailed)?;
+    let old_graduation_threshold_usd = pool.graduation_threshold_usd;
     let old_graduation_threshold_crx = pool.graduation_threshold_crx;
 
     // Update pool
+    pool.graduation_threshold_usd = new_graduation_threshold_usd;
     pool.graduation_threshold_crx = new_graduation_threshold_crx;
 
     // Emit event for indexers

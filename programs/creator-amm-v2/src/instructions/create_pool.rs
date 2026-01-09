@@ -244,8 +244,6 @@ pub fn handler(
     pool.creator = ctx.accounts.creator.key();
 
     pool.last_crx_price_usd = crx_price_usd;
-    pool.last_price_update_slot = clock.slot;
-    pool.last_graduation_slot = 0; // Not graduated yet
 
     pool.disable_waa = disable_waa;
 

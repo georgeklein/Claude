@@ -19,14 +19,6 @@ pub struct Config {
     /// Last time CRX price was updated (unix timestamp)
     pub crx_price_last_updated: i64,
 
-    /// Pre-bonding phase settings (0 → threshold_1)
-    pub pre_bonding_fee_bps: u16,           // e.g., 300 = 3%
-    pub pre_bonding_threshold_usd: u64,     // e.g., 40_000 USD (6 decimals)
-
-    /// Post-bonding phase settings (threshold_1 → threshold_2)
-    pub post_bonding_fee_bps: u16,          // e.g., 100 = 1%
-    pub graduation_threshold_usd: u64,      // e.g., 85_000 USD (6 decimals)
-
     /// Anti-sniper settings
     pub anti_sniper_window_slots: u64,      // e.g., 20 slots (~8 seconds)
     pub anti_sniper_max_trade_bps: u16,     // e.g., 500 = 5% of supply
@@ -53,10 +45,6 @@ impl Config {
         32 + // crx_mint
         8 +  // crx_price_usd
         8 +  // crx_price_last_updated
-        2 +  // pre_bonding_fee_bps
-        8 +  // pre_bonding_threshold_usd
-        2 +  // post_bonding_fee_bps
-        8 +  // graduation_threshold_usd
         8 +  // anti_sniper_window_slots
         2 +  // anti_sniper_max_trade_bps
         8 +  // oracle_max_age_seconds
@@ -144,10 +132,6 @@ pub struct Pool {
 
     /// Last oracle price (cached)
     pub last_crx_price_usd: u64,          // 6 decimals
-    pub last_price_update_slot: u64,
-
-    /// Graduation tracking
-    pub last_graduation_slot: u64,        // Slot when pool graduated (0 if not graduated)
 
     /// Feature flags
     pub disable_waa: bool,                // If true, skip WAA anti-dump fees (pure permissionless)
@@ -175,14 +159,12 @@ impl Pool {
         8 +  // graduation_threshold_crx
         8 +  // created_at_slot
         8 +  // total_quote_volume
-        // Removed: total_base_volume (8), total_fees_collected (8), unique_traders (8) = 24 bytes saved
+        // Removed: total_base_volume (8), total_fees_collected (8), unique_traders (8), last_price_update_slot (8), last_graduation_slot (8) = 40 bytes saved
         32 + // creator
         8 +  // last_crx_price_usd
-        8 +  // last_price_update_slot
-        8 +  // last_graduation_slot
         1 +  // disable_waa
         1;   // bump
-    // New size: 307 - 24 - 8 + 8 + 8 = 291 bytes
+    // New size: 291 - 16 = 275 bytes
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
     #[inline(always)]
@@ -217,7 +199,7 @@ impl Pool {
 
     /// Check and update phase based on accumulated CRX (graduation at $40k)
     /// Returns true if phase changed
-    pub fn check_phase_transition(&mut self, current_slot: u64) -> Result<bool> {
+    pub fn check_phase_transition(&mut self, _current_slot: u64) -> Result<bool> {
         match self.current_phase {
             CurvePhase::PreBonding => {
                 if self.real_quote_reserves >= self.graduation_threshold_crx {
@@ -229,9 +211,6 @@ impl Pool {
                     // Transition to graduated phase
                     // NOW PRICING USES REAL RESERVES (PumpSwap-style)
                     self.current_phase = CurvePhase::Graduated;
-
-                    // CRITICAL: Record graduation slot for cooldown enforcement
-                    self.last_graduation_slot = current_slot;
 
                     return Ok(true);
                 }

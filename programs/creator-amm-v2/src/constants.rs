@@ -33,9 +33,6 @@ pub const FEE_TIER_LOW: u16 = 25;
 /// Fee tier: Standard (1%)
 pub const FEE_TIER_STANDARD: u16 = 100;
 
-/// Maximum fee allowed (100% = 10,000 bps)
-pub const MAX_FEE_BPS: u16 = 10_000;
-
 // ============================================================================
 // Token Supply & Decimal Limits
 // ============================================================================
@@ -132,13 +129,6 @@ pub const EXPONENTIAL_CURVE_DENOMINATOR: u128 = 2;
 // Graduation Protection
 // ============================================================================
 
-/// Graduation cooldown: 150 slots (~60 seconds)
-/// Prevents rapid back-to-back graduations that could be exploited
-pub const GRADUATION_COOLDOWN_SLOTS: u64 = 150;
-
 // ============================================================================
 // Configuration Limits
 // ============================================================================
-
-/// Maximum number of approved quote tokens in whitelist
-pub const MAX_APPROVED_QUOTE_TOKENS: usize = 5;

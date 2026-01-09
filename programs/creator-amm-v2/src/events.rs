@@ -16,18 +16,6 @@ pub struct ConfigInitialized {
     /// CRX price oracle (Pyth/Switchboard)
     pub crx_price_oracle: Pubkey,
 
-    /// Pre-bonding fee in basis points (e.g., 300 = 3%)
-    pub pre_bonding_fee_bps: u16,
-
-    /// Pre-bonding threshold in USD (6 decimals)
-    pub pre_bonding_threshold_usd: u64,
-
-    /// Post-bonding fee in basis points
-    pub post_bonding_fee_bps: u16,
-
-    /// Graduation threshold in USD (6 decimals)
-    pub graduation_threshold_usd: u64,
-
     /// Anti-sniper window in slots
     pub anti_sniper_window_slots: u64,
 

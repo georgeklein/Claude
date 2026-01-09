@@ -19,10 +19,6 @@ pub mod creator_amm_v2 {
     pub fn initialize(
         ctx: Context<Initialize>,
         initial_crx_price_usd: u64,
-        pre_bonding_fee_bps: u16,
-        pre_bonding_threshold_usd: u64,
-        post_bonding_fee_bps: u16,
-        graduation_threshold_usd: u64,
         anti_sniper_window_slots: u64,
         anti_sniper_max_trade_bps: u16,
         oracle_max_age_seconds: i64,
@@ -33,10 +29,6 @@ pub mod creator_amm_v2 {
         instructions::initialize::handler(
             ctx,
             initial_crx_price_usd,
-            pre_bonding_fee_bps,
-            pre_bonding_threshold_usd,
-            post_bonding_fee_bps,
-            graduation_threshold_usd,
             anti_sniper_window_slots,
             anti_sniper_max_trade_bps,
             oracle_max_age_seconds,
