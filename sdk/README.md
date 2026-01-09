@@ -71,10 +71,22 @@ Get protocol configuration.
 ```typescript
 {
   authority: PublicKey,
-  crxMint: PublicKey,
   feeRecipient: PublicKey,
-  crxPriceUsd: number,
-  protocolFeeBps: number,         // Current protocol fee (0-1000 bps)
+  crxPriceOracle: PublicKey,
+  crxMint: PublicKey,
+  crxPriceUsd: number,              // CRX price in USD (e.g., 2.15)
+  crxPriceLastUpdated: number,      // Unix timestamp of last price update
+  oracleMaxAgeSeconds: number,      // Max oracle data age (seconds)
+  approvedQuoteTokens: PublicKey[], // Whitelisted quote tokens
+  approvedQuoteCount: number,       // Count of approved tokens (0-5)
+  protocolFeeBps: number,           // Current protocol fee (0-1000 bps = 0-10%)
+  waaConfig: {
+    tier1Slots: number,             // T1 threshold (e.g., 25 = 10s)
+    tier2Slots: number,             // T2 threshold (e.g., 150 = 1min)
+    tier3Slots: number,             // T3 threshold (e.g., 750 = 5min)
+    feeMaxBps: number,              // Max WAA fee (e.g., 300 = 3%)
+    feeMinBps: number,              // Min WAA fee (e.g., 50 = 0.5%)
+  },
 }
 ```
 
@@ -413,9 +425,12 @@ Get user's weighted average age (WAA) position and fee state.
 {
   pool: PublicKey,
   user: PublicKey,
-  avgEntrySlot: number,
-  trackedAmount: number,
-  currentSellFeeBps: number,   // Current sell fee (0-3000 bps)
+  weightedAverageEntrySlot: number,  // Slot when tokens were acquired
+  amount: number,                     // Token amount tracked for WAA
+  hasWaaFee: boolean,                 // True if WAA fee applies (<750 slots old)
+  waaAge: number,                     // Age in slots
+  waaAgeSeconds: number,              // Age in seconds (~400ms/slot)
+  currentSlot: number,                // Current blockchain slot
 }
 ```
 
@@ -423,8 +438,11 @@ Get user's weighted average age (WAA) position and fee state.
 ```typescript
 const position = await scale.getUserPosition(wallet.publicKey, pool.address);
 
-console.log('Average entry slot:', position.avgEntrySlot);
-console.log('Current sell fee:', position.currentSellFeeBps / 100 + '%');
+if (position) {
+  console.log('Entry slot:', position.weightedAverageEntrySlot);
+  console.log('WAA fee active:', position.hasWaaFee);
+  console.log('Age:', position.waaAgeSeconds.toFixed(1), 'seconds');
+}
 ```
 
 ---
@@ -437,10 +455,12 @@ Listen for trades on a pool.
 **Example:**
 ```typescript
 const listenerId = scale.onTrade(pool.address, (event) => {
-  console.log('Trade:', event.isBuy ? 'BUY' : 'SELL');
-  console.log('User:', event.user.toBase58());
-  console.log('Amount:', event.isBuy ? event.crxAmount : event.tokenAmount);
-  console.log('New price:', event.newPrice);
+  console.log('Trade:', event.is_buy ? 'BUY' : 'SELL');
+  console.log('Trader:', event.user.toBase58());
+  console.log('Input amount:', event.input_amount);
+  console.log('Output amount:', event.output_amount);
+  console.log('Fee charged:', event.fee_amount, 'at', event.fee_bps / 100, '%');
+  console.log('Phase:', event.phase);
 });
 
 // Stop listening
@@ -456,8 +476,10 @@ Listen for pool graduation events.
 ```typescript
 scale.onGraduation(pool.address, (event) => {
   console.log('Pool graduated!');
-  console.log('Slot:', event.slot);
-  console.log('Final CRX:', event.finalCrxReserves);
+  console.log('Graduation slot:', event.graduation_slot);
+  console.log('CRX accumulated:', event.total_crx_accumulated);
+  console.log('Final virtual reserves:', event.final_virtual_quote_reserves);
+  console.log('Creator:', event.creator.toBase58());
 });
 ```
 
@@ -510,16 +532,22 @@ Gasless transaction sponsorship for improved UX.
 **Example:**
 ```typescript
 import { FeeSponsor } from '@scale-amm/sdk';
+import { TransactionInstruction } from '@solana/web3.js';
 
 const sponsor = new FeeSponsor(connection, sponsorWallet);
 
-// Sponsor a transaction
-const tx = await scale.buy(pool.address, {
-  crxAmount: 100,
-  slippage: 1.0,
-});
+// Build trade instructions
+const instructions: TransactionInstruction[] = [
+  // ... your trade instructions here
+];
 
-await sponsor.sponsorTransaction(tx, userWallet);
+// Sponsor the instructions for a user
+const signature = await sponsor.sponsorTransaction(
+  instructions,
+  userPublicKey
+);
+
+console.log('Sponsored transaction:', signature);
 ```
 
 ---
@@ -645,7 +673,7 @@ See [main README](../README.md) for complete testing documentation.
 
 ## Support
 
-**Documentation:** [docs.creator.so](https://docs.creator.so)
+**Documentation:** [docs.creator.fun](https://docs.creator.fun)
 **Issues:** [GitHub Issues](https://github.com/georgeklein/Scale-AMM/issues)
 **Discord:** [Creator Community](https://discord.gg/creator)
 
@@ -657,4 +685,4 @@ Apache-2.0
 
 ---
 
-**Built for [Creator](https://www.creator.so) · Powered by $CRX**
+**Built for [Creator](https://www.creator.fun) · Powered by $CRX**
