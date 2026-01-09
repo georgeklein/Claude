@@ -90,9 +90,6 @@ pub fn handler(
     // CRITICAL FIX: Validate CRX price freshness before trading
     config.validate_price_freshness(&clock)?;
 
-    // CRITICAL FIX: Validate protocol is not paused (emergency kill switch)
-    config.validate_not_paused()?;
-
     // Shared validation: amount check
     trade::validate_trade_preconditions(quote_amount)?;
 

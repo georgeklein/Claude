@@ -229,8 +229,6 @@ pub fn handler(
     pool.last_crx_price_usd = crx_price_usd;
     pool.last_price_update_slot = clock.slot;
 
-    pool.graduated_at_slot = 0; // Not graduated yet
-
     pool.disable_waa = disable_waa;
 
     pool.bump = ctx.bumps.pool;

@@ -42,9 +42,6 @@ pub struct Config {
     pub approved_quote_tokens: [Pubkey; 5], // Whitelisted quote tokens (SOL, USDC, USDT, etc.)
     pub approved_quote_count: u8,           // How many slots are actually used (0-5)
 
-    /// Emergency pause mechanism - when true, all trading is disabled
-    pub paused: bool,
-
     pub bump: u8,
 }
 
@@ -66,7 +63,6 @@ impl Config {
         8 +  // oracle_max_confidence_bps
         160 + // approved_quote_tokens (32 * 5 = 160 bytes)
         1 +  // approved_quote_count
-        1 +  // paused
         1;   // bump
 
     /// CRITICAL FIX: Validate CRX price freshness to prevent stale price exploitation
@@ -81,13 +77,6 @@ impl Config {
             ErrorCode::OraclePriceStale
         );
 
-        Ok(())
-    }
-
-    /// CRITICAL FIX: Validate protocol is not paused
-    /// Emergency kill switch to disable all trading during security incidents
-    pub fn validate_not_paused(&self) -> Result<()> {
-        require!(!self.paused, ErrorCode::ProtocolPaused);
         Ok(())
     }
 }
@@ -156,9 +145,6 @@ pub struct Pool {
     pub last_crx_price_usd: u64,          // 6 decimals
     pub last_price_update_slot: u64,
 
-    /// Graduation tracking for cooldown enforcement
-    pub graduated_at_slot: u64,           // 0 if not graduated, slot number if graduated
-
     /// Feature flags
     pub disable_waa: bool,                // If true, skip WAA anti-dump fees (pure permissionless)
 
@@ -188,31 +174,15 @@ impl Pool {
         32 + // creator
         8 +  // last_crx_price_usd
         8 +  // last_price_update_slot
-        8 +  // graduated_at_slot
         1 +  // disable_waa
         1;   // bump
-    // New size: 307 - 24 = 283 bytes
+    // New size: 307 - 24 - 8 = 275 bytes
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
     #[inline(always)]
     pub fn is_anti_sniper_active(&self, current_slot: u64, anti_sniper_window: u64) -> bool {
         matches!(self.current_phase, CurvePhase::PreBonding) &&
         current_slot < self.created_at_slot.saturating_add(anti_sniper_window)
-    }
-
-    /// CRITICAL FIX: Check if pool is in graduation cooldown period
-    /// Prevents flash loan attacks by blocking sells immediately after graduation
-    /// Cooldown: 20 slots (~8 seconds at 400ms/slot)
-    #[inline(always)]
-    pub fn is_in_graduation_cooldown(&self, current_slot: u64) -> bool {
-        // If pool has never graduated, no cooldown
-        if self.graduated_at_slot == 0 {
-            return false;
-        }
-
-        // Check if within 20 slots of graduation
-        const GRADUATION_COOLDOWN_SLOTS: u64 = 20;
-        current_slot < self.graduated_at_slot.saturating_add(GRADUATION_COOLDOWN_SLOTS)
     }
 
     /// Get current fee based on pool configuration

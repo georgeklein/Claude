@@ -89,15 +89,6 @@ pub fn handler(
     // CRITICAL FIX: Validate CRX price freshness before trading
     config.validate_price_freshness(&clock)?;
 
-    // CRITICAL FIX: Validate protocol is not paused (emergency kill switch)
-    config.validate_not_paused()?;
-
-    // CRITICAL FIX: Prevent sells during graduation cooldown (flash loan protection)
-    require!(
-        !pool.is_in_graduation_cooldown(clock.slot),
-        ErrorCode::GraduationCooldownActive
-    );
-
     // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
     // Trade execution confirmed via TradeExecuted event
     // Phase transitions confirmed via PhaseTransition event

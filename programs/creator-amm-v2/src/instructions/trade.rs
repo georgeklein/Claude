@@ -221,11 +221,6 @@ pub fn handle_phase_transition(
     // Check for phase transition
     let transitioned = pool.check_phase_transition()?;
 
-    // CRITICAL FIX: Record graduation slot for cooldown enforcement
-    if transitioned {
-        pool.graduated_at_slot = clock.slot;
-    }
-
     // Emit events if transition occurred
     if transitioned {
         let price_at_graduation = pool.get_spot_price()?;
