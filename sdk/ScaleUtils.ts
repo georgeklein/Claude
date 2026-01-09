@@ -376,9 +376,8 @@ export const SCALE_CONSTANTS = {
   MIN_GRADUATION: 5_000,
   MAX_GRADUATION: 10_000_000,
 
-  // Slippage defaults
-  DEFAULT_SLIPPAGE_BPS: 50, // 0.5%
-  MAX_SLIPPAGE_BPS: 5000,   // 50%
+  // Slippage defaults (Creator platform will enforce safer limits)
+  DEFAULT_SLIPPAGE_BPS: 200, // 2% (realistic for low-liquidity pools)
 
 
   // Curve types
