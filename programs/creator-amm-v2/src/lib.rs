@@ -101,4 +101,12 @@ pub mod creator_amm_v2 {
     ) -> Result<()> {
         instructions::update_crx_price::handler(ctx, new_price_usd)
     }
+
+    /// Update pool graduation threshold (Authority only)
+    pub fn update_pool_graduation(
+        ctx: Context<UpdatePoolGraduation>,
+        new_graduation_threshold_usd: u64,
+    ) -> Result<()> {
+        instructions::update_pool_graduation::handler(ctx, new_graduation_threshold_usd)
+    }
 }

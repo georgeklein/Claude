@@ -207,3 +207,36 @@ pub struct PoolGraduated {
 
 // PhaseTransition event removed - was duplicate of PoolGraduated (saves ~1k CU)
 // Indexers should use PoolGraduated for phase transition tracking
+
+/// Emitted when a pool's graduation threshold is updated by authority
+#[event]
+pub struct PoolGraduationUpdated {
+    /// Pool address (indexed)
+    #[index]
+    pub pool: Pubkey,
+
+    /// Base token mint (indexed)
+    #[index]
+    pub base_mint: Pubkey,
+
+    /// Old graduation threshold in USD (6 decimals)
+    pub old_graduation_threshold_usd: u64,
+
+    /// New graduation threshold in USD (6 decimals)
+    pub new_graduation_threshold_usd: u64,
+
+    /// Old graduation threshold in CRX
+    pub old_graduation_threshold_crx: u64,
+
+    /// New graduation threshold in CRX
+    pub new_graduation_threshold_crx: u64,
+
+    /// CRX price used for conversion (USD, 6 decimals)
+    pub crx_price_usd: u64,
+
+    /// Slot when update occurred
+    pub slot: u64,
+
+    /// Timestamp when update occurred
+    pub timestamp: i64,
+}
