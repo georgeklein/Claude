@@ -13,7 +13,8 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-default = []
+devnet = []  # Allow placeholder DEPLOYER_PUBKEY for testing
+default = ["devnet"]  # Enable devnet by default for development
 
 [dependencies]
 anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }

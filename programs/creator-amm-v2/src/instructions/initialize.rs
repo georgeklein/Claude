@@ -23,6 +23,25 @@ use crate::constants::*;
 // See DEPLOY.md for full details.
 pub const DEPLOYER_PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
 
+#[cfg(not(feature = "devnet"))]
+compile_error!(
+    "\n\n\
+    ╔════════════════════════════════════════════════════════════════╗\n\
+    ║  🚨 SECURITY BLOCKER: DEPLOYER_PUBKEY NOT SET! 🚨              ║\n\
+    ║                                                                ║\n\
+    ║  The DEPLOYER_PUBKEY is still set to placeholder address.     ║\n\
+    ║  This is a CRITICAL SECURITY VULNERABILITY for mainnet!       ║\n\
+    ║                                                                ║\n\
+    ║  ACTION REQUIRED:                                              ║\n\
+    ║  1. Update DEPLOYER_PUBKEY in initialize.rs to your wallet    ║\n\
+    ║  2. Rebuild with this check removed or use --features=devnet  ║\n\
+    ║                                                                ║\n\
+    ║  Current: 11111111111111111111111111111111                    ║\n\
+    ║  Expected: Your actual deployer wallet address                ║\n\
+    ╚════════════════════════════════════════════════════════════════╝\n\
+    "
+);
+
 #[derive(Accounts)]
 pub struct Initialize<'info> {
     /// Global protocol configuration (PDA)
