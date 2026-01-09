@@ -145,6 +145,9 @@ pub struct Pool {
     pub last_crx_price_usd: u64,          // 6 decimals
     pub last_price_update_slot: u64,
 
+    /// Graduation tracking
+    pub last_graduation_slot: u64,        // Slot when pool graduated (0 if not graduated)
+
     /// Feature flags
     pub disable_waa: bool,                // If true, skip WAA anti-dump fees (pure permissionless)
 
@@ -174,9 +177,10 @@ impl Pool {
         32 + // creator
         8 +  // last_crx_price_usd
         8 +  // last_price_update_slot
+        8 +  // last_graduation_slot
         1 +  // disable_waa
         1;   // bump
-    // New size: 307 - 24 - 8 = 275 bytes
+    // New size: 307 - 24 - 8 + 8 = 283 bytes
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
     #[inline(always)]
@@ -211,7 +215,7 @@ impl Pool {
 
     /// Check and update phase based on accumulated CRX (graduation at $40k)
     /// Returns true if phase changed
-    pub fn check_phase_transition(&mut self) -> Result<bool> {
+    pub fn check_phase_transition(&mut self, current_slot: u64) -> Result<bool> {
         match self.current_phase {
             CurvePhase::PreBonding => {
                 if self.real_quote_reserves >= self.graduation_threshold_crx {
@@ -223,6 +227,10 @@ impl Pool {
                     // Transition to graduated phase
                     // NOW PRICING USES REAL RESERVES (PumpSwap-style)
                     self.current_phase = CurvePhase::Graduated;
+
+                    // CRITICAL: Record graduation slot for cooldown enforcement
+                    self.last_graduation_slot = current_slot;
+
                     return Ok(true);
                 }
             },
@@ -388,13 +396,19 @@ impl Pool {
         }
 
         let price_change_bps = if new_crx_price_usd > old_price {
-            ((new_crx_price_usd - old_price) as u128)
+            let price_diff = new_crx_price_usd
+                .checked_sub(old_price)
+                .ok_or(ErrorCode::MathOverflow)?;
+            (price_diff as u128)
                 .checked_mul(BPS_DENOMINATOR as u128)
                 .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(old_price as u128)
                 .ok_or(ErrorCode::MathOverflow)?
         } else {
-            ((old_price - new_crx_price_usd) as u128)
+            let price_diff = old_price
+                .checked_sub(new_crx_price_usd)
+                .ok_or(ErrorCode::MathOverflow)?;
+            (price_diff as u128)
                 .checked_mul(BPS_DENOMINATOR as u128)
                 .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(old_price as u128)
@@ -442,13 +456,19 @@ impl Pool {
 
         // Calculate price ratio (expressed in bps)
         let price_ratio_bps = if real_price > virtual_price {
-            (real_price - virtual_price)
+            let price_diff = real_price
+                .checked_sub(virtual_price)
+                .ok_or(ErrorCode::MathOverflow)?;
+            price_diff
                 .checked_mul(BPS_DENOMINATOR as u128)
                 .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(virtual_price)
                 .ok_or(ErrorCode::MathOverflow)?
         } else {
-            (virtual_price - real_price)
+            let price_diff = virtual_price
+                .checked_sub(real_price)
+                .ok_or(ErrorCode::MathOverflow)?;
+            price_diff
                 .checked_mul(BPS_DENOMINATOR as u128)
                 .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(virtual_price)
@@ -543,7 +563,11 @@ impl UserPosition {
     /// Reduce tracked amount when user sells tokens
     #[inline(always)]
     pub fn update_on_sell(&mut self, sell_amount: u64) -> Result<()> {
-        self.tracked_amount = self.tracked_amount.saturating_sub(sell_amount);
+        // CRITICAL: Use checked_sub to prevent WAA bypass via overselling
+        // If user tries to sell more than tracked, this will error instead of saturating to 0
+        self.tracked_amount = self.tracked_amount
+            .checked_sub(sell_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
 
         // If fully sold, reset entry slot
         if self.tracked_amount == 0 {
@@ -562,8 +586,10 @@ impl UserPosition {
     /// - T3: 4500 slots (~30min) - 0% fee
     #[inline]
     pub fn calculate_extra_sell_fee_bps(&self, current_slot: u64) -> Result<u64> {
-        // Calculate age in slots
-        let age = current_slot.saturating_sub(self.avg_entry_slot);
+        // Calculate age in slots (checked to ensure no underflow)
+        let age = current_slot
+            .checked_sub(self.avg_entry_slot)
+            .unwrap_or(0); // If current_slot < avg_entry_slot, treat as 0 age
 
         // Piecewise linear decay - optimized with early returns
         if age <= WAA_TIER1_SLOTS {
@@ -573,19 +599,25 @@ impl UserPosition {
         if age <= WAA_TIER2_SLOTS {
             // 30s-5m: decay from 10% → 1%
             // extra = F2 + (F1 - F2) * (T2 - age) / (T2 - T1)
-            let time_remaining = WAA_TIER2_SLOTS.saturating_sub(age);
+            let time_remaining = WAA_TIER2_SLOTS
+                .checked_sub(age)
+                .ok_or(ErrorCode::MathOverflow)?;
             let decay_component = WAA_DECAY_RANGE
                 .checked_mul(time_remaining)
                 .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(WAA_TIME_RANGE_1)
                 .ok_or(ErrorCode::MathOverflow)?;
-            return Ok(WAA_FEE_MIN.saturating_add(decay_component));
+            return Ok(WAA_FEE_MIN
+                .checked_add(decay_component)
+                .ok_or(ErrorCode::MathOverflow)?);
         }
 
         if age <= WAA_TIER3_SLOTS {
             // 5m-30m: decay from 1% → 0%
             // extra = F2 * (T3 - age) / (T3 - T2)
-            let time_remaining = WAA_TIER3_SLOTS.saturating_sub(age);
+            let time_remaining = WAA_TIER3_SLOTS
+                .checked_sub(age)
+                .ok_or(ErrorCode::MathOverflow)?;
             let fee = WAA_FEE_MIN
                 .checked_mul(time_remaining)
                 .ok_or(ErrorCode::MathOverflow)?

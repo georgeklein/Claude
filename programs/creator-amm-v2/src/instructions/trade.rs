@@ -18,6 +18,14 @@ pub fn validate_trade_preconditions(
     amount: u64,
 ) -> Result<()> {
     require!(amount > 0, ErrorCode::InvalidAmount);
+
+    // CRITICAL: Minimum input amount prevents fee rounding exploit
+    // Attackers could split trades into 1-999 lamport chunks to avoid fees via rounding-to-zero
+    require!(
+        amount >= MIN_INPUT_AMOUNT,
+        ErrorCode::InvalidAmount
+    );
+
     Ok(())
 }
 
@@ -224,8 +232,8 @@ pub fn handle_phase_transition(
     let virtual_quote_before = pool.virtual_quote_reserves;
     let virtual_base_before = pool.virtual_base_reserves;
 
-    // Check for phase transition
-    let transitioned = pool.check_phase_transition()?;
+    // Check for phase transition (pass current slot for graduation tracking)
+    let transitioned = pool.check_phase_transition(clock.slot)?;
 
     // Emit events if transition occurred
     if transitioned {

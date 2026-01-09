@@ -35,6 +35,9 @@ pub enum ErrorCode {
     #[msg("Invalid token supply")]
     InvalidTokenSupply,
 
+    #[msg("Invalid token decimals - must be between 6 and 9 decimals")]
+    InvalidTokenDecimals,
+
     #[msg("CRX price out of reasonable bounds")]
     InvalidCrxPrice,
 

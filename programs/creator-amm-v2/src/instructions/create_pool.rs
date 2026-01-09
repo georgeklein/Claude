@@ -143,7 +143,23 @@ pub fn handler(
         graduation_threshold_usd > target_market_cap_usd,
         ErrorCode::InvalidMarketCap
     );
-    require!(token_supply > 0, ErrorCode::InvalidTokenSupply);
+
+    // CRITICAL: Validate token supply bounds to prevent overflow and spam
+    require!(
+        token_supply >= MIN_TOKEN_SUPPLY,
+        ErrorCode::InvalidTokenSupply
+    );
+    require!(
+        token_supply <= MAX_TOKEN_SUPPLY,
+        ErrorCode::InvalidTokenSupply
+    );
+
+    // CRITICAL: Validate token decimals are within standard range (6-9)
+    let base_decimals = ctx.accounts.base_mint.decimals;
+    require!(
+        base_decimals >= MIN_TOKEN_DECIMALS && base_decimals <= MAX_TOKEN_DECIMALS,
+        ErrorCode::InvalidTokenDecimals
+    );
 
     // CRITICAL SECURITY: Validate mint authorities are revoked (prevents rugpull)
     require!(
@@ -228,6 +244,7 @@ pub fn handler(
 
     pool.last_crx_price_usd = crx_price_usd;
     pool.last_price_update_slot = clock.slot;
+    pool.last_graduation_slot = 0; // Not graduated yet
 
     pool.disable_waa = disable_waa;
 

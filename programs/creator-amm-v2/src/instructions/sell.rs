@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::{Config, Pool, UserPosition};
 use crate::errors::ErrorCode;
+use crate::constants::*;
 use super::trade::{self, TradeDirection};
 
 #[derive(Accounts)]
@@ -110,6 +111,18 @@ pub fn handler(
         base_reserve,
         clock.slot,
     )?;
+
+    // CRITICAL: Graduation cooldown check (prevents immediate sells after graduation)
+    if pool.last_graduation_slot > 0 { // Only check if pool has graduated
+        let slots_since_graduation = clock.slot
+            .checked_sub(pool.last_graduation_slot)
+            .unwrap_or(0);
+
+        require!(
+            slots_since_graduation >= GRADUATION_COOLDOWN_SLOTS,
+            ErrorCode::GraduationCooldownActive
+        );
+    }
 
     // CRITICAL FEE LOGIC: Calculate output first, then extract fee from output
     // This maintains consistency with buy.rs and prevents token mint mismatch

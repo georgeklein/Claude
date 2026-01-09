@@ -37,6 +37,27 @@ pub const FEE_TIER_STANDARD: u16 = 100;
 pub const MAX_FEE_BPS: u16 = 10_000;
 
 // ============================================================================
+// Token Supply & Decimal Limits
+// ============================================================================
+
+/// Minimum token supply: 1,000,000 tokens (with 6 decimals = 1e12)
+/// Prevents spam pool creation with dust amounts
+pub const MIN_TOKEN_SUPPLY: u64 = 1_000_000_000_000;
+
+/// Maximum token supply: 1,000,000,000 tokens (with 6 decimals = 1e15)
+/// Prevents overflow in market cap calculations
+pub const MAX_TOKEN_SUPPLY: u64 = 1_000_000_000_000_000;
+
+/// Minimum token decimals (standard Solana token)
+pub const MIN_TOKEN_DECIMALS: u8 = 6;
+
+/// Maximum token decimals (standard Solana token)
+pub const MAX_TOKEN_DECIMALS: u8 = 9;
+
+/// Minimum input amount to prevent fee rounding exploit (1,000 lamports)
+pub const MIN_INPUT_AMOUNT: u64 = 1_000;
+
+// ============================================================================
 // Trade Limits
 // ============================================================================
 
@@ -106,6 +127,14 @@ pub const EXPONENTIAL_CURVE_NUMERATOR: u128 = 3;
 
 /// Exponential curve multiplier denominator (3/2 = 1.5x)
 pub const EXPONENTIAL_CURVE_DENOMINATOR: u128 = 2;
+
+// ============================================================================
+// Graduation Protection
+// ============================================================================
+
+/// Graduation cooldown: 150 slots (~60 seconds)
+/// Prevents rapid back-to-back graduations that could be exploited
+pub const GRADUATION_COOLDOWN_SLOTS: u64 = 150;
 
 // ============================================================================
 // Configuration Limits
