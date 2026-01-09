@@ -70,18 +70,21 @@ All volume flows through $CRX, creating constant demand.
 
 ```typescript
 await scale.createPool({
-  baseMint: PublicKey,             // Token to launch
-  supply: number,                  // Total supply
-  initialMarketCapUsd: number,     // Launch market cap
-  graduationThresholdUsd: number,  // Graduate at X USD
-
-  // Optional
-  metadataUri: string,             // Arweave/IPFS URI (default: '')
-  feeBps: number,                  // Any value in bps (default: 0)
-  curveType: 'ConstantProduct' | 'Exponential',  // Default: ConstantProduct
-  disableWaa: boolean,             // Default: true (WAA disabled, opt-in)
+  baseMint: PublicKey,
+  supply: number,
+  initialMarketCapUsd: number,
+  graduationThresholdUsd: number,
+  feeBps?: number,                 // Optional: creator fee (default: 0)
 });
 ```
+
+<details>
+<summary><b>Advanced options (rarely used)</b></summary>
+
+- `metadataUri?: string` - Arweave/IPFS URI (default: '')
+- `curveType?: 'ConstantProduct' | 'Exponential'` - (default: ConstantProduct)
+- `disableWaa?: boolean` - Disable anti-dump (default: true)
+</details>
 
 ### Pool Fees
 
@@ -97,15 +100,6 @@ await scale.createPool({
 - Adjustable by protocol authority (0-10% range)
 - Goes to fee recipient for $CRX deflation/treasury
 - Retroactive - affects all pools when changed
-
-### Anti-Dump Protection (WAA)
-
-Optional per-pool (disabled by default):
-- WAA fees decay over 5 minutes (3% → 0.5% → 0%)
-- WAA fees go to **creator** (bonus for enabling protection)
-- Prevents instant dumps after buying
-- Enable with `disableWaa: false`
-- Authority can adjust fees/timing post-deployment via `updateWaaConfig()`
 
 ---
 
@@ -247,7 +241,10 @@ await scale.updateAuthority(newAuthority);
 await scale.updateProtocolFee(50);  // 0.5%
 ```
 
-**WAA Configuration:**
+**WAA Configuration (Anti-Dump Protection):**
+
+Optional per-pool feature (disabled by default). WAA fees go to the creator.
+
 ```typescript
 // Adjust anti-dump protection parameters
 await scale.updateWaaConfig({
