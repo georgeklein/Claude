@@ -52,11 +52,11 @@ pub struct Buy<'info> {
     )]
     pub user_base_account: Account<'info, TokenAccount>,
 
-    /// Protocol fee recipient's quote token account
+    /// Pool creator's quote token account (receives trading fees)
     #[account(
         mut,
         constraint = fee_recipient_account.mint == pool.quote_mint @ ErrorCode::Unauthorized,
-        constraint = fee_recipient_account.owner == config.fee_recipient @ ErrorCode::Unauthorized,
+        constraint = fee_recipient_account.owner == pool.creator @ ErrorCode::Unauthorized,
     )]
     pub fee_recipient_account: Account<'info, TokenAccount>,
 

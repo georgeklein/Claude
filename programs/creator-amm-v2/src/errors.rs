@@ -73,4 +73,7 @@ pub enum ErrorCode {
 
     #[msg("Token-2022 not supported - use SPL Token standard (prevents transfer hook attacks)")]
     Token2022NotSupported,
+
+    #[msg("Graduation would cause excessive price jump - need more trading volume first (prevents flash loan attacks)")]
+    GraduationPriceJumpTooLarge,
 }

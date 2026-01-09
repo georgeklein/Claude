@@ -95,6 +95,17 @@ pub fn handler(
         ErrorCode::InvalidMarketCap
     );
 
+    // CRITICAL FIX: Validate initial CRX price is non-zero and reasonable
+    require!(
+        initial_crx_price_usd > 0,
+        ErrorCode::InvalidCrxPrice
+    );
+    require!(
+        initial_crx_price_usd >= crate::constants::CRX_PRICE_MIN_USD &&
+        initial_crx_price_usd <= crate::constants::CRX_PRICE_MAX_USD,
+        ErrorCode::InvalidCrxPrice
+    );
+
     let config = &mut ctx.accounts.config;
     let clock = Clock::get()?;
 

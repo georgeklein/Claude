@@ -215,6 +215,9 @@ impl Pool {
         match self.current_phase {
             CurvePhase::PreBonding => {
                 if self.real_quote_reserves >= self.graduation_threshold_crx {
+                    // CRITICAL: Validate price continuity to prevent flash loan exploits
+                    self.validate_graduation_continuity()?;
+
                     msg!("Pool graduated!");
 
                     // Transition to graduated phase
@@ -368,6 +371,99 @@ impl Pool {
     pub fn get_market_cap_usd_from_price(&self, price: u64) -> Result<u64> {
         let mc_crx = self.get_market_cap_crx_from_price(price)?;
         self.get_market_cap_usd_from_crx(mc_crx)
+    }
+
+    /// Refresh virtual reserves when CRX price changes (prevents stagnation)
+    /// Only updates if in PreBonding phase and price changed significantly
+    pub fn refresh_virtual_reserves(&mut self, new_crx_price_usd: u64) -> Result<bool> {
+        // Only refresh in PreBonding phase
+        if !matches!(self.current_phase, CurvePhase::PreBonding) {
+            return Ok(false);
+        }
+
+        // Check if price changed significantly (>5% threshold to avoid unnecessary updates)
+        let old_price = self.last_crx_price_usd;
+        if old_price == 0 {
+            return Ok(false); // Safety: avoid division by zero
+        }
+
+        let price_change_bps = if new_crx_price_usd > old_price {
+            ((new_crx_price_usd - old_price) as u128)
+                .checked_mul(BPS_DENOMINATOR as u128)
+                .ok_or(ErrorCode::MathOverflow)?
+                .checked_div(old_price as u128)
+                .ok_or(ErrorCode::MathOverflow)?
+        } else {
+            ((old_price - new_crx_price_usd) as u128)
+                .checked_mul(BPS_DENOMINATOR as u128)
+                .ok_or(ErrorCode::MathOverflow)?
+                .checked_div(old_price as u128)
+                .ok_or(ErrorCode::MathOverflow)?
+        };
+
+        // Only refresh if price changed more than 5% (500 bps)
+        const REFRESH_THRESHOLD_BPS: u128 = 500;
+        if price_change_bps < REFRESH_THRESHOLD_BPS {
+            return Ok(false);
+        }
+
+        // Recalculate virtual reserves using updated CRX price
+        let (new_virtual_quote, new_virtual_base) =
+            crate::utils::oracle::calculate_virtual_reserves_for_market_cap(
+                self.target_market_cap_usd,
+                self.token_total_supply,
+                new_crx_price_usd,
+            )?;
+
+        // Update virtual reserves
+        self.virtual_quote_reserves = new_virtual_quote;
+        self.virtual_base_reserves = new_virtual_base;
+
+        Ok(true) // Reserves were updated
+    }
+
+    /// Validate that graduation won't cause massive price jump
+    /// Prevents flash loan attacks by ensuring price continuity
+    pub fn validate_graduation_continuity(&self) -> Result<()> {
+        // Calculate price using virtual reserves (current pricing)
+        let virtual_price = (self.virtual_quote_reserves as u128)
+            .checked_mul(PRICE_PRECISION as u128)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(self.virtual_base_reserves as u128)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // Calculate what price WOULD BE using real reserves (post-graduation pricing)
+        require!(self.real_base_reserves > 0, ErrorCode::InsufficientLiquidity);
+        let real_price = (self.real_quote_reserves as u128)
+            .checked_mul(PRICE_PRECISION as u128)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(self.real_base_reserves as u128)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // Calculate price ratio (expressed in bps)
+        let price_ratio_bps = if real_price > virtual_price {
+            (real_price - virtual_price)
+                .checked_mul(BPS_DENOMINATOR as u128)
+                .ok_or(ErrorCode::MathOverflow)?
+                .checked_div(virtual_price)
+                .ok_or(ErrorCode::MathOverflow)?
+        } else {
+            (virtual_price - real_price)
+                .checked_mul(BPS_DENOMINATOR as u128)
+                .ok_or(ErrorCode::MathOverflow)?
+                .checked_div(virtual_price)
+                .ok_or(ErrorCode::MathOverflow)?
+        };
+
+        // Allow maximum 20% price deviation (2000 bps) at graduation
+        // This prevents 20x exploits while allowing reasonable market price discovery
+        const MAX_GRADUATION_PRICE_DEVIATION_BPS: u128 = 2000;
+        require!(
+            price_ratio_bps <= MAX_GRADUATION_PRICE_DEVIATION_BPS,
+            ErrorCode::GraduationPriceJumpTooLarge
+        );
+
+        Ok(())
     }
 }
 

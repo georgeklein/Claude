@@ -197,7 +197,13 @@ pub fn update_crx_price(
     config: &Config,
     clock: &Clock,
 ) -> Result<()> {
-    pool.last_crx_price_usd = config.crx_price_usd;
+    let new_price = config.crx_price_usd;
+
+    // Refresh virtual reserves if price changed significantly
+    // This prevents virtual reserve stagnation and pricing errors
+    pool.refresh_virtual_reserves(new_price)?;
+
+    pool.last_crx_price_usd = new_price;
     pool.last_price_update_slot = clock.slot;
     Ok(())
 }

@@ -52,11 +52,11 @@ pub struct Sell<'info> {
     )]
     pub user_base_account: Account<'info, TokenAccount>,
 
-    /// Protocol fee recipient's quote token account
+    /// Pool creator's quote token account (receives trading fees)
     #[account(
         mut,
         constraint = fee_recipient_account.mint == pool.quote_mint @ ErrorCode::Unauthorized,
-        constraint = fee_recipient_account.owner == config.fee_recipient @ ErrorCode::Unauthorized,
+        constraint = fee_recipient_account.owner == pool.creator @ ErrorCode::Unauthorized,
     )]
     pub fee_recipient_account: Account<'info, TokenAccount>,
 
@@ -135,6 +135,18 @@ pub fn handler(
     };
 
     let extra_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, extra_fee_bps as u16)?;
+
+    // CRITICAL FIX: Validate combined fee doesn't exceed reasonable bounds
+    // Base fee (up to 100 bps) + WAA fee (up to 1000 bps) = max 1100 bps
+    // Allow up to 1500 bps (15%) for safety margin
+    let effective_fee_bps = (current_fee_bps as u64)
+        .checked_add(extra_fee_bps)
+        .ok_or(ErrorCode::MathOverflow)?;
+    const MAX_EFFECTIVE_FEE_BPS: u64 = 1500; // 15% max total fee
+    require!(
+        effective_fee_bps <= MAX_EFFECTIVE_FEE_BPS,
+        ErrorCode::InvalidFee
+    );
 
     // Total fee (base + extra)
     let total_fee_in_quote = base_fee_in_quote
