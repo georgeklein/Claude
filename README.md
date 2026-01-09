@@ -39,6 +39,150 @@ await scale.sell(pool.address, { tokenAmount: 5000, slippage: 1.0 });
 
 ---
 
+## SDK Usage
+
+### Create Pool
+
+```typescript
+import { ScaleAMM } from '@scale-amm/sdk';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+
+const connection = new Connection('https://api.mainnet-beta.solana.com');
+const scale = new ScaleAMM(connection, wallet);
+
+const pool = await scale.createPool({
+  baseMint: tokenMint,              // Token to launch
+  supply: 1_000_000_000,            // Total supply
+  initialMarketCapUsd: 10_000,      // Launch at $10k market cap
+  graduationThresholdUsd: 40_000,   // Graduate at $40k
+  feeBps: 0,                        // Creator fee (0% = free)
+});
+
+console.log('Pool created:', pool.address);
+```
+
+### Trade
+
+```typescript
+// Buy tokens with CRX
+const buyTx = await scale.buy(pool.address, {
+  crxAmount: 100,
+  slippage: 1.0,  // 1% max slippage
+});
+
+// Sell tokens for CRX
+const sellTx = await scale.sell(pool.address, {
+  tokenAmount: 5000,
+  slippage: 1.0,
+});
+```
+
+### Get Pool Info
+
+```typescript
+const pool = await scale.getPool(poolAddress);
+
+console.log({
+  phase: pool.phase,                         // 'PreBonding' | 'Graduated'
+  price: pool.price,                         // CRX per token
+  marketCapUsd: pool.marketCapUsd,           // Current market cap
+  graduationProgress: pool.graduationProgress, // 0-100%
+  liquidityCrx: pool.liquidityCrx,           // CRX in pool
+});
+```
+
+### Estimate Trades
+
+```typescript
+// Get quote without executing trade
+const buyEstimate = await scale.estimateBuy(pool.address, 100);
+console.log('You will receive:', buyEstimate.output, 'tokens');
+
+const sellEstimate = await scale.estimateSell(pool.address, 5000);
+console.log('You will receive:', sellEstimate.output, 'CRX');
+```
+
+### Listen to Events
+
+```typescript
+// Listen for trades
+scale.onTrade(pool.address, (event) => {
+  console.log(event.isBuy ? 'BUY' : 'SELL', event.amount);
+});
+
+// Listen for graduation
+scale.onGraduation(pool.address, (event) => {
+  console.log('Pool graduated at', event.marketCapUsd);
+});
+```
+
+**Full API documentation:** See `sdk/README.md`
+
+---
+
+## Deployment
+
+Deploy your own instance of Scale AMM.
+
+### Prerequisites
+
+```bash
+# Solana CLI
+sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+
+# Anchor v0.30.1
+cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+avm install 0.30.1 && avm use 0.30.1
+
+# Node.js 18+
+node --version
+```
+
+### Build & Test
+
+```bash
+git clone https://github.com/georgeklein/Scale-AMM.git
+cd Scale-AMM
+npm install
+anchor build
+anchor test  # 368 tests
+```
+
+### Deploy to Devnet
+
+```bash
+solana config set --url devnet
+anchor deploy --provider.cluster devnet
+```
+
+### Deploy to Mainnet
+
+**⚠️ CRITICAL CHECKLIST:**
+
+1. **Update deployer pubkey** in `programs/creator-amm-v2/src/instructions/initialize.rs:23`
+   - Replace `"11111111111111111111111111111111"` with your wallet
+   - Run: `solana address` to get your pubkey
+   - This prevents front-running of initialize()
+
+2. **Run all tests:** `anchor test` (must pass all 368)
+
+3. **Fund wallet:** Minimum 10 SOL for deployment
+
+4. **Deploy:**
+```bash
+solana config set --url mainnet-beta
+anchor deploy --provider.cluster mainnet-beta
+```
+
+5. **Initialize immediately** (first caller becomes authority):
+```bash
+npm run deploy:mainnet
+```
+
+See `.env.example` for configuration.
+
+---
+
 ## How It Works
 
 ### 1. Zero Capital Launch
@@ -103,127 +247,6 @@ await scale.createPool({
 
 ---
 
-## API
-
-### Trading
-
-```typescript
-// Buy with CRX
-await scale.buy(pool, { crxAmount: 100, slippage: 1.0 });
-
-// Sell for CRX
-await scale.sell(pool, { tokenAmount: 5000, slippage: 1.0 });
-
-// Get quotes (no transaction)
-const buyEstimate = await scale.estimateBuy(pool, 100);
-const sellEstimate = await scale.estimateSell(pool, 5000);
-```
-
-### Pool Info
-
-```typescript
-const pool = await scale.getPool(poolAddress);
-
-console.log({
-  phase: pool.phase,              // 'PreBonding' | 'Graduated'
-  price: pool.price,
-  marketCap: pool.marketCapUsd,
-  graduationProgress: pool.graduationProgress,  // 0-100%
-});
-```
-
-### Events
-
-```typescript
-// Listen for trades
-scale.onTrade(pool, (event) => {
-  console.log('Trade:', event.isBuy ? 'BUY' : 'SELL', event.amount);
-});
-
-// Listen for graduation
-scale.onGraduation(pool, (event) => {
-  console.log('Pool graduated!', event.slot);
-});
-```
-
-### Error Handling
-
-```typescript
-import { ScaleError } from '@scale-amm/sdk';
-
-try {
-  await scale.buy(pool, { crxAmount: 100, slippage: 1.0 });
-} catch (error) {
-  if (error instanceof ScaleError) {
-    console.error(error.code, error.message);
-  }
-}
-```
-
-Common errors: `SLIPPAGE_EXCEEDED`, `INSUFFICIENT_BALANCE`, `POOL_NOT_FOUND`
-
----
-
-## Deployment
-
-### Prerequisites
-
-```bash
-# Solana CLI
-sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
-export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-
-# Anchor v0.30.1
-cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
-avm install 0.30.1 && avm use 0.30.1
-
-# Node.js 18+
-node --version
-```
-
-### Build & Test
-
-```bash
-git clone https://github.com/georgeklein/Scale-AMM.git
-cd Scale-AMM
-npm install
-anchor build
-anchor test  # 368 tests
-```
-
-### Deploy to Devnet
-
-```bash
-solana config set --url devnet
-anchor deploy --provider.cluster devnet
-```
-
-### Deploy to Mainnet
-
-**⚠️ CRITICAL: Complete checklist before deploying**
-
-1. Update `DEPLOYER_PUBKEY` in `programs/creator-amm-v2/src/instructions/initialize.rs:23`
-   - Replace `"11111111111111111111111111111111"` with your wallet: `solana address`
-   - Prevents front-running of initialize()
-
-2. Run all tests: `anchor test` (must pass)
-
-3. Fund wallet: Minimum 10 SOL
-
-4. Deploy:
-```bash
-solana config set --url mainnet-beta
-anchor deploy --provider.cluster mainnet-beta
-```
-
-5. Initialize immediately (first caller becomes authority):
-```bash
-npm run deploy:mainnet
-```
-
-See `.env.example` for configuration.
-
----
 
 ## Governance
 
