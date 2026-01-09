@@ -29,41 +29,6 @@ pub fn validate_trade_preconditions(
     Ok(())
 }
 
-/// Anti-sniper protection check for both buy and sell
-/// Returns Ok if trade is allowed, Err if blocked
-#[inline]
-pub fn check_anti_sniper_protection(
-    pool: &Pool,
-    config: &Config,
-    trade_amount: u64,
-    base_reserve: u64,
-    clock_slot: u64,
-) -> Result<()> {
-    if pool.is_anti_sniper_active(clock_slot, config.anti_sniper_window_slots) {
-        let max_trade_amount_u128 = (base_reserve as u128)
-            .checked_mul(config.anti_sniper_max_trade_bps as u128)
-            .ok_or(ErrorCode::MathOverflow)?
-            .checked_div(BPS_DENOMINATOR as u128)
-            .ok_or(ErrorCode::MathOverflow)?;
-
-        // CRITICAL FIX: Validate result fits in u64 before cast
-        require!(
-            max_trade_amount_u128 <= u64::MAX as u128,
-            ErrorCode::MathOverflow
-        );
-        let max_trade_amount = max_trade_amount_u128 as u64;
-
-        require!(
-            trade_amount <= max_trade_amount,
-            ErrorCode::AntiSniperActive
-        );
-
-        // NOTE: msg!() removed for CU optimization
-        // Anti-sniper status is included in TradeExecuted event
-    }
-    Ok(())
-}
-
 /// Calculate base protocol fee from an amount
 #[inline]
 pub fn calculate_base_fee(
@@ -280,7 +245,6 @@ pub fn emit_trade_event(
     clock: &Clock,
 ) -> Result<()> {
     let (quote_reserves_after, base_reserves_after) = pool.get_pricing_reserves();
-    let anti_sniper_active = pool.is_anti_sniper_active(clock.slot, config.anti_sniper_window_slots);
 
     emit!(TradeExecuted {
         base_mint: pool.base_mint,
@@ -293,7 +257,7 @@ pub fn emit_trade_event(
         quote_reserves_after,
         base_reserves_after,
         real_crx_accumulated: pool.real_quote_reserves,
-        anti_sniper_active,
+        anti_sniper_active: false,  // Anti-sniper removed, kept for backward compatibility
         slot: clock.slot,
         timestamp: clock.unix_timestamp,
     });

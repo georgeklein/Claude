@@ -7,7 +7,6 @@
 export type ErrorCode =
   | 'SLIPPAGE_EXCEEDED'
   | 'INSUFFICIENT_BALANCE'
-  | 'ANTI_SNIPER_ACTIVE'
   | 'POOL_NOT_FOUND'
   | 'INVALID_FEE'
   | 'INVALID_MARKET_CAP'
@@ -109,12 +108,6 @@ export const ERROR_MAP: { [key: number]: { code: ErrorCode; message: string } } 
   6004: {
     code: 'INSUFFICIENT_LIQUIDITY',
     message: 'Pool has insufficient liquidity for this trade.',
-  },
-
-  // Anti-sniper errors
-  6010: {
-    code: 'ANTI_SNIPER_ACTIVE',
-    message: 'Anti-sniper protection active. Trade size exceeds maximum allowed in first ~20 slots after launch.',
   },
 
   // Pool creation errors
@@ -283,7 +276,6 @@ export function getErrorAction(error: ScaleError): string {
   const actions: { [key in ErrorCode]?: string } = {
     SLIPPAGE_EXCEEDED: 'Try increasing slippage to 2% or reducing trade size.',
     INSUFFICIENT_BALANCE: 'Add more tokens to your wallet or reduce trade amount.',
-    ANTI_SNIPER_ACTIVE: 'Wait a few seconds after launch or reduce trade size below 5% of supply.',
     POOL_NOT_FOUND: 'Verify the token address or create a pool first.',
     INVALID_FEE: 'Choose fee of 0%, 0.25%, or 1%.',
     MINT_AUTHORITY_NOT_REVOKED: 'Revoke mint authority before creating pool: `spl-token authorize <MINT> mint --disable`',

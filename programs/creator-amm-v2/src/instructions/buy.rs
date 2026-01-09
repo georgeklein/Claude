@@ -90,8 +90,14 @@ pub fn handler(
     // CRITICAL FIX: Validate CRX price freshness before trading
     config.validate_price_freshness(&clock)?;
 
-    // Shared validation: amount check
-    trade::validate_trade_preconditions(quote_amount)?;
+    // Creator first-buy authority: unlimited buy on creation slot (block 1)
+    let is_creator_first_buy = ctx.accounts.user.key() == pool.creator
+        && clock.slot == pool.created_at_slot;
+
+    // Shared validation: amount check (skip for creator on first buy)
+    if !is_creator_first_buy {
+        trade::validate_trade_preconditions(quote_amount)?;
+    }
 
     // Get current phase parameters
     let current_fee_bps = pool.get_current_fee_bps();

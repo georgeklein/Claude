@@ -16,12 +16,6 @@ pub struct ConfigInitialized {
     /// CRX price oracle (Pyth/Switchboard)
     pub crx_price_oracle: Pubkey,
 
-    /// Anti-sniper window in slots
-    pub anti_sniper_window_slots: u64,
-
-    /// Anti-sniper max trade size in bps
-    pub anti_sniper_max_trade_bps: u16,
-
     /// Oracle max age in seconds
     pub oracle_max_age_seconds: i64,
 

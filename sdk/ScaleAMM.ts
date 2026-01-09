@@ -77,8 +77,6 @@ export interface InitializeConfig {
   initialCrxPriceUsd: number;          // e.g., 2.0 for $2.00 per CRX
 
   // Optional with defaults
-  antiSniperWindowSlots?: number;      // Default: 20 slots (~8 seconds)
-  antiSniperMaxTradeBps?: number;      // Default: 500 (5% of supply)
   oracleMaxAgeSeconds?: number;        // Default: 60 seconds
   oracleMaxConfidenceBps?: number;     // Default: 100 bps (1%)
   approvedQuoteTokens?: PublicKey[];   // Whitelisted quote tokens (SOL, USDC, etc.)
@@ -206,9 +204,6 @@ export interface ConfigInfo {
   crxPriceOracle: PublicKey;
   crxPriceUsd: number;
   crxPriceLastUpdated: number;
-
-  antiSniperWindowSlots: number;
-  antiSniperMaxTradeBps: number;
 
   oracleMaxAgeSeconds: number;
   oracleMaxConfidenceBps: number;
@@ -446,8 +441,6 @@ export class ScaleAMM {
   async initialize(config: InitializeConfig): Promise<string> {
     try {
       // Apply defaults
-      const antiSniperWindowSlots = config.antiSniperWindowSlots ?? 20;
-      const antiSniperMaxTradeBps = config.antiSniperMaxTradeBps ?? 500;
       const oracleMaxAgeSeconds = config.oracleMaxAgeSeconds ?? 60;
       const oracleMaxConfidenceBps = config.oracleMaxConfidenceBps ?? 100;
 
@@ -468,8 +461,6 @@ export class ScaleAMM {
       const tx = await this.program.methods
         .initialize(
           initialCrxPriceMicro,
-          new BN(antiSniperWindowSlots),
-          antiSniperMaxTradeBps,
           new BN(oracleMaxAgeSeconds),
           new BN(oracleMaxConfidenceBps),
           paddedTokens,
@@ -995,9 +986,6 @@ export class ScaleAMM {
         crxPriceOracle: configData.crxPriceOracle,
         crxPriceUsd: configData.crxPriceUsd.toNumber() / 1_000_000,
         crxPriceLastUpdated: configData.crxPriceLastUpdated.toNumber(),
-
-        antiSniperWindowSlots: configData.antiSniperWindowSlots.toNumber(),
-        antiSniperMaxTradeBps: configData.antiSniperMaxTradeBps,
 
         oracleMaxAgeSeconds: configData.oracleMaxAgeSeconds.toNumber(),
         oracleMaxConfidenceBps: configData.oracleMaxConfidenceBps.toNumber(),

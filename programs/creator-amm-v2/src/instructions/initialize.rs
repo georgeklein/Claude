@@ -63,8 +63,6 @@ pub struct Initialize<'info> {
 pub fn handler(
     ctx: Context<Initialize>,
     initial_crx_price_usd: u64,
-    anti_sniper_window_slots: u64,
-    anti_sniper_max_trade_bps: u16,
     oracle_max_age_seconds: i64,
     oracle_max_confidence_bps: u64,
     approved_quote_tokens: [Pubkey; 5],
@@ -75,9 +73,6 @@ pub fn handler(
         approved_quote_count <= 5,
         ErrorCode::InvalidQuoteTokenCount
     );
-
-    // Validate fees
-    require!(anti_sniper_max_trade_bps <= 10000, ErrorCode::InvalidFee);
 
     // CRITICAL FIX: Validate initial CRX price is non-zero and reasonable
     require!(
@@ -101,9 +96,6 @@ pub fn handler(
     config.crx_price_usd = initial_crx_price_usd;
     config.crx_price_last_updated = clock.unix_timestamp;
 
-    config.anti_sniper_window_slots = anti_sniper_window_slots;
-    config.anti_sniper_max_trade_bps = anti_sniper_max_trade_bps;
-
     config.oracle_max_age_seconds = oracle_max_age_seconds;
     config.oracle_max_confidence_bps = oracle_max_confidence_bps;
 
@@ -118,8 +110,6 @@ pub fn handler(
         fee_recipient: config.fee_recipient,
         crx_mint: config.crx_mint,
         crx_price_oracle: config.crx_price_oracle,
-        anti_sniper_window_slots,
-        anti_sniper_max_trade_bps,
         oracle_max_age_seconds,
         oracle_max_confidence_bps,
         slot: clock.slot,

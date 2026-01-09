@@ -59,8 +59,6 @@ Initialize Scale AMM protocol (one-time, admin only).
   crxPriceOracle: PublicKey,
   feeRecipient: PublicKey,
   initialCrxPriceUsd: number,
-  antiSniperWindowSlots?: number,
-  antiSniperMaxTradeBps?: number,
 }
 ```
 
@@ -76,8 +74,6 @@ Get protocol configuration.
   crxMint: PublicKey,
   feeRecipient: PublicKey,
   crxPriceUsd: number,
-  antiSniperWindowSlots: number,
-  antiSniperMaxTradeBps: number,
 }
 ```
 
@@ -400,7 +396,6 @@ try {
 **Common Error Codes:**
 - `SLIPPAGE_EXCEEDED` - Price moved beyond tolerance
 - `INSUFFICIENT_BALANCE` - Not enough tokens/CRX
-- `ANTI_SNIPER_ACTIVE` - Trade too large during launch window
 - `POOL_NOT_FOUND` - Pool doesn't exist
 - `INVALID_AMOUNT` - Amount must be > 0
 - `INSUFFICIENT_LIQUIDITY` - Not enough liquidity

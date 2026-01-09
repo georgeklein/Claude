@@ -19,10 +19,6 @@ pub struct Config {
     /// Last time CRX price was updated (unix timestamp)
     pub crx_price_last_updated: i64,
 
-    /// Anti-sniper settings
-    pub anti_sniper_window_slots: u64,      // e.g., 20 slots (~8 seconds)
-    pub anti_sniper_max_trade_bps: u16,     // e.g., 500 = 5% of supply
-
     /// Oracle settings
     pub oracle_max_age_seconds: i64,        // e.g., 60 seconds
     pub oracle_max_confidence_bps: u64,     // e.g., 100 = 1% max deviation
@@ -45,8 +41,6 @@ impl Config {
         32 + // crx_mint
         8 +  // crx_price_usd
         8 +  // crx_price_last_updated
-        8 +  // anti_sniper_window_slots
-        2 +  // anti_sniper_max_trade_bps
         8 +  // oracle_max_age_seconds
         8 +  // oracle_max_confidence_bps
         160 + // approved_quote_tokens (32 * 5 = 160 bytes)
@@ -165,13 +159,6 @@ impl Pool {
         1 +  // disable_waa
         1;   // bump
     // New size: 291 - 16 = 275 bytes
-
-    /// Check if anti-sniper protection is active (only in PreBonding phase)
-    #[inline(always)]
-    pub fn is_anti_sniper_active(&self, current_slot: u64, anti_sniper_window: u64) -> bool {
-        matches!(self.current_phase, CurvePhase::PreBonding) &&
-        current_slot < self.created_at_slot.saturating_add(anti_sniper_window)
-    }
 
     /// Get current fee based on pool configuration
     /// Fees continue throughout the token's lifetime (PreBonding + Graduated)

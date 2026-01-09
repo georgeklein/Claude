@@ -19,8 +19,6 @@ pub mod creator_amm_v2 {
     pub fn initialize(
         ctx: Context<Initialize>,
         initial_crx_price_usd: u64,
-        anti_sniper_window_slots: u64,
-        anti_sniper_max_trade_bps: u16,
         oracle_max_age_seconds: i64,
         oracle_max_confidence_bps: u64,
         approved_quote_tokens: [Pubkey; 5],
@@ -29,8 +27,6 @@ pub mod creator_amm_v2 {
         instructions::initialize::handler(
             ctx,
             initial_crx_price_usd,
-            anti_sniper_window_slots,
-            anti_sniper_max_trade_bps,
             oracle_max_age_seconds,
             oracle_max_confidence_bps,
             approved_quote_tokens,

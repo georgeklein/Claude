@@ -380,9 +380,6 @@ export const SCALE_CONSTANTS = {
   DEFAULT_SLIPPAGE_BPS: 50, // 0.5%
   MAX_SLIPPAGE_BPS: 5000,   // 50%
 
-  // Anti-sniper defaults
-  DEFAULT_ANTI_SNIPER_SLOTS: 20,      // ~8 seconds
-  DEFAULT_ANTI_SNIPER_MAX_BPS: 500,   // 5% of supply
 
   // Curve types
   CURVE_TYPES: ['ConstantProduct', 'Exponential'] as const,
