@@ -6,7 +6,7 @@
 
 Scale AMM is a fully permissionless bonding curve protocol on Solana. Create token pools at specific USD market caps without providing liquidity—pools automatically graduate to permanent AMMs when they reach your target.
 
-Built for [Creator](https://www.creator.so) · Powered by $CRX
+Built for [Creator](https://www.creator.fun) · Powered by $CRX
 
 ---
 
