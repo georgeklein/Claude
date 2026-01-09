@@ -86,13 +86,18 @@ await scale.createPool({
 
 ### Pool Fees
 
-Creator fees can be **any value** in basis points (bps):
-- 0 bps = 0%
-- 25 bps = 0.25%
-- 100 bps = 1%
-- Custom values supported
+**Creator Fees** (per-pool, set at creation):
+- Can be **any value** in basis points (bps)
+- 0 bps = 0%, 25 bps = 0.25%, 100 bps = 1%
+- Goes to pool creator
+- *Creator platform uses 0/25/100 as preset options*
 
-*Creator platform uses 0/25/100 as preset options.*
+**Protocol Fee** (global, adjustable):
+- Optional fee applied to **all pools**
+- Starts at 0% (disabled) on mainnet launch
+- Adjustable by protocol authority (0-10% range)
+- Goes to fee recipient for $CRX deflation/treasury
+- Retroactive - affects all pools when changed
 
 ### Anti-Dump Protection (WAA)
 

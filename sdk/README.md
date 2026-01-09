@@ -74,7 +74,77 @@ Get protocol configuration.
   crxMint: PublicKey,
   feeRecipient: PublicKey,
   crxPriceUsd: number,
+  protocolFeeBps: number,         // Current protocol fee (0-1000 bps)
 }
+```
+
+---
+
+### Admin Operations (Authority Only)
+
+#### `updateProtocolFee(newProtocolFeeBps)`
+Update global protocol fee applied to all pools (authority only).
+
+**Parameters:**
+- `newProtocolFeeBps` (number): Fee in basis points (0-1000 = 0-10%)
+
+**Returns:** `Promise<string>` (transaction signature)
+
+**Example:**
+```typescript
+// Enable 0.1% protocol fee
+await scale.updateProtocolFee(10);
+
+// Disable protocol fee
+await scale.updateProtocolFee(0);
+
+// Set 1% protocol fee
+await scale.updateProtocolFee(100);
+```
+
+**Notes:**
+- Retroactive - affects all existing pools immediately
+- Only callable by protocol authority
+- Fees go to `config.feeRecipient` for CRX deflation/treasury
+
+---
+
+#### `updateCrxPrice(newPriceUsd)`
+Update CRX price in USD (authority only).
+
+**Parameters:**
+- `newPriceUsd` (number): New price (e.g., 2.15 for $2.15)
+
+**Example:**
+```typescript
+await scale.updateCrxPrice(2.15);
+```
+
+---
+
+#### `updatePoolGraduation(poolAddress, newGraduationThresholdUsd)`
+Update pool graduation threshold (authority only).
+
+**Parameters:**
+- `poolAddress` (PublicKey): Pool to update
+- `newGraduationThresholdUsd` (number): New threshold in USD
+
+**Example:**
+```typescript
+await scale.updatePoolGraduation(poolAddress, 50_000);
+```
+
+---
+
+#### `updateApprovedQuotes(tokens)`
+Update approved quote token whitelist (authority only).
+
+**Parameters:**
+- `tokens` (PublicKey[]): Array of approved quote token mints (max 5)
+
+**Example:**
+```typescript
+await scale.updateApprovedQuotes([solMint, usdcMint, usdtMint]);
 ```
 
 ---

@@ -210,6 +210,8 @@ export interface ConfigInfo {
 
   approvedQuoteTokens: PublicKey[];
   approvedQuoteCount: number;
+
+  protocolFeeBps: number;                // Protocol fee in basis points (0-1000 = 0-10%)
 }
 
 export interface UserPosition {
@@ -390,6 +392,7 @@ export class ScaleAMM {
     userQuoteAccount: PublicKey;
     userBaseAccount: PublicKey;
     feeRecipientAccount: PublicKey;
+    protocolFeeRecipient: PublicKey;
   }> {
     // Get/create user quote account (CRX)
     const userQuoteAccount = await getOrCreateAssociatedTokenAccount(
@@ -407,8 +410,16 @@ export class ScaleAMM {
       this.wallet.publicKey
     );
 
-    // Get/create fee recipient account
+    // Get/create fee recipient account (creator fees)
     const feeRecipientAccount = await getOrCreateAssociatedTokenAccount(
+      this.connection,
+      this.wallet.payer,
+      poolData.quoteMint,
+      poolData.creator
+    );
+
+    // Get/create protocol fee recipient account (protocol fees)
+    const protocolFeeRecipient = await getOrCreateAssociatedTokenAccount(
       this.connection,
       this.wallet.payer,
       poolData.quoteMint,
@@ -419,6 +430,7 @@ export class ScaleAMM {
       userQuoteAccount: userQuoteAccount.address,
       userBaseAccount: userBaseAccount.address,
       feeRecipientAccount: feeRecipientAccount.address,
+      protocolFeeRecipient: protocolFeeRecipient.address,
     };
   }
 
@@ -607,6 +619,50 @@ export class ScaleAMM {
     }
   }
 
+  /**
+   * Update protocol fee (admin only)
+   *
+   * Allows authority to adjust the global protocol fee applied to all pools.
+   * Fee is retroactive - affects all existing pools immediately.
+   * Fees go to config.feeRecipient for CRX deflation/treasury management.
+   *
+   * @param newProtocolFeeBps - Fee in basis points (0-1000 = 0-10%)
+   *
+   * @example
+   * ```typescript
+   * // Enable 0.1% protocol fee (10 bps)
+   * await scale.updateProtocolFee(10);
+   *
+   * // Disable protocol fee
+   * await scale.updateProtocolFee(0);
+   *
+   * // Set 1% protocol fee (100 bps)
+   * await scale.updateProtocolFee(100);
+   * ```
+   */
+  async updateProtocolFee(newProtocolFeeBps: number): Promise<string> {
+    try {
+      // Validate fee is within bounds (0-1000 bps = 0-10%)
+      if (newProtocolFeeBps < 0 || newProtocolFeeBps > 1000) {
+        throw new ScaleError('INVALID_FEE', 'Protocol fee must be between 0 and 1000 bps (0-10%)');
+      }
+
+      const [configPda] = this.deriveConfigPda();
+
+      const tx = await this.program.methods
+        .updateProtocolFee(newProtocolFeeBps)
+        .accounts({
+          config: configPda,
+          authority: this.wallet.publicKey,
+        })
+        .rpc();
+
+      return tx;
+    } catch (error) {
+      throw translateAnchorError(error);
+    }
+  }
+
   // ==========================================================================
   // CREATOR OPERATIONS
   // ==========================================================================
@@ -757,6 +813,7 @@ export class ScaleAMM {
           userQuoteAccount: accounts.userQuoteAccount,
           userBaseAccount: accounts.userBaseAccount,
           feeRecipientAccount: accounts.feeRecipientAccount,
+          protocolFeeRecipient: accounts.protocolFeeRecipient,
           user: this.wallet.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
         });
@@ -838,6 +895,7 @@ export class ScaleAMM {
           userQuoteAccount: accounts.userQuoteAccount,
           userBaseAccount: accounts.userBaseAccount,
           feeRecipientAccount: accounts.feeRecipientAccount,
+          protocolFeeRecipient: accounts.protocolFeeRecipient,
           user: this.wallet.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
         });
@@ -992,6 +1050,8 @@ export class ScaleAMM {
 
         approvedQuoteTokens: configData.approvedQuoteTokens,
         approvedQuoteCount: configData.approvedQuoteCount,
+
+        protocolFeeBps: configData.protocolFeeBps,
       };
     } catch (error) {
       throw translateAnchorError(error);
