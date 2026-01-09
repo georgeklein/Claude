@@ -226,6 +226,13 @@ pub fn handler(
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     token::transfer(cpi_ctx, token_supply)?;
 
+    // Validate vault balance matches expected amount
+    ctx.accounts.base_vault.reload()?;
+    require!(
+        ctx.accounts.base_vault.amount == token_supply,
+        ErrorCode::ReserveVaultMismatch
+    );
+
     // Calculate initial price and market cap for event (optimized to avoid redundant calculations)
     let initial_price = pool.get_spot_price()?;
     let market_cap_crx = pool.get_market_cap_crx_from_price(initial_price)?;
