@@ -720,6 +720,79 @@ export class ScaleAMM {
     }
   }
 
+  /**
+   * Update WAA (Weighted Average Age) anti-dump configuration (admin only)
+   *
+   * Allows authority to adjust time windows and fees for the WAA anti-dump system.
+   * Changes are retroactive - affect all pools with WAA enabled immediately.
+   *
+   * @param config - WAA configuration parameters
+   *
+   * @example
+   * ```typescript
+   * // Disable WAA entirely (set fees to 0)
+   * await scale.updateWaaConfig({
+   *   tier1Slots: 25,
+   *   tier2Slots: 150,
+   *   tier3Slots: 750,
+   *   feeMaxBps: 0,
+   *   feeMinBps: 0,
+   * });
+   *
+   * // Enable aggressive anti-sniper (10% max fee)
+   * await scale.updateWaaConfig({
+   *   tier1Slots: 75,      // 30 seconds
+   *   tier2Slots: 750,     // 5 minutes
+   *   tier3Slots: 4500,    // 30 minutes
+   *   feeMaxBps: 1000,     // 10%
+   *   feeMinBps: 100,      // 1%
+   * });
+   * ```
+   */
+  async updateWaaConfig(config: {
+    tier1Slots: number;
+    tier2Slots: number;
+    tier3Slots: number;
+    feeMaxBps: number;
+    feeMinBps: number;
+  }): Promise<string> {
+    try {
+      // Validate tier ordering
+      if (config.tier1Slots >= config.tier2Slots || config.tier2Slots >= config.tier3Slots) {
+        throw new ScaleError('INVALID_FEE', 'WAA tiers must be ordered: T1 < T2 < T3');
+      }
+
+      // Validate fee range (0-1000 bps = 0-10%)
+      if (config.feeMaxBps < 0 || config.feeMaxBps > 1000) {
+        throw new ScaleError('INVALID_FEE', 'WAA max fee must be between 0 and 1000 bps (0-10%)');
+      }
+
+      if (config.feeMinBps < 0 || config.feeMinBps > config.feeMaxBps) {
+        throw new ScaleError('INVALID_FEE', 'WAA min fee must be between 0 and max fee');
+      }
+
+      const [configPda] = this.deriveConfigPda();
+
+      const tx = await this.program.methods
+        .updateWaaConfig(
+          config.tier1Slots,
+          config.tier2Slots,
+          config.tier3Slots,
+          config.feeMaxBps,
+          config.feeMinBps
+        )
+        .accounts({
+          config: configPda,
+          authority: this.wallet.publicKey,
+        })
+        .rpc();
+
+      return tx;
+    } catch (error) {
+      throw translateAnchorError(error);
+    }
+  }
+
   // ==========================================================================
   // CREATOR OPERATIONS
   // ==========================================================================

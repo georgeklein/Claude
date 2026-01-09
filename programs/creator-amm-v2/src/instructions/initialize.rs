@@ -3,6 +3,7 @@ use anchor_lang::solana_program::pubkey;
 use crate::state::Config;
 use crate::errors::ErrorCode;
 use crate::events::ConfigInitialized;
+use crate::constants::*;
 
 // ⚠️  CRITICAL SECURITY BLOCKER ⚠️
 // DO NOT DEPLOY TO MAINNET WITHOUT CHANGING THIS!!!
@@ -104,6 +105,13 @@ pub fn handler(
 
     // Protocol fee starts disabled (0 bps), can be enabled later via update_protocol_fee
     config.protocol_fee_bps = 0;
+
+    // WAA config starts with defaults (mutable by authority via update_waa_config)
+    config.waa_tier1_slots = WAA_TIER1_SLOTS;
+    config.waa_tier2_slots = WAA_TIER2_SLOTS;
+    config.waa_tier3_slots = WAA_TIER3_SLOTS;
+    config.waa_fee_max_bps = WAA_FEE_MAX;
+    config.waa_fee_min_bps = WAA_FEE_MIN;
 
     config.bump = ctx.bumps.config;
 

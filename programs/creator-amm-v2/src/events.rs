@@ -260,3 +260,31 @@ pub struct AuthorityUpdated {
     /// Timestamp when transfer occurred
     pub timestamp: i64,
 }
+
+/// Emitted when WAA anti-dump configuration is updated
+#[event]
+pub struct WaaConfigUpdated {
+    /// Old tier 1 slots
+    pub old_tier1_slots: u64,
+    pub old_tier2_slots: u64,
+    pub old_tier3_slots: u64,
+    pub old_fee_max_bps: u64,
+    pub old_fee_min_bps: u64,
+
+    /// New tier slots
+    pub new_tier1_slots: u64,
+    pub new_tier2_slots: u64,
+    pub new_tier3_slots: u64,
+    pub new_fee_max_bps: u64,
+    pub new_fee_min_bps: u64,
+
+    /// Authority that made the change (indexed)
+    #[index]
+    pub authority: Pubkey,
+
+    /// Slot when update occurred
+    pub slot: u64,
+
+    /// Timestamp when update occurred
+    pub timestamp: i64,
+}

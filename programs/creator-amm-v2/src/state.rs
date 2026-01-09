@@ -35,6 +35,14 @@ pub struct Config {
     /// Fee goes to fee_recipient for CRX deflation
     pub protocol_fee_bps: u16,              // e.g., 10 = 0.1%, 0 = disabled
 
+    /// WAA (Weighted Average Age) anti-dump fee configuration
+    /// Adjustable by authority for market-responsive tuning
+    pub waa_tier1_slots: u64,               // Tier 1 threshold (e.g., 25 slots = 10s)
+    pub waa_tier2_slots: u64,               // Tier 2 threshold (e.g., 150 slots = 1min)
+    pub waa_tier3_slots: u64,               // Tier 3 threshold (e.g., 750 slots = 5min)
+    pub waa_fee_max_bps: u64,               // Max fee (e.g., 300 = 3%)
+    pub waa_fee_min_bps: u64,               // Min fee (e.g., 50 = 0.5%)
+
     pub bump: u8,
 }
 
@@ -51,6 +59,7 @@ impl Config {
         160 + // approved_quote_tokens (32 * 5 = 160 bytes)
         1 +  // approved_quote_count
         2 +  // protocol_fee_bps
+        40 + // WAA config (5 * 8 = 40 bytes)
         1;   // bump
 
     /// CRITICAL FIX: Validate CRX price freshness to prevent stale price exploitation
@@ -573,55 +582,57 @@ impl UserPosition {
     }
 
     /// Calculate extra sell fee based on hold time
-    /// Decays from 10% (1000 bps) → 1% (100 bps) → 0% over time
-    ///
-    /// Time thresholds (assuming ~400ms/slot):
-    /// - T1: 75 slots (~30s) - 10% fee
-    /// - T2: 750 slots (~5min) - 1% fee
-    /// - T3: 4500 slots (~30min) - 0% fee
+    /// Uses Config WAA values (mutable by authority) instead of hardcoded constants
     #[inline]
-    pub fn calculate_extra_sell_fee_bps(&self, current_slot: u64) -> Result<u64> {
+    pub fn calculate_extra_sell_fee_bps(&self, current_slot: u64, config: &Config) -> Result<u64> {
         // Calculate age in slots (checked to ensure no underflow)
         let age = current_slot
             .checked_sub(self.avg_entry_slot)
             .unwrap_or(0); // If current_slot < avg_entry_slot, treat as 0 age
 
         // Piecewise linear decay - optimized with early returns
-        if age <= WAA_TIER1_SLOTS {
-            return Ok(WAA_FEE_MAX); // 0-10s: full 3% fee
+        if age <= config.waa_tier1_slots {
+            return Ok(config.waa_fee_max_bps); // T1: full max fee
         }
 
-        if age <= WAA_TIER2_SLOTS {
-            // 10s-1m: decay from 3% → 0.5%
-            // extra = F2 + (F1 - F2) * (T2 - age) / (T2 - T1)
-            let time_remaining = WAA_TIER2_SLOTS
+        if age <= config.waa_tier2_slots {
+            // T1-T2: decay from max → min
+            let time_remaining = config.waa_tier2_slots
                 .checked_sub(age)
                 .ok_or(ErrorCode::MathOverflow)?;
-            let decay_component = WAA_DECAY_RANGE
+            let decay_range = config.waa_fee_max_bps
+                .checked_sub(config.waa_fee_min_bps)
+                .ok_or(ErrorCode::MathOverflow)?;
+            let time_range_1 = config.waa_tier2_slots
+                .checked_sub(config.waa_tier1_slots)
+                .ok_or(ErrorCode::MathOverflow)?;
+            let decay_component = decay_range
                 .checked_mul(time_remaining)
                 .ok_or(ErrorCode::MathOverflow)?
-                .checked_div(WAA_TIME_RANGE_1)
+                .checked_div(time_range_1)
                 .ok_or(ErrorCode::MathOverflow)?;
-            return Ok(WAA_FEE_MIN
+            return Ok(config.waa_fee_min_bps
                 .checked_add(decay_component)
                 .ok_or(ErrorCode::MathOverflow)?);
         }
 
-        if age <= WAA_TIER3_SLOTS {
-            // 1m-5m: decay from 0.5% → 0%
-            // extra = F2 * (T3 - age) / (T3 - T2)
-            let time_remaining = WAA_TIER3_SLOTS
+        if age <= config.waa_tier3_slots {
+            // T2-T3: decay from min → 0
+            let time_remaining = config.waa_tier3_slots
                 .checked_sub(age)
                 .ok_or(ErrorCode::MathOverflow)?;
-            let fee = WAA_FEE_MIN
+            let time_range_2 = config.waa_tier3_slots
+                .checked_sub(config.waa_tier2_slots)
+                .ok_or(ErrorCode::MathOverflow)?;
+            let fee = config.waa_fee_min_bps
                 .checked_mul(time_remaining)
                 .ok_or(ErrorCode::MathOverflow)?
-                .checked_div(WAA_TIME_RANGE_2)
+                .checked_div(time_range_2)
                 .ok_or(ErrorCode::MathOverflow)?;
             return Ok(fee);
         }
 
-        Ok(0) // 5m+: no extra fee
+        Ok(0) // T3+: no extra fee
     }
 }
 

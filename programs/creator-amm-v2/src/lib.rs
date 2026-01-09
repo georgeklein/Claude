@@ -115,4 +115,23 @@ pub mod creator_amm_v2 {
     ) -> Result<()> {
         instructions::update_authority::handler(ctx, new_authority)
     }
+
+    /// Update WAA anti-dump configuration (Authority only)
+    pub fn update_waa_config(
+        ctx: Context<UpdateWaaConfig>,
+        tier1_slots: u64,
+        tier2_slots: u64,
+        tier3_slots: u64,
+        fee_max_bps: u64,
+        fee_min_bps: u64,
+    ) -> Result<()> {
+        instructions::update_waa_config::handler(
+            ctx,
+            tier1_slots,
+            tier2_slots,
+            tier3_slots,
+            fee_max_bps,
+            fee_min_bps,
+        )
+    }
 }

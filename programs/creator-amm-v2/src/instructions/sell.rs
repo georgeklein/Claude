@@ -131,7 +131,7 @@ pub fn handler(
         0 // No WAA fees - pure permissionless trading
     } else {
         let user_position = &ctx.accounts.user_position;
-        user_position.calculate_extra_sell_fee_bps(clock.slot)?
+        user_position.calculate_extra_sell_fee_bps(clock.slot, config)?
     };
 
     let extra_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, extra_fee_bps as u16)?;
