@@ -17,7 +17,7 @@ import { Program, AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import { getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { CreatorAmmV2 } from './types/creator_amm_v2';
 import { IDL } from './types/creator_amm_v2';
-import { ScaleError, ErrorCode } from './errors';
+import { ScaleError, ErrorCode, translateAnchorError } from './errors';
 
 // ============================================================================
 // INTERNAL TYPES (TypeScript Type Safety)
@@ -501,7 +501,7 @@ export class ScaleAMM {
 
       return tx;
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -537,7 +537,7 @@ export class ScaleAMM {
 
       return tx;
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -579,7 +579,7 @@ export class ScaleAMM {
 
       return tx;
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -626,7 +626,7 @@ export class ScaleAMM {
 
       return tx;
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -717,7 +717,7 @@ export class ScaleAMM {
       // Fetch pool state and return info
       return await this.getPool(params.baseMint);
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -802,7 +802,7 @@ export class ScaleAMM {
       // Parse result from transaction
       return await this.parseTradeResult(signature, true);
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -883,7 +883,7 @@ export class ScaleAMM {
       // Parse result from transaction
       return await this.parseTradeResult(signature, false);
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -947,7 +947,7 @@ export class ScaleAMM {
         url: `https://scale-amm.xyz/pool/${poolPda.toBase58()}`,
       };
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -977,7 +977,7 @@ export class ScaleAMM {
         phase,
       };
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -1023,7 +1023,7 @@ export class ScaleAMM {
         approvedQuoteCount: configData.approvedQuoteCount,
       };
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -1042,7 +1042,7 @@ export class ScaleAMM {
       const poolData = await this.program.account.pool.fetch(pool) as PoolData;
       return await this.estimateBuyInternal(poolData, crxAmount);
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -1060,7 +1060,7 @@ export class ScaleAMM {
       const poolData = await this.program.account.pool.fetch(pool) as PoolData;
       return await this.estimateSellInternal(poolData, tokenAmount);
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -1113,7 +1113,7 @@ export class ScaleAMM {
         return null;
       }
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -1187,7 +1187,7 @@ export class ScaleAMM {
 
       return pools;
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -1205,7 +1205,7 @@ export class ScaleAMM {
       const allPools = await this.getAllPools(1000); // Get up to 1000 pools
       return allPools.filter(pool => pool.creator.equals(creator));
     } catch (error) {
-      throw this.translateError(error);
+      throw translateAnchorError(error);
     }
   }
 
@@ -1465,81 +1465,37 @@ export class ScaleAMM {
   }
 
   private async parseTradeResult(signature: string, isBuy: boolean): Promise<TradeResult> {
-    try {
-      // Fetch transaction details
-      const tx = await this.connection.getTransaction(signature, {
-        commitment: 'confirmed',
-        maxSupportedTransactionVersion: 0,
-      });
+    // Fetch transaction details
+    const tx = await this.connection.getTransaction(signature, {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
+    });
 
-      if (!tx || !tx.meta) {
-        throw new ScaleError('TRANSACTION_NOT_FOUND', 'Transaction not found or not confirmed');
-      }
-
-      // Parse TradeExecuted event from logs
-      const logs = tx.meta.logMessages || [];
-
-      // Look for TradeExecuted event data
-      // Format: "Program data: <base64_encoded_event>"
-      const eventLog = logs.find(log => log.includes('Program data:'));
-
-      if (eventLog) {
-        // Parse the event data (simplified - in production would use proper event parsing)
-        // For now, return transaction-based estimates
-        const fee = Math.abs(tx.meta.fee);
-
-        return {
-          signature,
-          fee,
-          newPrice: 0, // Would parse from event
-          priceImpact: 0, // Would calculate from pre/post reserves
-        };
-      }
-
-      // Fallback if event not found
-      return {
-        signature,
-        fee: Math.abs(tx.meta.fee),
-        newPrice: 0,
-        priceImpact: 0,
-      };
-    } catch (error) {
-      // If parsing fails, return signature with zeros (better than throwing)
-      console.warn('Failed to parse trade result:', error);
-      return {
-        signature,
-        fee: 0,
-        newPrice: 0,
-        priceImpact: 0,
-      };
-    }
-  }
-
-  private translateError(error: unknown): ScaleError {
-    // Map Anchor error codes to friendly messages
-    // This is a simplified version
-    if (error instanceof ScaleError) {
-      return error;
+    if (!tx || !tx.meta) {
+      throw new ScaleError('TRANSACTION_NOT_FOUND', 'Transaction not found or not confirmed');
     }
 
-    // Type guard for error-like objects
-    const errorObj = error as { code?: string; error?: { errorCode?: { code?: string } }; message?: string };
+    // Parse TradeExecuted event from logs
+    const logs = tx.meta.logMessages || [];
 
-    // Extract Anchor error code if present
-    const errorCode = errorObj.code || errorObj.error?.errorCode?.code;
+    // Look for TradeExecuted event data
+    // Format: "Program data: <base64_encoded_event>"
+    const eventLog = logs.find(log => log.includes('Program data:'));
 
-    const errorMap: { [key: string]: { code: ErrorCode; message: string } } = {
-      '6001': { code: 'SLIPPAGE_EXCEEDED', message: 'Price moved beyond your slippage tolerance' },
-      '6002': { code: 'ANTI_SNIPER_ACTIVE', message: 'Trade size too large during anti-sniper window' },
-      '6003': { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient token balance' },
-      // ... map all error codes
+    if (!eventLog) {
+      throw new ScaleError('EVENT_NOT_FOUND', 'TradeExecuted event not found in transaction logs');
+    }
+
+    // Parse the event data (simplified - in production would use proper event parsing)
+    // TODO: Implement proper Anchor event decoding for accurate price and impact data
+    const fee = Math.abs(tx.meta.fee);
+
+    return {
+      signature,
+      fee,
+      newPrice: 0, // TODO: Parse from event using Anchor event decoder
+      priceImpact: 0, // TODO: Calculate from pre/post reserves in event
     };
-
-    const mapped = errorCode ? errorMap[errorCode] : undefined;
-    if (mapped) {
-      return new ScaleError(mapped.code, mapped.message);
-    }
-
-    return new ScaleError('UNKNOWN', errorObj.message || 'Unknown error occurred');
   }
+
 }

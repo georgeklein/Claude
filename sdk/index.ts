@@ -12,6 +12,7 @@ export { ScaleAMM } from './ScaleAMM';
 // Utilities
 export { ScaleUtils, SCALE_CONSTANTS, SCALE_AMM_PROGRAM_ID } from './ScaleUtils';
 export { AdminUtils } from './AdminUtils';
+export { FeeSponsor, BatchFeeSponsor } from './FeeSponsorship';
 
 // Error handling
 export { ScaleError, isScaleError, getErrorAction, translateAnchorError } from './errors';
