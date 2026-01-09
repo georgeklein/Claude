@@ -9,10 +9,15 @@ pub struct Config {
     /// Protocol fee recipient
     pub fee_recipient: Pubkey,
 
-    /// CRX price oracle (Pyth or Switchboard)
+    /// CRX price oracle (Pyth or Switchboard) - kept for backward compatibility, unused
     pub crx_price_oracle: Pubkey,
     /// CRX token mint
     pub crx_mint: Pubkey,
+
+    /// CRX price in USD (6 decimals, e.g., 2_000_000 = $2.00)
+    pub crx_price_usd: u64,
+    /// Last time CRX price was updated (unix timestamp)
+    pub crx_price_last_updated: i64,
 
     /// Pre-bonding phase settings (0 → threshold_1)
     pub pre_bonding_fee_bps: u16,           // e.g., 300 = 3%
@@ -46,6 +51,8 @@ impl Config {
         32 + // fee_recipient
         32 + // crx_price_oracle
         32 + // crx_mint
+        8 +  // crx_price_usd
+        8 +  // crx_price_last_updated
         2 +  // pre_bonding_fee_bps
         8 +  // pre_bonding_threshold_usd
         2 +  // post_bonding_fee_bps

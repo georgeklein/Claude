@@ -18,6 +18,7 @@ pub mod creator_amm_v2 {
     /// Initialize global configuration
     pub fn initialize(
         ctx: Context<Initialize>,
+        initial_crx_price_usd: u64,
         pre_bonding_fee_bps: u16,
         pre_bonding_threshold_usd: u64,
         post_bonding_fee_bps: u16,
@@ -31,6 +32,7 @@ pub mod creator_amm_v2 {
     ) -> Result<()> {
         instructions::initialize::handler(
             ctx,
+            initial_crx_price_usd,
             pre_bonding_fee_bps,
             pre_bonding_threshold_usd,
             post_bonding_fee_bps,
@@ -90,5 +92,13 @@ pub mod creator_amm_v2 {
         approved_quote_count: u8,
     ) -> Result<()> {
         instructions::update_approved_quotes::handler(ctx, approved_quote_tokens, approved_quote_count)
+    }
+
+    /// Update CRX price in USD (Authority only)
+    pub fn update_crx_price(
+        ctx: Context<UpdateCrxPrice>,
+        new_price_usd: u64,
+    ) -> Result<()> {
+        instructions::update_crx_price::handler(ctx, new_price_usd)
     }
 }

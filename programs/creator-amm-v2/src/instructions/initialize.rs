@@ -62,6 +62,7 @@ pub struct Initialize<'info> {
 
 pub fn handler(
     ctx: Context<Initialize>,
+    initial_crx_price_usd: u64,
     pre_bonding_fee_bps: u16,
     pre_bonding_threshold_usd: u64,
     post_bonding_fee_bps: u16,
@@ -99,11 +100,15 @@ pub fn handler(
     require!(oracle_max_confidence_bps <= 1000, ErrorCode::OracleConfidenceTooLow); // Max 10%
 
     let config = &mut ctx.accounts.config;
+    let clock = Clock::get()?;
 
     config.authority = ctx.accounts.authority.key();
     config.fee_recipient = ctx.accounts.fee_recipient.key();
     config.crx_price_oracle = ctx.accounts.crx_price_oracle.key();
     config.crx_mint = ctx.accounts.crx_mint.key();
+
+    config.crx_price_usd = initial_crx_price_usd;
+    config.crx_price_last_updated = clock.unix_timestamp;
 
     config.pre_bonding_fee_bps = pre_bonding_fee_bps;
     config.pre_bonding_threshold_usd = pre_bonding_threshold_usd;
@@ -122,7 +127,6 @@ pub fn handler(
     config.bump = ctx.bumps.config;
 
     // Emit event for indexers
-    let clock = Clock::get()?;
     emit!(ConfigInitialized {
         authority: config.authority,
         fee_recipient: config.fee_recipient,

@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use crate::constants::*;
 use crate::state::{Config, Pool, CurvePhase, CurveType};
-use crate::utils::oracle::{PythPriceFeed, get_crx_price_usd, calculate_virtual_reserves_for_market_cap};
+use crate::utils::oracle::calculate_virtual_reserves_for_market_cap;
 use crate::errors::ErrorCode;
 use crate::events::PoolCreated;
 
@@ -35,12 +35,6 @@ pub struct CreatePool<'info> {
 
     /// Base token mint (the new token being launched)
     pub base_mint: Account<'info, Mint>,
-
-    /// CRX price oracle
-    #[account(
-        constraint = crx_price_oracle.key() == config.crx_price_oracle @ ErrorCode::InvalidOracle
-    )]
-    pub crx_price_oracle: Account<'info, PythPriceFeed>,
 
     /// Pool's quote token vault (CRX)
     #[account(
@@ -164,12 +158,8 @@ pub fn handler(
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
 
-    // Step 1: Get CRX price from oracle
-    let crx_price_usd = get_crx_price_usd(
-        &ctx.accounts.crx_price_oracle,
-        config.oracle_max_age_seconds,
-        config.oracle_max_confidence_bps,
-    )?;
+    // Step 1: Get CRX price from config
+    let crx_price_usd = config.crx_price_usd;
 
     // Validate CRX price is reasonable ($0.01 to $1000)
     require!(
