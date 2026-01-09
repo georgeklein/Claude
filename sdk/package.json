@@ -4,20 +4,13 @@
   "description": "Dead-simple TypeScript SDK for Scale AMM - Integrate in <10 lines of code",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": {
-    "scale-amm": "./dist/CLI.js"
-  },
   "files": [
     "dist",
-    "README.md",
-    "QUICKSTART.md",
-    "COMPETITIVE_ANALYSIS.md"
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",
-    "test": "ts-node test/examples.test.ts",
-    "prepublishOnly": "npm run build",
-    "cli": "ts-node ./CLI.ts"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "solana",
@@ -26,9 +19,7 @@
     "dex",
     "bonding-curve",
     "token-launch",
-    "scale-amm",
-    "cli",
-    "interactive"
+    "scale-amm"
   ],
   "author": "Scale AMM Team",
   "license": "MIT",
@@ -37,23 +28,18 @@
     "url": "https://github.com/scale-amm/sdk"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.29.0",
-    "@solana/web3.js": "^1.87.6",
-    "@solana/spl-token": "^0.3.9",
-    "commander": "^11.1.0",
-    "inquirer": "^9.2.12",
-    "chalk": "^5.3.0",
-    "ora": "^8.0.1"
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.95.2",
+    "@solana/spl-token": "^0.4.8"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "@types/inquirer": "^9.0.7",
     "typescript": "^5.3.3",
     "ts-node": "^10.9.2"
   },
   "peerDependencies": {
-    "@coral-xyz/anchor": "^0.29.0",
+    "@coral-xyz/anchor": "^0.30.0",
     "@solana/web3.js": "^1.87.0",
-    "@solana/spl-token": "^0.3.0"
+    "@solana/spl-token": "^0.4.0"
   }
 }
