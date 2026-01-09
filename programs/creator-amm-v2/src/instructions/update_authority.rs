@@ -52,13 +52,14 @@ pub fn handler(
 
     // Update authority
     config.authority = new_authority;
+    let clock = Clock::get()?;
 
     // Emit event for transparency
     emit!(AuthorityUpdated {
         old_authority,
         new_authority,
-        slot: Clock::get()?.slot,
-        timestamp: Clock::get()?.unix_timestamp,
+        slot: clock.slot,
+        timestamp: clock.unix_timestamp,
     });
 
     msg!("Authority updated: {} -> {}", old_authority, new_authority);

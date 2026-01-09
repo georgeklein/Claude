@@ -37,6 +37,7 @@ pub fn handler(
     );
 
     let config = &mut ctx.accounts.config;
+    let clock = Clock::get()?;
     let old_quote_count = config.approved_quote_count;
     config.approved_quote_tokens = approved_quote_tokens;
     config.approved_quote_count = approved_quote_count;
@@ -46,8 +47,8 @@ pub fn handler(
         new_quote_count: approved_quote_count,
         new_approved_quotes: approved_quote_tokens,
         authority: ctx.accounts.authority.key(),
-        slot: Clock::get()?.slot,
-        timestamp: Clock::get()?.unix_timestamp,
+        slot: clock.slot,
+        timestamp: clock.unix_timestamp,
     });
 
     msg!("Approved quote tokens updated by authority");

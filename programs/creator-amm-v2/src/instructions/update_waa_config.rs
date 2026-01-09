@@ -61,6 +61,7 @@ pub fn handler(
     );
 
     let config = &mut ctx.accounts.config;
+    let clock = Clock::get()?;
 
     // Store old values for event
     let old_config = (
@@ -90,8 +91,8 @@ pub fn handler(
         new_fee_max_bps: fee_max_bps,
         new_fee_min_bps: fee_min_bps,
         authority: ctx.accounts.authority.key(),
-        slot: Clock::get()?.slot,
-        timestamp: Clock::get()?.unix_timestamp,
+        slot: clock.slot,
+        timestamp: clock.unix_timestamp,
     });
 
     msg!(

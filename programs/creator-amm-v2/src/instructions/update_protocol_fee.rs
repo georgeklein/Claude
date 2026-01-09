@@ -28,6 +28,7 @@ pub fn handler(
     );
 
     let config = &mut ctx.accounts.config;
+    let clock = Clock::get()?;
     let old_fee_bps = config.protocol_fee_bps;
 
     config.protocol_fee_bps = new_protocol_fee_bps;
@@ -36,8 +37,8 @@ pub fn handler(
         old_fee_bps,
         new_fee_bps: new_protocol_fee_bps,
         authority: ctx.accounts.authority.key(),
-        slot: Clock::get()?.slot,
-        timestamp: Clock::get()?.unix_timestamp,
+        slot: clock.slot,
+        timestamp: clock.unix_timestamp,
     });
 
     msg!("Protocol fee updated: {} bps -> {} bps", old_fee_bps, new_protocol_fee_bps);
