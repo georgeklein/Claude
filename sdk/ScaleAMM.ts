@@ -72,8 +72,9 @@ interface ConfirmationConfig {
 
 export interface InitializeConfig {
   crxMint: PublicKey;
-  crxPriceOracle: PublicKey;
+  crxPriceOracle: PublicKey;           // Kept for backward compat, not used
   feeRecipient: PublicKey;
+  initialCrxPriceUsd: number;          // e.g., 2.0 for $2.00 per CRX
 
   // Optional with defaults
   preBondingFeeBps?: number;           // Default: 300 (3%)
@@ -415,6 +416,7 @@ export class ScaleAMM {
       const [configPda] = this.deriveConfigPda();
 
       // Convert USD to micro-USD (6 decimals)
+      const initialCrxPriceMicro = new BN(config.initialCrxPriceUsd * 1_000_000);
       const preBondingThresholdMicro = new BN(preBondingThresholdUsd * 1_000_000);
       const graduationThresholdMicro = new BN(graduationThresholdUsd * 1_000_000);
 
@@ -430,13 +432,14 @@ export class ScaleAMM {
       // Execute initialize
       const tx = await this.program.methods
         .initialize(
+          initialCrxPriceMicro,      // NEW: First parameter
           preBondingFeeBps,
           preBondingThresholdMicro,
           postBondingFeeBps,
           graduationThresholdMicro,
           new BN(antiSniperWindowSlots),
           antiSniperMaxTradeBps,
-          new BN(60), // oracle_max_age_seconds
+          new BN(60), // oracle_max_age_seconds (kept for backward compat)
           new BN(100), // oracle_max_confidence_bps (1%)
           approvedQuoteTokens,
           0 // approved_quote_count
@@ -493,6 +496,48 @@ export class ScaleAMM {
     }
   }
 
+  /**
+   * Update CRX price in USD (admin only)
+   *
+   * Use this to update the CRX price that pools use for virtual reserve calculations.
+   * Can be automated with a cron job to keep prices current.
+   *
+   * @example
+   * ```typescript
+   * // Manual update
+   * await scale.updateCrxPrice(2.15); // Update to $2.15
+   *
+   * // Automated with cron
+   * setInterval(async () => {
+   *   const price = await fetchCrxPriceFromAPI();
+   *   await scale.updateCrxPrice(price);
+   * }, 3600000); // Update hourly
+   * ```
+   */
+  async updateCrxPrice(newPriceUsd: number): Promise<string> {
+    try {
+      // Validate price is reasonable ($0.01 to $1000)
+      if (newPriceUsd < 0.01 || newPriceUsd > 1000) {
+        throw new ScaleError('INVALID_CRX_PRICE', 'Price must be between $0.01 and $1000');
+      }
+
+      const [configPda] = this.deriveConfigPda();
+      const priceWithDecimals = new BN(newPriceUsd * 1_000_000);
+
+      const tx = await this.program.methods
+        .updateCrxPrice(priceWithDecimals)
+        .accounts({
+          config: configPda,
+          authority: this.wallet.publicKey,
+        })
+        .rpc();
+
+      return tx;
+    } catch (error) {
+      throw this.translateError(error);
+    }
+  }
+
   // ==========================================================================
   // CREATOR OPERATIONS
   // ==========================================================================
@@ -537,7 +582,7 @@ export class ScaleAMM {
       const [quoteVaultPda] = this.deriveQuoteVaultPda(poolPda);
       const [baseVaultPda] = this.deriveBaseVaultPda(poolPda);
 
-      // Fetch config to get CRX mint and oracle
+      // Fetch config to get CRX mint
       const configData = await this.program.account.config.fetch(configPda);
 
       // Get creator's base token account
@@ -568,14 +613,12 @@ export class ScaleAMM {
           pool: poolPda,
           quoteMint: configData.crxMint,
           baseMint: params.baseMint,
-          crxPriceOracle: configData.crxPriceOracle,
           quoteVault: quoteVaultPda,
           baseVault: baseVaultPda,
           creatorBaseAccount: creatorBaseAccount.address,
           creator: this.wallet.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: PublicKey.default,
-          rent: PublicKey.default,
         })
         .rpc();
 

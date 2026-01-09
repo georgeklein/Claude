@@ -85,20 +85,18 @@ describe("Security Test Suite - Error Conditions & Attack Simulations", () => {
     const creatorBaseAccount = await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey);
 
     await program.methods
-      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd)
+      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, false)
       .accounts({
         config,
         pool,
         quoteMint: crxMint,
         baseMint,
-        crxPriceOracle: crxPriceOracle.publicKey,
         quoteVault,
         baseVault,
         creatorBaseAccount: creatorBaseAccount.address,
         creator: creator.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([creator])
       .rpc();
@@ -190,6 +188,7 @@ describe("Security Test Suite - Error Conditions & Attack Simulations", () => {
 
     await program.methods
       .initialize(
+        new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
         300,
         new anchor.BN(40_000_000_000),
         100,
@@ -198,7 +197,13 @@ describe("Security Test Suite - Error Conditions & Attack Simulations", () => {
         500,
         new anchor.BN(60),
         new anchor.BN(100),
-        [PublicKey.default(), PublicKey.default(), PublicKey.default(), PublicKey.default(), PublicKey.default()],
+        [
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+        ],
         0
       )
       .accounts({
@@ -640,20 +645,18 @@ describe("Security Test Suite - Error Conditions & Attack Simulations", () => {
         const creatorBaseAccount = await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey);
 
         await program.methods
-          .createPool(new anchor.BN(10_000_000_000), tokenSupply, 25, { constantProduct: {} }, new anchor.BN(40_000_000_000))
+          .createPool(new anchor.BN(10_000_000_000), tokenSupply, 25, { constantProduct: {} }, new anchor.BN(40_000_000_000), false)
           .accounts({
             config,
             pool,
             quoteMint: crxMint,
             baseMint,
-            crxPriceOracle: fakeOracle.publicKey, // FAKE ORACLE
             quoteVault,
             baseVault,
             creatorBaseAccount: creatorBaseAccount.address,
             creator: creator.publicKey,
             tokenProgram: TOKEN_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
-            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           })
           .signers([creator])
           .rpc();

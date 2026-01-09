@@ -131,20 +131,18 @@ describe("Scale AMM - Comprehensive Test Suite", () => {
     );
 
     await program.methods
-      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd)
+      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, false) // Added disable_waa param
       .accounts({
         config,
         pool,
         quoteMint: crxMint,
         baseMint,
-        crxPriceOracle: crxPriceOracle.publicKey,
         quoteVault,
         baseVault,
         creatorBaseAccount: creatorBaseAccount.address,
         creator: creator.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([creator])
       .rpc();
@@ -257,20 +255,29 @@ describe("Scale AMM - Comprehensive Test Suite", () => {
 
     await program.methods
       .initialize(
-        300,
-        new anchor.BN(40_000_000_000),
-        100,
-        new anchor.BN(85_000_000_000),
-        new anchor.BN(20),
-        500,
-        new anchor.BN(60),
-        new anchor.BN(100)
+        new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
+        300,                      // pre_bonding_fee_bps
+        new anchor.BN(40_000_000_000), // pre_bonding_threshold_usd
+        100,                      // post_bonding_fee_bps
+        new anchor.BN(85_000_000_000), // graduation_threshold_usd
+        new anchor.BN(20),        // anti_sniper_window_slots
+        500,                      // anti_sniper_max_trade_bps
+        new anchor.BN(60),        // oracle_max_age_seconds (kept for backward compat)
+        new anchor.BN(100),       // oracle_max_confidence_bps
+        [                         // approved_quote_tokens (empty)
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+        ],
+        0                         // approved_quote_count
       )
       .accounts({
         config,
         authority: authority.publicKey,
         feeRecipient: feeRecipient.publicKey,
-        crxPriceOracle: crxPriceOracle.publicKey,
+        crxPriceOracle: crxPriceOracle.publicKey, // Kept for backward compat, not used
         crxMint,
         systemProgram: SystemProgram.programId,
       })

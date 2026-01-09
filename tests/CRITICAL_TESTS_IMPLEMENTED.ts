@@ -155,14 +155,12 @@ describe("CRITICAL: Complete Test Suite", () => {
         pool,
         quoteMint: crxMint,
         baseMint,
-        crxPriceOracle: crxPriceOracle.publicKey,
         quoteVault,
         baseVault,
         creatorBaseAccount: creatorBaseAccount.address,
         creator: creator.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([creator])
       .rpc();
@@ -371,6 +369,7 @@ describe("CRITICAL: Complete Test Suite", () => {
 
     await program.methods
       .initialize(
+        new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
         new anchor.BN(50), // 0.5% pre-bonding fee
         new anchor.BN(10_000_000), // $10 threshold
         new anchor.BN(30), // 0.3% post-bonding fee
@@ -379,7 +378,14 @@ describe("CRITICAL: Complete Test Suite", () => {
         500, // 5% max trade during anti-sniper
         new anchor.BN(60), // 60 second oracle max age
         new anchor.BN(100), // 1% max confidence
-        []
+        [
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+        ],
+        0
       )
       .accounts({
         config,

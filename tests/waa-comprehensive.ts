@@ -112,21 +112,20 @@ describe("WAA Comprehensive Test Suite", () => {
         tokenSupply,
         25, // 0.25% fee
         { constantProduct: {} },
-        new anchor.BN(40_000_000_000) // $40k graduation
+        new anchor.BN(40_000_000_000), // $40k graduation
+        false
       )
       .accounts({
         config,
         pool,
         quoteMint: crxMint,
         baseMint,
-        crxPriceOracle: crxPriceOracle.publicKey,
         quoteVault,
         baseVault,
         creatorBaseAccount: creatorBaseAccount.address,
         creator: creator.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([creator])
       .rpc();
@@ -220,6 +219,7 @@ describe("WAA Comprehensive Test Suite", () => {
 
     await program.methods
       .initialize(
+        new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
         300,
         new anchor.BN(40_000_000_000),
         100,
@@ -227,7 +227,15 @@ describe("WAA Comprehensive Test Suite", () => {
         new anchor.BN(20),
         500,
         new anchor.BN(60),
-        new anchor.BN(100)
+        new anchor.BN(100),
+        [
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+        ],
+        0
       )
       .accounts({
         config,

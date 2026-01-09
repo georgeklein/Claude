@@ -84,20 +84,18 @@ describe("Scale AMM - Advanced Test Coverage", () => {
     const creatorBaseAccount = await getOrCreateAssociatedTokenAccount(provider.connection, creator, baseMint, creator.publicKey);
 
     await program.methods
-      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd)
+      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, false)
       .accounts({
         config,
         pool,
         quoteMint: crxMint,
         baseMint,
-        crxPriceOracle: crxPriceOracle.publicKey,
         quoteVault,
         baseVault,
         creatorBaseAccount: creatorBaseAccount.address,
         creator: creator.publicKey,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([creator])
       .rpc();
@@ -186,7 +184,25 @@ describe("Scale AMM - Advanced Test Coverage", () => {
     ).address;
 
     await program.methods
-      .initialize(300, new anchor.BN(40_000_000_000), 100, new anchor.BN(85_000_000_000), new anchor.BN(20), 500, new anchor.BN(60), new anchor.BN(100))
+      .initialize(
+        new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
+        300,
+        new anchor.BN(40_000_000_000),
+        100,
+        new anchor.BN(85_000_000_000),
+        new anchor.BN(20),
+        500,
+        new anchor.BN(60),
+        new anchor.BN(100),
+        [
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+          SystemProgram.programId,
+        ],
+        0
+      )
       .accounts({
         config,
         authority: authority.publicKey,
@@ -1742,6 +1758,7 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       try {
         await program.methods
           .initialize(
+            new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
             300,
             new anchor.BN(40_000_000_000),
             100,
@@ -1750,7 +1767,13 @@ describe("Scale AMM - Advanced Test Coverage", () => {
             500,
             new anchor.BN(60),
             new anchor.BN(100),
-            [PublicKey.default(), PublicKey.default(), PublicKey.default(), PublicKey.default(), PublicKey.default()],
+            [
+              SystemProgram.programId,
+              SystemProgram.programId,
+              SystemProgram.programId,
+              SystemProgram.programId,
+              SystemProgram.programId,
+            ],
             0
           )
           .accounts({
