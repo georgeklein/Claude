@@ -234,7 +234,8 @@ pub fn handler(
     pool.token_total_supply = token_supply;
     pool.fee_bps = fee_bps;
 
-    pool.graduation_threshold_crx = graduation_threshold_crx;
+    pool.graduation_threshold_usd = graduation_threshold_usd; // Store USD target
+    pool.graduation_threshold_crx = graduation_threshold_crx;  // Initial CRX equivalent
 
     pool.created_at_slot = clock.slot;
     pool.total_quote_volume = 0;

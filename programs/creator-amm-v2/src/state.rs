@@ -130,8 +130,9 @@ pub struct Pool {
     pub token_total_supply: u64,          // Total token supply
     pub fee_bps: u16,                     // Pool-specific fee (0, 25, or 100 bps)
 
-    /// Graduation threshold (in CRX, calculated from $40k USD)
-    pub graduation_threshold_crx: u64,     // Dynamic based on CRX price
+    /// Graduation thresholds
+    pub graduation_threshold_usd: u64,     // Target USD amount (e.g., $40k with 6 decimals)
+    pub graduation_threshold_crx: u64,     // Current CRX equivalent (recalculated on price changes)
 
     /// Statistics (minimal to save rent)
     /// Removed: total_base_volume, total_fees_collected, unique_traders (derive from events)
@@ -170,6 +171,7 @@ impl Pool {
         8 +  // target_market_cap_usd
         8 +  // token_total_supply
         2 +  // fee_bps
+        8 +  // graduation_threshold_usd
         8 +  // graduation_threshold_crx
         8 +  // created_at_slot
         8 +  // total_quote_volume
@@ -180,7 +182,7 @@ impl Pool {
         8 +  // last_graduation_slot
         1 +  // disable_waa
         1;   // bump
-    // New size: 307 - 24 - 8 + 8 = 283 bytes
+    // New size: 307 - 24 - 8 + 8 + 8 = 291 bytes
 
     /// Check if anti-sniper protection is active (only in PreBonding phase)
     #[inline(always)]
@@ -432,6 +434,22 @@ impl Pool {
         // Update virtual reserves
         self.virtual_quote_reserves = new_virtual_quote;
         self.virtual_base_reserves = new_virtual_base;
+
+        // CRITICAL: Recalculate graduation threshold in CRX to maintain USD target
+        // This prevents graduation threshold drift when CRX price changes
+        let new_graduation_threshold_crx = (self.graduation_threshold_usd as u128)
+            .checked_mul(CRX_DECIMALS as u128)
+            .ok_or(ErrorCode::MathOverflow)?
+            .checked_div(new_crx_price_usd as u128)
+            .ok_or(ErrorCode::ThresholdCalculationFailed)?;
+
+        // Validate result fits in u64
+        require!(
+            new_graduation_threshold_crx <= u64::MAX as u128,
+            ErrorCode::MathOverflow
+        );
+
+        self.graduation_threshold_crx = new_graduation_threshold_crx as u64;
 
         Ok(true) // Reserves were updated
     }
