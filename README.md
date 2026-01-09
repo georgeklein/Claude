@@ -331,12 +331,6 @@ Pool graduates:
 
 ---
 
-## 📚 Documentation
-
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide & checklist
-- **[sdk/README.md](sdk/README.md)** - Complete SDK API reference
-- **[CLAUDE.md](CLAUDE.md)** - AI development context
-
 ---
 
 ## 🛠️ Development
@@ -358,31 +352,13 @@ cargo test        # Rust unit tests only
 # Devnet
 anchor deploy --provider.cluster devnet
 
-# Mainnet (see DEPLOYMENT.md for full checklist)
+# Mainnet
 anchor deploy --provider.cluster mainnet-beta
 ```
 
-**⚠️ CRITICAL:** Update `DEPLOYER_PUBKEY` in `initialize.rs` before mainnet deploy!
+**⚠️ CRITICAL:** Update `DEPLOYER_PUBKEY` in `programs/creator-amm-v2/src/instructions/initialize.rs:23` before deploy!
 
----
-
-## 🌐 Environment Variables
-
-Create `.env` for SDK usage:
-```bash
-# Solana RPC
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-
-# Wallet
-WALLET_PRIVATE_KEY=your_base58_private_key
-
-# Program IDs
-SCALE_PROGRAM_ID=CReamVLMa2dFi8RmKJQAYWn8Jy2yN5qvSu8gKFCxfp3
-CRX_MINT=your_crx_mint_address
-
-# Oracle
-PYTH_ORACLE=your_pyth_feed_address
-```
+See `.env.example` for configuration variables.
 
 ---
 

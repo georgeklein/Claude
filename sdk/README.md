@@ -70,18 +70,8 @@ await scale.sell(pool.address, { tokenAmount: 5000 });
 - `removeListener(id)` - Remove event listener
 
 ### Utilities
-- `ScaleUtils.usdToMicroUsd()` - Convert USD to on-chain format
-- `ScaleUtils.findPoolAddress()` - Derive pool PDA
-- `ScaleUtils.formatPrice()` - Format prices for display
-
-### Admin Utilities (AdminUtils class)
-- `getProtocolStats()` - Protocol-wide analytics (volume, pools, creators)
-- `getGraduationAlerts(threshold)` - Pools approaching graduation
-- `detectAnomalies()` - Detect suspicious activity or issues
-- `checkOracleHealth()` - Verify oracle is functioning
-- `getPoolMetrics(pool)` - Detailed pool metrics
-- `getTopCreators(limit)` - Top creators by volume
-- `validatePoolReserves(pool)` - Verify reserve integrity
+- `ScaleUtils` - Helper functions for conversions, PDA derivation, formatting
+- `FeeSponsor` - Gasless transaction sponsorship
 
 ---
 
@@ -107,41 +97,8 @@ try {
 
 ---
 
-## Examples
-
-See `examples.ts` for complete working examples:
-- Create pool
-- Buy/sell tokens
-- Query pool info
-- Estimate trades
-- Event listeners
-- Batch launching (1000s of tokens)
-
----
-
-## Use Cases
-
-**Creator Platform (Primary):**
-- Launch thousands of custom TOKEN/$CRX pools
-- AI-powered token launches
-- Automated pool management
-- Event-driven integrations
-
-**AI Builders:**
-- Build bots that create tokens automatically
-- Monitor and react to market events
-- Execute complex trading strategies
-
----
-
 ## Requirements
 
-- Node.js 16+
+- Node.js 18+
 - @solana/web3.js ^1.87.0
-- TypeScript 4.9+ (optional but recommended)
-
----
-
-## License
-
-MIT
+- @coral-xyz/anchor ^0.30.1
