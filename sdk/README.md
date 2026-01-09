@@ -180,6 +180,55 @@ await scale.updateAuthority(daoAuthority);
 
 ---
 
+#### `updateWaaConfig(config)`
+Update WAA (Weighted Average Age) anti-dump configuration (authority only).
+
+Allows authority to adjust time windows and fees for the WAA anti-dump system.
+Changes are retroactive - affect all pools with WAA enabled immediately.
+
+**Parameters:**
+```typescript
+{
+  tier1Slots: number,    // T1 threshold (e.g., 25 slots = 10s)
+  tier2Slots: number,    // T2 threshold (e.g., 150 slots = 1min)
+  tier3Slots: number,    // T3 threshold (e.g., 750 slots = 5min)
+  feeMaxBps: number,     // Max fee (e.g., 300 = 3%)
+  feeMinBps: number,     // Min fee (e.g., 50 = 0.5%)
+}
+```
+
+**Returns:** `Promise<string>` (transaction signature)
+
+**Example:**
+```typescript
+// Disable WAA entirely (set fees to 0)
+await scale.updateWaaConfig({
+  tier1Slots: 25,
+  tier2Slots: 150,
+  tier3Slots: 750,
+  feeMaxBps: 0,      // Disabled
+  feeMinBps: 0,
+});
+
+// Enable aggressive anti-sniper (10% max fee)
+await scale.updateWaaConfig({
+  tier1Slots: 75,      // 30 seconds
+  tier2Slots: 750,     // 5 minutes
+  tier3Slots: 4500,    // 30 minutes
+  feeMaxBps: 1000,     // 10%
+  feeMinBps: 100,      // 1%
+});
+```
+
+**Notes:**
+- Retroactive - affects all pools with WAA enabled immediately
+- Validates tier ordering (T1 < T2 < T3)
+- Validates fee range (0-1000 bps max)
+- Only callable by protocol authority
+- Emits `WaaConfigUpdated` event
+
+---
+
 ### Pool Operations
 
 #### `createPool(params)`
@@ -195,7 +244,7 @@ Create new bonding curve pool.
   metadataUri?: string,             // Arweave/IPFS URI (max 64 chars, default: '')
   feeBps?: number,                  // 0, 25, or 100 (default: 0)
   curveType?: 'ConstantProduct' | 'Exponential',
-  disableWaa?: boolean,
+  disableWaa?: boolean,             // Default: true (WAA disabled, opt-in)
 }
 ```
 
@@ -211,7 +260,7 @@ const pool = await scale.createPool({
   metadataUri: 'ar://TX_ID_HERE',   // Arweave URI for token metadata
   feeBps: 100,
   curveType: 'ConstantProduct',
-  disableWaa: false,
+  disableWaa: true,                 // WAA disabled by default (opt-in if needed)
 });
 ```
 

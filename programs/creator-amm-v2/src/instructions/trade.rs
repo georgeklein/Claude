@@ -241,7 +241,7 @@ pub fn emit_trade_event(
     output_amount: u64,
     fee_amount: u64,
     fee_bps: u16,
-    config: &Config,
+    _config: &Config,
     clock: &Clock,
 ) -> Result<()> {
     let (quote_reserves_after, base_reserves_after) = pool.get_pricing_reserves();

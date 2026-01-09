@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use crate::state::{Config, Pool, UserPosition};
 use crate::errors::ErrorCode;
-use crate::constants::*;
 use super::trade::{self, TradeDirection};
 
 #[derive(Accounts)]
