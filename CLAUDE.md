@@ -282,20 +282,30 @@ test(graduation): Add edge case for exact threshold
 
 ---
 
-## 🎯 Current Sprint Status
+## 🎯 Recent Updates (2026-01-09)
 
-**Progress:**
-- ✅ Fixed 9 critical security bugs
-- ✅ Removed dead code (saves 56 bytes per account)
-- ✅ 368 tests implemented and passing
-- ✅ All branding updated to Scale AMM
-- ✅ All dependencies updated to latest (Anchor 0.30.1, Solana 1.18)
+**Governance & Flexibility:**
+- ✅ Mutable protocol fees (0-10%, retroactive)
+- ✅ Mutable WAA config (adjust post-deployment)
+- ✅ Authority transfer (multisig/DAO upgrade path)
+- ✅ Pool metadata URI (Arweave/IPFS)
 
-**Next 2 Weeks:**
-- Week 2: Implement tests, optimize compute, consolidate code
-- Week 3: Devnet deployment, 72hr soak test, mainnet launch
+**Developer Experience:**
+- ✅ WAA default changed to disabled (opt-in)
+- ✅ WAA fees reduced (10%→3%, 30min→5min)
+- ✅ Cleaned up 64 redundant security audit docs
+- ✅ SDK methods for all admin operations
 
-**Mainnet Goal:** Day 21 (no external audit - Claude is sole auditor)
+**Status:**
+- ✅ 368 tests passing
+- ✅ All critical security issues fixed
+- ✅ 20 AI security audits completed
+- ✅ Ready for devnet deployment
+
+**Before Mainnet:**
+- [ ] Update `DEPLOYER_PUBKEY` in initialize.rs
+- [ ] 72-hour devnet soak test
+- [ ] Optimize compute units (<50k target)
 
 ---
 
@@ -309,6 +319,6 @@ test(graduation): Add edge case for exact threshold
 
 ---
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-01-09
 **Maintained By:** Human + AI pair programming
-**Iteration:** V2 (following Anthropic best practices)
+**Iteration:** V2.1 (Governance + Metadata update)

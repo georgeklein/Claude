@@ -30,8 +30,9 @@ const pool = await scale.createPool({
   supply: 1_000_000_000,          // 1 billion tokens
   initialMarketCapUsd: 10_000,
   graduationThresholdUsd: 40_000,
-  feeBps: 100,                    // Any value (basis points)
-  disableWaa: false,              // Optional anti-dump protection
+  metadataUri: 'ar://TX_ID',      // Arweave/IPFS metadata URI (optional)
+  feeBps: 100,                    // Any value (basis points, default: 0)
+  disableWaa: true,               // Disable anti-dump protection (default: true)
 });
 
 // Trade
@@ -72,15 +73,16 @@ All volume flows through $CRX, creating constant demand.
 
 ```typescript
 await scale.createPool({
-  baseMint: PublicKey,
-  supply: number,
-  initialMarketCapUsd: number,
-  graduationThresholdUsd: number,
+  baseMint: PublicKey,             // Token to launch
+  supply: number,                  // Total supply
+  initialMarketCapUsd: number,     // Launch market cap
+  graduationThresholdUsd: number,  // Graduate at X USD
 
   // Optional
-  feeBps: number,                  // Any value in basis points (default: 0)
+  metadataUri: string,             // Arweave/IPFS URI (default: '')
+  feeBps: number,                  // Any value in bps (default: 0)
   curveType: 'ConstantProduct' | 'Exponential',  // Default: ConstantProduct
-  disableWaa: boolean,             // Default: false (WAA enabled)
+  disableWaa: boolean,             // Default: true (WAA disabled, opt-in)
 });
 ```
 
@@ -101,10 +103,12 @@ await scale.createPool({
 
 ### Anti-Dump Protection (WAA)
 
-Optional per-pool. When enabled:
-- Sell fees decay over 5 minutes
+Optional per-pool (disabled by default):
+- WAA fees decay over 5 minutes (3% → 0.5% → 0%)
+- WAA fees go to **creator** (bonus for enabling protection)
 - Prevents instant dumps after buying
-- Set `disableWaa: true` for pure permissionless
+- Enable with `disableWaa: false`
+- Authority can adjust fees/timing post-deployment via `updateWaaConfig()`
 
 ---
 
@@ -230,24 +234,66 @@ See `.env.example` for configuration.
 
 ---
 
+## Governance
+
+Protocol authority has control over mutable parameters:
+
+**Authority Management:**
+```typescript
+// Transfer authority (e.g., to multisig or DAO)
+await scale.updateAuthority(newAuthority);
+```
+
+**Protocol Fee (0-10%, default: 0%):**
+```typescript
+// Adjust global protocol fee (affects all pools retroactively)
+await scale.updateProtocolFee(50);  // 0.5%
+```
+
+**WAA Configuration:**
+```typescript
+// Adjust anti-dump protection parameters
+await scale.updateWaaConfig({
+  tier1Slots: 25,    // 10 seconds
+  tier2Slots: 150,   // 1 minute
+  tier3Slots: 750,   // 5 minutes
+  feeMaxBps: 300,    // 3%
+  feeMinBps: 50,     // 0.5%
+});
+
+// Or disable WAA entirely
+await scale.updateWaaConfig({
+  tier1Slots: 25,
+  tier2Slots: 150,
+  tier3Slots: 750,
+  feeMaxBps: 0,      // Disabled
+  feeMinBps: 0,
+});
+```
+
+**Governance Progression:**
+1. Single wallet (deploy & initial tuning)
+2. Multisig (e.g., Squads)
+3. DAO governance (full decentralization)
+
+---
+
 ## Security
 
 ✅ Checked arithmetic (no overflows)
 ✅ CEI pattern (no reentrancy)
 ✅ Oracle validation (price freshness)
 ✅ Vault verification (balance checks)
-✅ Graduation continuity (max 20% price jump)
-✅ Slippage protection
+✅ Graduation protection (max 20% price jump)
+✅ Slippage protection (user-defined)
 ✅ No pause button (fully permissionless)
-✅ Authority transferrable (upgrade to multisig/DAO)
+✅ Rugpull prevention (mint/freeze revoked)
+✅ Token-2022 blocked (no transfer hooks)
+✅ Mutable governance (upgradeable authority)
 
-**Test Coverage:** 368 tests
-**Audits:** 20 AI agent security audits (see `docs/security/`)
-
-**Governance:**
-- Protocol authority set at initialization
-- Transferrable to multisig or DAO via `updateAuthority()`
-- Authority controls: protocol fees, CRX price updates, graduation thresholds
+**Test Coverage:** 368 tests passing
+**Audits:** 20 AI agent security audits covering all attack vectors
+**Documentation:** See `docs/SECURITY.md`
 
 ---
 
