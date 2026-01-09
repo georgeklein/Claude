@@ -80,6 +80,12 @@ pub struct PoolCreated {
     /// Initial market cap in USD (6 decimals)
     pub initial_market_cap_usd: u64,
 
+    /// Metadata URI (Arweave/IPFS link for pool metadata)
+    pub metadata_uri: String,
+
+    /// Is WAA (anti-dump protection) disabled for this pool?
+    pub disable_waa: bool,
+
     /// Slot when pool was created
     pub created_at_slot: u64,
 
@@ -95,6 +101,10 @@ pub struct TradeExecuted {
     /// Base token mint (indexed for per-token queries)
     #[index]
     pub base_mint: Pubkey,
+
+    /// User who executed the trade (indexed for user activity tracking)
+    #[index]
+    pub user: Pubkey,
 
     /// Trade type: true = Buy, false = Sell
     pub is_buy: bool,

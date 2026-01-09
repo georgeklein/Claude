@@ -235,7 +235,7 @@ pub fn handle_phase_transition(
 pub fn emit_trade_event(
     pool: &Pool,
     _pool_key: Pubkey,  // Unused after optimization
-    _user: Pubkey,      // Unused after optimization
+    user: Pubkey,
     direction: TradeDirection,
     input_amount: u64,
     output_amount: u64,
@@ -248,6 +248,7 @@ pub fn emit_trade_event(
 
     emit!(TradeExecuted {
         base_mint: pool.base_mint,
+        user,
         is_buy: direction == TradeDirection::Buy,
         input_amount,
         output_amount,

@@ -297,6 +297,8 @@ pub fn handler(
         crx_price_at_creation: crx_price_usd,
         initial_price,
         initial_market_cap_usd,
+        metadata_uri: pool.metadata_uri.clone(),
+        disable_waa: pool.disable_waa,
         created_at_slot: clock.slot,
         timestamp: clock.unix_timestamp,
     });
