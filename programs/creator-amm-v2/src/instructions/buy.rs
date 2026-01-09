@@ -99,23 +99,6 @@ pub fn handler(
     // Get correct reserves based on phase (virtual or real)
     let (quote_reserve, base_reserve) = pool.get_pricing_reserves();
 
-    // Estimate output for anti-sniper check
-    let estimated_output = pool.calculate_output(
-        quote_amount,
-        quote_reserve,
-        base_reserve,
-        0, // No fee for estimate
-    )?;
-
-    // Shared anti-sniper protection check
-    trade::check_anti_sniper_protection(
-        pool,
-        config,
-        estimated_output,
-        base_reserve,
-        clock.slot,
-    )?;
-
     // CRITICAL FEE LOGIC: Take fee "off the cuff" BEFORE swap
     // This prevents liquidity degradation by not extracting fees from reserves
 

@@ -103,27 +103,6 @@ pub fn handler(
     // Get correct reserves based on phase (virtual or real)
     let (quote_reserve, base_reserve) = pool.get_pricing_reserves();
 
-    // Shared anti-sniper protection check (also applies to sells)
-    trade::check_anti_sniper_protection(
-        pool,
-        config,
-        base_amount,
-        base_reserve,
-        clock.slot,
-    )?;
-
-    // CRITICAL: Graduation cooldown check (prevents immediate sells after graduation)
-    if pool.last_graduation_slot > 0 { // Only check if pool has graduated
-        let slots_since_graduation = clock.slot
-            .checked_sub(pool.last_graduation_slot)
-            .unwrap_or(0);
-
-        require!(
-            slots_since_graduation >= GRADUATION_COOLDOWN_SLOTS,
-            ErrorCode::GraduationCooldownActive
-        );
-    }
-
     // CRITICAL FEE LOGIC: Calculate output first, then extract fee from output
     // This maintains consistency with buy.rs and prevents token mint mismatch
 
