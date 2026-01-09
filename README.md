@@ -50,7 +50,7 @@ That's it. Your token is live.
 Traditional AMMs require you to deposit both tokens. Scale calculates virtual reserves from your target market cap and current $CRX price. No capital needed.
 
 ### Automatic Graduation
-When your pool hits the threshold ($40k default), it automatically converts to a permanent x×y=k AMM. The accumulated $CRX stays locked forever—making $CRX deflationary.
+When your pool hits your chosen threshold (e.g., $40k), it automatically converts to a permanent x×y=k AMM. The accumulated $CRX stays locked forever—making $CRX deflationary.
 
 ### Built for Creator
 All volume flows through $CRX:

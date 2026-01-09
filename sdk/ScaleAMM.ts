@@ -77,12 +77,11 @@ export interface InitializeConfig {
   initialCrxPriceUsd: number;          // e.g., 2.0 for $2.00 per CRX
 
   // Optional with defaults
-  preBondingFeeBps?: number;           // Default: 300 (3%)
-  preBondingThresholdUsd?: number;     // Default: 40_000
-  postBondingFeeBps?: number;          // Default: 100 (1%)
-  graduationThresholdUsd?: number;     // Default: 85_000
-  antiSniperWindowSlots?: number;      // Default: 20
-  antiSniperMaxTradeBps?: number;      // Default: 500 (5%)
+  antiSniperWindowSlots?: number;      // Default: 20 slots (~8 seconds)
+  antiSniperMaxTradeBps?: number;      // Default: 500 (5% of supply)
+  oracleMaxAgeSeconds?: number;        // Default: 60 seconds
+  oracleMaxConfidenceBps?: number;     // Default: 100 bps (1%)
+  approvedQuoteTokens?: PublicKey[];   // Whitelisted quote tokens (SOL, USDC, etc.)
 }
 
 export interface CreatePoolParams {
@@ -205,11 +204,8 @@ export interface ConfigInfo {
   feeRecipient: PublicKey;
   crxMint: PublicKey;
   crxPriceOracle: PublicKey;
-
-  preBondingFeeBps: number;
-  preBondingThresholdUsd: number;
-  postBondingFeeBps: number;
-  graduationThresholdUsd: number;
+  crxPriceUsd: number;
+  crxPriceLastUpdated: number;
 
   antiSniperWindowSlots: number;
   antiSniperMaxTradeBps: number;
@@ -450,44 +446,34 @@ export class ScaleAMM {
   async initialize(config: InitializeConfig): Promise<string> {
     try {
       // Apply defaults
-      const preBondingFeeBps = config.preBondingFeeBps ?? 300;
-      const preBondingThresholdUsd = config.preBondingThresholdUsd ?? 40_000;
-      const postBondingFeeBps = config.postBondingFeeBps ?? 100;
-      const graduationThresholdUsd = config.graduationThresholdUsd ?? 85_000;
       const antiSniperWindowSlots = config.antiSniperWindowSlots ?? 20;
       const antiSniperMaxTradeBps = config.antiSniperMaxTradeBps ?? 500;
+      const oracleMaxAgeSeconds = config.oracleMaxAgeSeconds ?? 60;
+      const oracleMaxConfidenceBps = config.oracleMaxConfidenceBps ?? 100;
 
       // Derive config PDA
       const [configPda] = this.deriveConfigPda();
 
       // Convert USD to micro-USD (6 decimals)
       const initialCrxPriceMicro = new BN(config.initialCrxPriceUsd * 1_000_000);
-      const preBondingThresholdMicro = new BN(preBondingThresholdUsd * 1_000_000);
-      const graduationThresholdMicro = new BN(graduationThresholdUsd * 1_000_000);
 
-      // Default: no approved quote tokens (CRX-only)
-      const approvedQuoteTokens = [
-        PublicKey.default,
-        PublicKey.default,
-        PublicKey.default,
-        PublicKey.default,
-        PublicKey.default,
-      ];
+      // Setup approved quote tokens (default: empty array for CRX-only)
+      const approvedQuoteTokens = config.approvedQuoteTokens ?? [];
+      const paddedTokens = [...approvedQuoteTokens];
+      while (paddedTokens.length < 5) {
+        paddedTokens.push(PublicKey.default);
+      }
 
       // Execute initialize
       const tx = await this.program.methods
         .initialize(
-          initialCrxPriceMicro,      // NEW: First parameter
-          preBondingFeeBps,
-          preBondingThresholdMicro,
-          postBondingFeeBps,
-          graduationThresholdMicro,
+          initialCrxPriceMicro,
           new BN(antiSniperWindowSlots),
           antiSniperMaxTradeBps,
-          new BN(60), // oracle_max_age_seconds (kept for backward compat)
-          new BN(100), // oracle_max_confidence_bps (1%)
-          approvedQuoteTokens,
-          0 // approved_quote_count
+          new BN(oracleMaxAgeSeconds),
+          new BN(oracleMaxConfidenceBps),
+          paddedTokens,
+          approvedQuoteTokens.length
         )
         .accounts({
           config: configPda,
@@ -1007,11 +993,8 @@ export class ScaleAMM {
         feeRecipient: configData.feeRecipient,
         crxMint: configData.crxMint,
         crxPriceOracle: configData.crxPriceOracle,
-
-        preBondingFeeBps: configData.preBondingFeeBps,
-        preBondingThresholdUsd: configData.preBondingThresholdUsd.toNumber() / 1_000_000,
-        postBondingFeeBps: configData.postBondingFeeBps,
-        graduationThresholdUsd: configData.graduationThresholdUsd.toNumber() / 1_000_000,
+        crxPriceUsd: configData.crxPriceUsd.toNumber() / 1_000_000,
+        crxPriceLastUpdated: configData.crxPriceLastUpdated.toNumber(),
 
         antiSniperWindowSlots: configData.antiSniperWindowSlots.toNumber(),
         antiSniperMaxTradeBps: configData.antiSniperMaxTradeBps,
