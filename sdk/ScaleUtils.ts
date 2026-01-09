@@ -379,7 +379,6 @@ export const SCALE_CONSTANTS = {
   // Slippage defaults (Creator platform will enforce safer limits)
   DEFAULT_SLIPPAGE_BPS: 200, // 2% (realistic for low-liquidity pools)
 
-
   // Curve types
   CURVE_TYPES: ['ConstantProduct', 'Exponential'] as const,
 
