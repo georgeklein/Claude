@@ -116,14 +116,7 @@ pub fn update_reserves(
                     .checked_sub(output_amount)
                     .ok_or(ErrorCode::MathOverflow)?;
             } else {
-                // PRE-BONDING: Update both virtual and real reserves
-                pool.virtual_quote_reserves = pool.virtual_quote_reserves
-                    .checked_add(input_amount)
-                    .ok_or(ErrorCode::MathOverflow)?;
-                pool.virtual_base_reserves = pool.virtual_base_reserves
-                    .checked_sub(output_amount)
-                    .ok_or(ErrorCode::MathOverflow)?;
-
+                // PRE-BONDING: Update real reserves only (virtual reserves stay constant)
                 pool.real_quote_reserves = pool.real_quote_reserves
                     .checked_add(input_amount)
                     .ok_or(ErrorCode::MathOverflow)?;
@@ -143,14 +136,7 @@ pub fn update_reserves(
                     .checked_sub(output_amount)
                     .ok_or(ErrorCode::MathOverflow)?;
             } else {
-                // PRE-BONDING: Update both virtual and real reserves
-                pool.virtual_base_reserves = pool.virtual_base_reserves
-                    .checked_add(input_amount)
-                    .ok_or(ErrorCode::MathOverflow)?;
-                pool.virtual_quote_reserves = pool.virtual_quote_reserves
-                    .checked_sub(output_amount)
-                    .ok_or(ErrorCode::MathOverflow)?;
-
+                // PRE-BONDING: Update real reserves only (virtual reserves stay constant)
                 pool.real_base_reserves = pool.real_base_reserves
                     .checked_add(input_amount)
                     .ok_or(ErrorCode::MathOverflow)?;
@@ -190,6 +176,18 @@ pub fn update_statistics(
 
     // Removed: total_fees_collected (derive from events)
 
+    Ok(())
+}
+
+/// Update pool's CRX price from config
+/// Should be called during every trade to keep price current
+pub fn update_crx_price(
+    pool: &mut Pool,
+    config: &Config,
+    clock: &Clock,
+) -> Result<()> {
+    pool.last_crx_price_usd = config.crx_price_usd;
+    pool.last_price_update_slot = clock.slot;
     Ok(())
 }
 
