@@ -93,7 +93,7 @@ export interface CreatePoolParams {
   // Optional
   feeBps?: number;                     // Fee in basis points (default: 0, Creator uses 0/25/100 presets)
   curveType?: 'ConstantProduct' | 'Exponential'; // default: ConstantProduct
-  disableWaa?: boolean;                // If true, skip WAA anti-dump fees (pure permissionless, default: false)
+  disableWaa?: boolean;                // If true, skip WAA anti-dump fees (default: true - opt-in)
 }
 
 export interface BuyParams {
@@ -743,7 +743,7 @@ export class ScaleAMM {
       // Apply defaults
       const feeBps = params.feeBps ?? 0;
       const curveType = params.curveType ?? 'ConstantProduct';
-      const disableWaa = params.disableWaa ?? false;
+      const disableWaa = params.disableWaa ?? true;  // Default: WAA disabled (opt-in)
       const metadataUri = params.metadataUri ?? '';
 
       // Validate fee
