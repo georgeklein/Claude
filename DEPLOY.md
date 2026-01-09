@@ -131,6 +131,43 @@ setInterval(async () => {
 
 ---
 
+## Step 6: Update Pool Graduation Thresholds (Optional)
+
+Dynamically adjust graduation thresholds for specific pools:
+
+```typescript
+// Manual update for specific pool
+const poolAddress = new PublicKey('POOL_ADDRESS');
+await scaleAmm.updatePoolGraduation(poolAddress, 50_000); // Update to $50k
+
+// Automated daily updates based on metrics
+setInterval(async () => {
+  const pools = await scaleAmm.getAllPools();
+
+  for (const pool of pools) {
+    // Get yesterday's average price/volume
+    const metrics = await getPoolMetrics(pool.baseMint);
+    const avgVolume = metrics.volumeLast24h;
+
+    // Calculate dynamic threshold based on volume
+    // Example: Higher volume = lower threshold (faster graduation)
+    const newThreshold = calculateDynamicThreshold(avgVolume);
+
+    await scaleAmm.updatePoolGraduation(pool.address, newThreshold);
+  }
+}, 86400000); // Update daily (24 hours)
+```
+
+**Use Cases:**
+- Adjust thresholds based on market conditions
+- Lower thresholds for high-volume pools
+- Raise thresholds for low-volume pools to prevent premature graduation
+- Implement tier-based graduation (e.g., $10k → $40k → $100k)
+
+**Only authority can update graduation thresholds.**
+
+---
+
 ## Environment Variables
 
 Create `.env`:

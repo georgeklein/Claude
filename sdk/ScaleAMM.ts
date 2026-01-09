@@ -538,6 +538,53 @@ export class ScaleAMM {
     }
   }
 
+  /**
+   * Update pool graduation threshold (admin only)
+   *
+   * Allows authority to dynamically adjust graduation thresholds for specific pools.
+   * Can be automated with cron jobs to update daily based on metrics.
+   *
+   * @example
+   * ```typescript
+   * // Manual update
+   * await scale.updatePoolGraduation(poolAddress, 50_000); // Update to $50k
+   *
+   * // Automated daily updates based on metrics
+   * setInterval(async () => {
+   *   const pools = await scale.getAllPools();
+   *   for (const pool of pools) {
+   *     const avgPrice = await getYesterdayAvgPrice(pool.baseMint);
+   *     const newThreshold = calculateDynamicThreshold(avgPrice);
+   *     await scale.updatePoolGraduation(pool.address, newThreshold);
+   *   }
+   * }, 86400000); // Daily
+   * ```
+   */
+  async updatePoolGraduation(poolAddress: PublicKey, newGraduationThresholdUsd: number): Promise<string> {
+    try {
+      // Validate threshold is reasonable
+      if (newGraduationThresholdUsd < 1_000 || newGraduationThresholdUsd > 10_000_000) {
+        throw new ScaleError('INVALID_GRADUATION_THRESHOLD', 'Threshold must be between $1,000 and $10,000,000');
+      }
+
+      const [configPda] = this.deriveConfigPda();
+      const thresholdWithDecimals = new BN(newGraduationThresholdUsd * 1_000_000);
+
+      const tx = await this.program.methods
+        .updatePoolGraduation(thresholdWithDecimals)
+        .accounts({
+          config: configPda,
+          pool: poolAddress,
+          authority: this.wallet.publicKey,
+        })
+        .rpc();
+
+      return tx;
+    } catch (error) {
+      throw this.translateError(error);
+    }
+  }
+
   // ==========================================================================
   // CREATOR OPERATIONS
   // ==========================================================================
