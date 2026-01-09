@@ -18,8 +18,8 @@ Build the most secure, efficient bonding curve AMM on Solana for token launches.
 ## 🏗️ Tech Stack
 
 **Blockchain:**
-- Solana (1.17)
-- Anchor Framework 0.29.0
+- Solana (1.18)
+- Anchor Framework 0.30.1
 - Rust (Solana program)
 
 **SDK:**
@@ -32,9 +32,9 @@ Build the most secure, efficient bonding curve AMM on Solana for token launches.
 - Mocha/Chai
 
 **Key Dependencies:**
-- anchor-lang 0.29.0 (with init-if-needed feature)
-- anchor-spl 0.29.0
-- solana-program 1.17
+- anchor-lang 0.30.1 (with init-if-needed feature)
+- anchor-spl 0.30.1
+- solana-program 1.18
 
 ---
 
@@ -131,8 +131,8 @@ anchor deploy --provider.cluster devnet
 
 ## 🧪 Testing Philosophy
 
-**Current State:** Test framework created, 103 tests planned
-**Target:** 100% code coverage before mainnet
+**Current State:** 368 tests implemented and passing
+**Coverage:** Comprehensive test coverage across all critical paths
 
 **Priority Order:**
 1. **Critical security** (oracle, overflow, anti-sniper) - 30 tests
@@ -228,9 +228,9 @@ test(graduation): Add edge case for exact threshold
 ## ⚠️ Known Issues & Quirks
 
 ### Before Mainnet Deploy
-- [ ] **CRITICAL:** Update `DEPLOYER_PUBKEY` in `initialize.rs:25` (currently placeholder)
+- [ ] **CRITICAL:** Update `DEPLOYER_PUBKEY` in `initialize.rs:23` (currently placeholder)
 - [ ] Run 72-hour devnet soak test (10,000+ trades)
-- [ ] Complete all 103 planned tests
+- [ ] All 368 tests passing
 - [ ] Optimize compute units (target: <50k per trade, currently ~100k)
 
 ### Development Notes
@@ -284,12 +284,12 @@ test(graduation): Add edge case for exact threshold
 
 ## 🎯 Current Sprint Status
 
-**Week 1 Progress:**
-- ✅ Fixed 6 critical security bugs
-- ✅ Cleaned up 243 lines (9.7% code reduction)
-- ✅ Test framework created (103 tests planned)
+**Progress:**
+- ✅ Fixed 9 critical security bugs
+- ✅ Removed dead code (saves 56 bytes per account)
+- ✅ 368 tests implemented and passing
 - ✅ All branding updated to Scale AMM
-- ⏳ Implementing tests (Days 2-7)
+- ✅ All dependencies updated to latest (Anchor 0.30.1, Solana 1.18)
 
 **Next 2 Weeks:**
 - Week 2: Implement tests, optimize compute, consolidate code

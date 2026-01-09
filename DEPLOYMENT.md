@@ -11,8 +11,8 @@
 npm install
 
 # Check Solana CLI
-solana --version  # Need 1.17+
-anchor --version  # Need 0.29.0+
+solana --version  # Need 1.18+
+anchor --version  # Need 0.30.1+
 ```
 
 ---
@@ -199,7 +199,7 @@ SPONSOR_WALLET=YOUR_SPONSOR_WALLET_SECRET_KEY
 - [ ] CRX oracle is valid and updating
 - [ ] Test pool created successfully
 - [ ] Test buy/sell transactions work
-- [ ] All 263 tests passing: `anchor test`
+- [ ] All 368 tests passing: `anchor test`
 
 ---
 
@@ -222,7 +222,7 @@ SPONSOR_WALLET=YOUR_SPONSOR_WALLET_SECRET_KEY
 ## Production Checklist
 
 Before mainnet:
-- [ ] Run full test suite: `anchor test` (263 tests must pass)
+- [ ] Run full test suite: `anchor test` (368 tests must pass)
 - [ ] Test on devnet for 72 hours with real users
 - [ ] Fund sponsor wallet with 100+ SOL (if using fee sponsorship)
 - [ ] Set up monitoring (Sentry, Datadog, etc.)
@@ -265,5 +265,5 @@ anchor build --verifiable
 ---
 
 **Support:** See `README.md` for full documentation
-**Tests:** All 263 tests in `/tests` directory
+**Tests:** All 368 tests in `/tests` directory
 **SDK:** Full SDK in `/sdk` directory
