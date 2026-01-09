@@ -21,7 +21,6 @@ pub struct Config {
 
     /// Oracle settings
     pub oracle_max_age_seconds: i64,        // e.g., 60 seconds
-    pub oracle_max_confidence_bps: u64,     // e.g., 100 = 1% max deviation
 
     /// Whitelist for premium quote tokens (Tier 2 - Permissioned)
     /// Tier 1 (Permissionless): CRX pairs - always allowed for anyone
@@ -55,7 +54,6 @@ impl Config {
         8 +  // crx_price_usd
         8 +  // crx_price_last_updated
         8 +  // oracle_max_age_seconds
-        8 +  // oracle_max_confidence_bps
         160 + // approved_quote_tokens (32 * 5 = 160 bytes)
         1 +  // approved_quote_count
         2 +  // protocol_fee_bps

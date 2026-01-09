@@ -79,7 +79,6 @@ export interface InitializeConfig {
 
   // Optional with defaults
   oracleMaxAgeSeconds?: number;        // Default: 60 seconds
-  oracleMaxConfidenceBps?: number;     // Default: 100 bps (1%)
   approvedQuoteTokens?: PublicKey[];   // Whitelisted quote tokens (SOL, USDC, etc.)
 }
 
@@ -210,7 +209,6 @@ export interface ConfigInfo {
   crxPriceLastUpdated: number;
 
   oracleMaxAgeSeconds: number;
-  oracleMaxConfidenceBps: number;
 
   approvedQuoteTokens: PublicKey[];
   approvedQuoteCount: number;
@@ -435,7 +433,6 @@ export class ScaleAMM {
     try {
       // Apply defaults
       const oracleMaxAgeSeconds = config.oracleMaxAgeSeconds ?? 60;
-      const oracleMaxConfidenceBps = config.oracleMaxConfidenceBps ?? 100;
 
       // Derive config PDA
       const [configPda] = this.deriveConfigPda();
@@ -455,7 +452,6 @@ export class ScaleAMM {
         .initialize(
           initialCrxPriceMicro,
           new BN(oracleMaxAgeSeconds),
-          new BN(oracleMaxConfidenceBps),
           paddedTokens,
           approvedQuoteTokens.length
         )
@@ -1162,7 +1158,6 @@ export class ScaleAMM {
         crxPriceLastUpdated: configData.crxPriceLastUpdated.toNumber(),
 
         oracleMaxAgeSeconds: configData.oracleMaxAgeSeconds.toNumber(),
-        oracleMaxConfidenceBps: configData.oracleMaxConfidenceBps.toNumber(),
 
         approvedQuoteTokens: configData.approvedQuoteTokens,
         approvedQuoteCount: configData.approvedQuoteCount,

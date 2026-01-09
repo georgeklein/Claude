@@ -20,7 +20,6 @@ pub mod creator_amm_v2 {
         ctx: Context<Initialize>,
         initial_crx_price_usd: u64,
         oracle_max_age_seconds: i64,
-        oracle_max_confidence_bps: u64,
         approved_quote_tokens: [Pubkey; 5],
         approved_quote_count: u8,
     ) -> Result<()> {
@@ -28,7 +27,6 @@ pub mod creator_amm_v2 {
             ctx,
             initial_crx_price_usd,
             oracle_max_age_seconds,
-            oracle_max_confidence_bps,
             approved_quote_tokens,
             approved_quote_count,
         )

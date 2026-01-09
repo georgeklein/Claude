@@ -84,7 +84,6 @@ pub fn handler(
     ctx: Context<Initialize>,
     initial_crx_price_usd: u64,
     oracle_max_age_seconds: i64,
-    oracle_max_confidence_bps: u64,
     approved_quote_tokens: [Pubkey; 5],
     approved_quote_count: u8,
 ) -> Result<()> {
@@ -117,7 +116,6 @@ pub fn handler(
     config.crx_price_last_updated = clock.unix_timestamp;
 
     config.oracle_max_age_seconds = oracle_max_age_seconds;
-    config.oracle_max_confidence_bps = oracle_max_confidence_bps;
 
     config.approved_quote_tokens = approved_quote_tokens;
     config.approved_quote_count = approved_quote_count;
@@ -141,7 +139,6 @@ pub fn handler(
         crx_mint: config.crx_mint,
         crx_price_oracle: config.crx_price_oracle,
         oracle_max_age_seconds,
-        oracle_max_confidence_bps,
         slot: clock.slot,
         timestamp: clock.unix_timestamp,
     });

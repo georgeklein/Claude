@@ -55,7 +55,6 @@ interface ProtocolParams {
   antiSniperWindowSlots: anchor.BN;
   antiSniperMaxTradeBps: number;
   oracleMaxAgeSeconds: anchor.BN;
-  oracleMaxConfidenceBps: anchor.BN;
   approvedQuoteTokens: PublicKey[];
   approvedQuoteCount: number;
 }
@@ -87,7 +86,6 @@ const DEFAULT_PARAMS: ProtocolParams = {
   antiSniperWindowSlots: new anchor.BN(20),  // ~8 seconds
   antiSniperMaxTradeBps: 500,  // 5%
   oracleMaxAgeSeconds: new anchor.BN(60),  // 60 seconds
-  oracleMaxConfidenceBps: new anchor.BN(100),  // 1%
   approvedQuoteTokens: [],  // Will be filled from env
   approvedQuoteCount: 0,
 };
@@ -308,7 +306,6 @@ class DeploymentManager {
     console.log(`   - Anti-sniper window: ${this.params.antiSniperWindowSlots.toNumber()} slots`);
     console.log(`   - Anti-sniper max trade: ${this.params.antiSniperMaxTradeBps / 100}%`);
     console.log(`   - Oracle max age: ${this.params.oracleMaxAgeSeconds.toNumber()}s`);
-    console.log(`   - Oracle max confidence: ${this.params.oracleMaxConfidenceBps.toNumber() / 100}%`);
     console.log(`   - Approved quote tokens: ${this.params.approvedQuoteCount}\n`);
 
     try {
@@ -321,7 +318,6 @@ class DeploymentManager {
           this.params.antiSniperWindowSlots,
           this.params.antiSniperMaxTradeBps,
           this.params.oracleMaxAgeSeconds,
-          this.params.oracleMaxConfidenceBps,
           this.params.approvedQuoteTokens,
           this.params.approvedQuoteCount
         )
@@ -393,7 +389,6 @@ class DeploymentManager {
         antiSniperWindowSlots: this.params.antiSniperWindowSlots.toString(),
         antiSniperMaxTradeBps: this.params.antiSniperMaxTradeBps,
         oracleMaxAgeSeconds: this.params.oracleMaxAgeSeconds.toString(),
-        oracleMaxConfidenceBps: this.params.oracleMaxConfidenceBps.toString(),
         approvedQuoteTokens: this.params.approvedQuoteTokens.map((t) => t.toBase58()),
         approvedQuoteCount: this.params.approvedQuoteCount,
       },

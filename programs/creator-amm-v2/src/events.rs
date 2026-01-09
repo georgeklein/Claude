@@ -19,9 +19,6 @@ pub struct ConfigInitialized {
     /// Oracle max age in seconds
     pub oracle_max_age_seconds: i64,
 
-    /// Oracle max confidence deviation in bps
-    pub oracle_max_confidence_bps: u64,
-
     /// Slot when config was created
     pub slot: u64,
 
