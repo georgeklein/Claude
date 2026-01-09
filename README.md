@@ -6,7 +6,7 @@
 
 Fully permissionless bonding curve protocol on Solana. Launch tokens without providing liquidity—pools automatically graduate to permanent AMMs when they hit your threshold.
 
-Built for [Creator](https://www.creator.so) · Powered by $CRX
+Built for [Creator](https://www.creator.fun) · Powered by $CRX
 
 ---
 
@@ -378,7 +378,7 @@ Set `disableWaa: true` to skip.
 
 **Issues:** [GitHub](https://github.com/georgeklein/Scale-AMM/issues)
 **Discord:** [Creator Community](https://discord.gg/creator)
-**Docs:** [docs.creator.so](https://docs.creator.so)
+**Docs:** [docs.creator.fun](https://docs.creator.fun)
 
 ---
 
@@ -388,4 +388,4 @@ Apache-2.0
 
 ---
 
-**Built for [Creator](https://www.creator.so) · Powered by $CRX**
+**Built for [Creator](https://www.creator.fun) · Powered by $CRX**
