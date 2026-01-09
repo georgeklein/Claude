@@ -27,10 +27,10 @@ const scale = new ScaleAMM(connection, wallet);
 // Create pool
 const pool = await scale.createPool({
   baseMint: tokenMint,
-  supply: 1_000_000,
+  supply: 1_000_000_000,          // 1 billion tokens
   initialMarketCapUsd: 10_000,
   graduationThresholdUsd: 40_000,
-  feeBps: 100,                    // 0, 25, or 100
+  feeBps: 100,                    // Any value (basis points)
   disableWaa: false,              // Optional anti-dump protection
 });
 
@@ -51,7 +51,6 @@ No liquidity required. Virtual reserves are calculated from your target market c
 **PreBonding** (Launch → Threshold)
 - Virtual reserves price tokens
 - Real $CRX accumulates from trades
-- Anti-sniper active (first ~8 seconds)
 - Optional WAA anti-dump fees
 
 **Graduated** (After Threshold)
@@ -79,19 +78,21 @@ await scale.createPool({
   graduationThresholdUsd: number,
 
   // Optional
-  feeBps: 0 | 25 | 100,           // Default: 0 (free)
+  feeBps: number,                  // Any value in basis points (default: 0)
   curveType: 'ConstantProduct' | 'Exponential',  // Default: ConstantProduct
   disableWaa: boolean,             // Default: false (WAA enabled)
 });
 ```
 
-### Fee Tiers
+### Pool Fees
 
-- **0 bps** - Free (0%)
-- **25 bps** - Low (0.25%)
-- **100 bps** - Standard (1%)
+Creator fees can be **any value** in basis points (bps):
+- 0 bps = 0%
+- 25 bps = 0.25%
+- 100 bps = 1%
+- Custom values supported
 
-*Protocol currently enforces these tiers. Technically supports any value via code modification.*
+*Creator platform uses 0/25/100 as preset options.*
 
 ### Anti-Dump Protection (WAA)
 
@@ -159,7 +160,7 @@ try {
 }
 ```
 
-Common errors: `SLIPPAGE_EXCEEDED`, `INSUFFICIENT_BALANCE`, `ANTI_SNIPER_ACTIVE`, `POOL_NOT_FOUND`
+Common errors: `SLIPPAGE_EXCEEDED`, `INSUFFICIENT_BALANCE`, `POOL_NOT_FOUND`
 
 ---
 
@@ -271,12 +272,6 @@ output = (input × output_reserve) / (input_reserve + input)
 ```
 output = (input × output_reserve) / (input_reserve + 1.5 × input)
 ```
-
-### Anti-Sniper
-
-First ~8 seconds (20 slots):
-- Max trade size: 5% of supply
-- Prevents large instant buys
 
 ### WAA (Optional)
 
