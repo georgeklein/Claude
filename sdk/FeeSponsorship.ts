@@ -36,10 +36,10 @@ import { Wallet } from '@coral-xyz/anchor';
 // ============================================================================
 
 export interface SponsorshipConfig {
-  /** Maximum compute units for optimization (default: 200,000) */
+  /** Maximum compute units for optimization (default: 80,000 - optimized for Creator platform) */
   computeUnitLimit?: number;
 
-  /** Priority fee in micro-lamports per compute unit (default: 1) */
+  /** Priority fee in micro-lamports per compute unit (default: 0 - batch launches don't need speed) */
   priorityFeeMicroLamports?: number;
 
   /** Minimum sponsor balance threshold (default: 10 SOL) */
@@ -76,8 +76,8 @@ export class FeeSponsor {
     this.sponsorWallet = sponsorWallet;
 
     this.config = {
-      computeUnitLimit: config?.computeUnitLimit || 200_000,
-      priorityFeeMicroLamports: config?.priorityFeeMicroLamports || 1,
+      computeUnitLimit: config?.computeUnitLimit || 80_000,  // Optimized for pool creation (was 200k)
+      priorityFeeMicroLamports: config?.priorityFeeMicroLamports || 0,  // Zero priority for batch launches
       minSponsorBalance: config?.minSponsorBalance || 10_000_000_000, // 10 SOL
       lowBalanceWebhook: config?.lowBalanceWebhook || '',
     };
