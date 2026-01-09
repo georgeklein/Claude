@@ -103,17 +103,10 @@ describe("Quote Token Whitelist - Security Audit", () => {
 
     await program.methods
       .initialize(
-        new anchor.BN(2_000_000), // CRX price = $2.00
-        300, // pre_bonding_fee_bps
-        new anchor.BN(40_000_000_000), // pre_bonding_threshold_usd
-        100, // post_bonding_fee_bps
-        new anchor.BN(85_000_000_000), // graduation_threshold_usd
-        new anchor.BN(20), // anti_sniper_window_slots
-        500, // anti_sniper_max_trade_bps
-        new anchor.BN(60), // oracle_max_age_seconds
-        new anchor.BN(100), // oracle_max_confidence_bps
+        new anchor.BN(2_000_000),     // CRX price = $2.00
+        new anchor.BN(60),             // oracle_max_age_seconds
         approvedQuoteTokens,
-        3 // approved_quote_count (only first 3 slots active)
+        3                               // approved_quote_count (only first 3 slots active)
       )
       .accounts({
         config: configPda,
@@ -143,17 +136,10 @@ describe("Quote Token Whitelist - Security Audit", () => {
       try {
         await program.methods
           .initialize(
-            new anchor.BN(2_000_000),
-            300,
-            new anchor.BN(40_000_000_000),
-            100,
-            new anchor.BN(85_000_000_000),
-            new anchor.BN(20),
-            500,
-            new anchor.BN(60),
-            new anchor.BN(100),
+            new anchor.BN(2_000_000),     // initial_crx_price_usd
+            new anchor.BN(60),             // oracle_max_age_seconds
             [PublicKey.default, PublicKey.default, PublicKey.default, PublicKey.default, PublicKey.default],
-            6 // INVALID: > 5
+            6                               // INVALID: > 5
           )
           .accounts({
             config: testConfig.publicKey,
@@ -224,7 +210,8 @@ describe("Quote Token Whitelist - Security Audit", () => {
           100, // fee_bps (1%)
           { constantProduct: {} }, // curve_type
           new anchor.BN(40_000_000_000), // graduation_threshold_usd
-          false // disable_waa
+          false, // disable_waa
+          "" // metadata_uri
         )
         .accounts({
           config: configPda,
@@ -292,7 +279,8 @@ describe("Quote Token Whitelist - Security Audit", () => {
           100,
           { constantProduct: {} },
           new anchor.BN(40_000_000_000),
-          false
+          false,
+          ""
         )
         .accounts({
           config: configPda,
@@ -623,7 +611,8 @@ describe("Quote Token Whitelist - Security Audit", () => {
           100,
           { constantProduct: {} },
           new anchor.BN(40_000_000_000),
-          false
+          false,
+          ""
         )
         .accounts({
           config: configPda,

@@ -149,7 +149,7 @@ describe("CRITICAL: Complete Test Suite", () => {
     );
 
     await program.methods
-      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, disableWaa)
+      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, disableWaa, "")
       .accounts({
         config,
         pool,
@@ -370,22 +370,15 @@ describe("CRITICAL: Complete Test Suite", () => {
     await program.methods
       .initialize(
         new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
-        new anchor.BN(50), // 0.5% pre-bonding fee
-        new anchor.BN(10_000_000), // $10 threshold
-        new anchor.BN(30), // 0.3% post-bonding fee
-        new anchor.BN(40_000_000), // $40 graduation
-        new anchor.BN(20), // 20 slot anti-sniper window
-        500, // 5% max trade during anti-sniper
-        new anchor.BN(60), // 60 second oracle max age
-        new anchor.BN(100), // 1% max confidence
-        [
+        new anchor.BN(60),        // oracle_max_age_seconds
+        [                          // approved_quote_tokens [5]
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
         ],
-        0
+        0                          // approved_quote_count
       )
       .accounts({
         config,

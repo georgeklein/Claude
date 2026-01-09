@@ -125,7 +125,7 @@ describe("Scale AMM - Simulation Tests (LONG RUNNING)", () => {
     );
 
     await program.methods
-      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, false)
+      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, false, "")
       .accounts({
         config,
         pool,
@@ -302,23 +302,16 @@ describe("Scale AMM - Simulation Tests (LONG RUNNING)", () => {
     // Initialize protocol
     await program.methods
       .initialize(
-        new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
-        300,
-        new anchor.BN(40_000_000_000),
-        100,
-        new anchor.BN(85_000_000_000),
-        new anchor.BN(20),
-        500,
-        new anchor.BN(60),
-        new anchor.BN(100),
-        [
+        new anchor.BN(2_000_000),     // initial_crx_price_usd: $2.00
+        new anchor.BN(60),             // oracle_max_age_seconds
+        [                               // approved_quote_tokens [5]
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
         ],
-        0
+        0                               // approved_quote_count
       )
       .accounts({
         config,

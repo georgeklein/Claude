@@ -99,17 +99,10 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
     // Initialize config
     await program.methods
       .initialize(
-        new anchor.BN(2_000_000), // $2.00 CRX
-        new anchor.BN(300),
-        new anchor.BN(40_000_000_000),
-        new anchor.BN(100),
-        new anchor.BN(85_000_000_000),
-        new anchor.BN(20),
-        new anchor.BN(500),
-        new anchor.BN(60),
-        new anchor.BN(100),
+        new anchor.BN(2_000_000),     // $2.00 CRX
+        new anchor.BN(60),             // oracle_max_age_seconds
         [PublicKey.default, PublicKey.default, PublicKey.default, PublicKey.default, PublicKey.default],
-        0
+        0                               // approved_quote_count
       )
       .accounts({
         config,
@@ -150,7 +143,8 @@ describe("Agent 18: Vault Balance Corruption Attacks", () => {
         100, // 1% fee
         { constantProduct: {} },
         new anchor.BN(40_000_000_000), // $40k graduation
-        false
+        false,
+        ""
       )
       .accounts({
         config,

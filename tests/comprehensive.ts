@@ -131,7 +131,7 @@ describe("Scale AMM - Comprehensive Test Suite", () => {
     );
 
     await program.methods
-      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, false) // Added disable_waa param
+      .createPool(targetMarketCapUsd, tokenSupply, feeBps, curveType, graduationThresholdUsd, false, "")
       .accounts({
         config,
         pool,
@@ -255,23 +255,16 @@ describe("Scale AMM - Comprehensive Test Suite", () => {
 
     await program.methods
       .initialize(
-        new anchor.BN(2_000_000), // initial_crx_price_usd: $2.00
-        300,                      // pre_bonding_fee_bps
-        new anchor.BN(40_000_000_000), // pre_bonding_threshold_usd
-        100,                      // post_bonding_fee_bps
-        new anchor.BN(85_000_000_000), // graduation_threshold_usd
-        new anchor.BN(20),        // anti_sniper_window_slots
-        500,                      // anti_sniper_max_trade_bps
-        new anchor.BN(60),        // oracle_max_age_seconds (kept for backward compat)
-        new anchor.BN(100),       // oracle_max_confidence_bps
-        [                         // approved_quote_tokens (empty)
+        new anchor.BN(2_000_000),     // initial_crx_price_usd: $2.00
+        new anchor.BN(60),             // oracle_max_age_seconds
+        [                               // approved_quote_tokens [5]
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
         ],
-        0                         // approved_quote_count
+        0                               // approved_quote_count
       )
       .accounts({
         config,
