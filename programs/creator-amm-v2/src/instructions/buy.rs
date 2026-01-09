@@ -161,6 +161,9 @@ pub fn handler(
         fee_in_quote,
     )?;
 
+    // Update CRX price from config to keep pool state current
+    trade::update_crx_price(pool, config, &clock)?;
+
     // Update user position for WAA tracking
     let user_position = &mut ctx.accounts.user_position;
 

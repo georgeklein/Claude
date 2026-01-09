@@ -175,6 +175,9 @@ pub fn handler(
         total_fee_in_quote,  // Track total fees (base + WAA) in CRX
     )?;
 
+    // Update CRX price from config to keep pool state current
+    trade::update_crx_price(pool, config, &clock)?;
+
     // Update user position - reduce tracked amount after sell
     let user_position = &mut ctx.accounts.user_position;
     user_position.update_on_sell(base_amount)?;
