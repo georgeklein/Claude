@@ -136,6 +136,10 @@ pub struct Pool {
     /// Feature flags
     pub disable_waa: bool,                // If true, skip WAA anti-dump fees (pure permissionless)
 
+    /// Metadata URI (Arweave/IPFS link for name, description, image, socials)
+    /// Max 64 chars (e.g., "https://arweave.net/TX_ID" or "ar://TX_ID")
+    pub metadata_uri: String,
+
     pub bump: u8,
 }
 
@@ -163,8 +167,9 @@ impl Pool {
         32 + // creator
         8 +  // last_crx_price_usd
         1 +  // disable_waa
+        4 + 64 + // metadata_uri (String with max 64 chars = 4 bytes length + 64 bytes data)
         1;   // bump
-    // New size: 291 - 16 = 275 bytes
+    // New size: 275 + 68 = 343 bytes (~0.0024 SOL rent)
 
     /// Get current fee based on pool configuration
     /// Fees continue throughout the token's lifetime (PreBonding + Graduated)
@@ -583,11 +588,11 @@ impl UserPosition {
 
         // Piecewise linear decay - optimized with early returns
         if age <= WAA_TIER1_SLOTS {
-            return Ok(WAA_FEE_MAX); // 0-30s: full 10% fee
+            return Ok(WAA_FEE_MAX); // 0-10s: full 3% fee
         }
 
         if age <= WAA_TIER2_SLOTS {
-            // 30s-5m: decay from 10% → 1%
+            // 10s-1m: decay from 3% → 0.5%
             // extra = F2 + (F1 - F2) * (T2 - age) / (T2 - T1)
             let time_remaining = WAA_TIER2_SLOTS
                 .checked_sub(age)
@@ -603,7 +608,7 @@ impl UserPosition {
         }
 
         if age <= WAA_TIER3_SLOTS {
-            // 5m-30m: decay from 1% → 0%
+            // 1m-5m: decay from 0.5% → 0%
             // extra = F2 * (T3 - age) / (T3 - T2)
             let time_remaining = WAA_TIER3_SLOTS
                 .checked_sub(age)
@@ -616,7 +621,7 @@ impl UserPosition {
             return Ok(fee);
         }
 
-        Ok(0) // 30m+: no extra fee
+        Ok(0) // 5m+: no extra fee
     }
 }
 

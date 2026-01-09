@@ -102,7 +102,7 @@ await scale.createPool({
 ### Anti-Dump Protection (WAA)
 
 Optional per-pool. When enabled:
-- Sell fees decay over 30 minutes
+- Sell fees decay over 5 minutes
 - Prevents instant dumps after buying
 - Set `disableWaa: true` for pure permissionless
 
@@ -287,10 +287,10 @@ output = (input × output_reserve) / (input_reserve + 1.5 × input)
 ### WAA (Optional)
 
 Time-decaying sell fees when enabled:
-- T1 (0-30s): 10% fee
-- T2 (30s-5min): Decays to 4%
-- T3 (5min-30min): Decays to 1%
-- After 30min: 0% extra fee
+- T1 (0-10s): 3% fee
+- T2 (10s-1min): Decays from 3% → 0.5%
+- T3 (1min-5min): Decays from 0.5% → 0%
+- After 5min: 0% extra fee
 
 Set `disableWaa: true` to skip.
 

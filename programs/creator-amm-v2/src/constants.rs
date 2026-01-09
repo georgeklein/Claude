@@ -81,28 +81,28 @@ pub const MAX_GRADUATION_USD: u64 = 10_000_000_000_000;
 // WAA (Weighted Average Anti-Dump) Thresholds
 // ============================================================================
 
-/// Tier 1 threshold: 75 slots (~30 seconds at 400ms/slot)
-pub const WAA_TIER1_SLOTS: u64 = 75;
+/// Tier 1 threshold: 25 slots (~10 seconds at 400ms/slot)
+pub const WAA_TIER1_SLOTS: u64 = 25;
 
-/// Tier 2 threshold: 750 slots (~5 minutes)
-pub const WAA_TIER2_SLOTS: u64 = 750;
+/// Tier 2 threshold: 150 slots (~1 minute)
+pub const WAA_TIER2_SLOTS: u64 = 150;
 
-/// Tier 3 threshold: 4,500 slots (~30 minutes)
-pub const WAA_TIER3_SLOTS: u64 = 4_500;
+/// Tier 3 threshold: 750 slots (~5 minutes)
+pub const WAA_TIER3_SLOTS: u64 = 750;
 
-/// Maximum WAA fee: 10%
-pub const WAA_FEE_MAX: u64 = 1_000;
+/// Maximum WAA fee: 3%
+pub const WAA_FEE_MAX: u64 = 300;
 
-/// Minimum WAA fee: 1%
-pub const WAA_FEE_MIN: u64 = 100;
+/// Minimum WAA fee: 0.5%
+pub const WAA_FEE_MIN: u64 = 50;
 
 /// WAA decay range: difference between max and min fees
-pub const WAA_DECAY_RANGE: u64 = WAA_FEE_MAX - WAA_FEE_MIN; // 900 bps
+pub const WAA_DECAY_RANGE: u64 = WAA_FEE_MAX - WAA_FEE_MIN; // 250 bps
 
-/// WAA time range 1: T2 - T1 (675 slots)
+/// WAA time range 1: T2 - T1 (125 slots ~50 seconds)
 pub const WAA_TIME_RANGE_1: u64 = WAA_TIER2_SLOTS - WAA_TIER1_SLOTS;
 
-/// WAA time range 2: T3 - T2 (3,750 slots)
+/// WAA time range 2: T3 - T2 (600 slots ~4 minutes)
 pub const WAA_TIME_RANGE_2: u64 = WAA_TIER3_SLOTS - WAA_TIER2_SLOTS;
 
 // ============================================================================
