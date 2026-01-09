@@ -60,6 +60,14 @@ pub struct Buy<'info> {
     )]
     pub fee_recipient_account: Account<'info, TokenAccount>,
 
+    /// Protocol fee recipient (receives protocol fee for CRX deflation)
+    #[account(
+        mut,
+        constraint = protocol_fee_recipient.mint == pool.quote_mint @ ErrorCode::Unauthorized,
+        constraint = protocol_fee_recipient.owner == config.fee_recipient @ ErrorCode::Unauthorized,
+    )]
+    pub protocol_fee_recipient: Account<'info, TokenAccount>,
+
     /// User position for WAA tracking (init_if_needed to auto-create)
     #[account(
         init_if_needed,
@@ -108,12 +116,20 @@ pub fn handler(
     // CRITICAL FEE LOGIC: Take fee "off the cuff" BEFORE swap
     // This prevents liquidity degradation by not extracting fees from reserves
 
-    // Shared fee calculation from input amount
-    let fee_in_quote = trade::calculate_base_fee(quote_amount, current_fee_bps)?;
+    // Calculate creator fee
+    let creator_fee = trade::calculate_base_fee(quote_amount, current_fee_bps)?;
 
-    // Calculate swap amount (quote_amount minus fee)
+    // Calculate protocol fee (global, mutable by authority)
+    let protocol_fee = trade::calculate_base_fee(quote_amount, config.protocol_fee_bps)?;
+
+    // Calculate total fees
+    let total_fees = creator_fee
+        .checked_add(protocol_fee)
+        .ok_or(ErrorCode::MathOverflow)?;
+
+    // Calculate swap amount (quote_amount minus all fees)
     let swap_amount = quote_amount
-        .checked_sub(fee_in_quote)
+        .checked_sub(total_fees)
         .ok_or(ErrorCode::MathOverflow)?;
 
     // Calculate output based on SWAP AMOUNT (not full quote_amount)
@@ -150,7 +166,7 @@ pub fn handler(
         TradeDirection::Buy,
         quote_amount,  // Track full trade amount for volume
         base_output,
-        fee_in_quote,
+        total_fees,
     )?;
 
     // Update CRX price from config to keep pool state current
@@ -180,19 +196,31 @@ pub fn handler(
     // === CEI PATTERN: INTERACTIONS (TOKEN TRANSFERS) ===
     // All state updated - now safe to execute external calls
 
-    // Transfer 1: Fee goes directly to creator (if any)
-    if fee_in_quote > 0 {
+    // Transfer 1: Creator fee goes directly to creator (if any)
+    if creator_fee > 0 {
         trade::transfer_tokens(
             &ctx.accounts.token_program,
             &ctx.accounts.user_quote_account,
             &ctx.accounts.fee_recipient_account,
             ctx.accounts.user.to_account_info(),
-            fee_in_quote,
+            creator_fee,
             None,
         )?;
     }
 
-    // Transfer 2: Swap amount goes to pool vault (NOT full quote_amount)
+    // Transfer 2: Protocol fee goes to protocol (if any)
+    if protocol_fee > 0 {
+        trade::transfer_tokens(
+            &ctx.accounts.token_program,
+            &ctx.accounts.user_quote_account,
+            &ctx.accounts.protocol_fee_recipient,
+            ctx.accounts.user.to_account_info(),
+            protocol_fee,
+            None,
+        )?;
+    }
+
+    // Transfer 3: Swap amount goes to pool vault (NOT full quote_amount)
     trade::transfer_tokens(
         &ctx.accounts.token_program,
         &ctx.accounts.user_quote_account,
@@ -230,7 +258,7 @@ pub fn handler(
         TradeDirection::Buy,
         quote_amount,
         base_output,
-        fee_in_quote,
+        total_fees,
         current_fee_bps,
         config,
         &clock,

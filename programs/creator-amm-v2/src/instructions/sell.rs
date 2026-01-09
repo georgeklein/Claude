@@ -61,6 +61,14 @@ pub struct Sell<'info> {
     )]
     pub fee_recipient_account: Account<'info, TokenAccount>,
 
+    /// Protocol fee recipient (receives protocol fee for CRX deflation)
+    #[account(
+        mut,
+        constraint = protocol_fee_recipient.mint == pool.quote_mint @ ErrorCode::Unauthorized,
+        constraint = protocol_fee_recipient.owner == config.fee_recipient @ ErrorCode::Unauthorized,
+    )]
+    pub protocol_fee_recipient: Account<'info, TokenAccount>,
+
     /// User position for WAA tracking (must exist for sells)
     #[account(
         mut,
@@ -128,21 +136,30 @@ pub fn handler(
 
     let extra_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, extra_fee_bps as u16)?;
 
+    // Calculate protocol fee (global, mutable by authority)
+    let protocol_fee_in_quote = trade::calculate_base_fee(quote_output_before_fee, config.protocol_fee_bps)?;
+
     // CRITICAL FIX: Validate combined fee doesn't exceed reasonable bounds
-    // Base fee (up to 100 bps) + WAA fee (up to 1000 bps) = max 1100 bps
-    // Allow up to 1500 bps (15%) for safety margin
+    // Base fee (up to 100 bps) + WAA fee (up to 1000 bps) + Protocol fee (up to 1000 bps) = max 2100 bps
+    // Allow up to 2500 bps (25%) for safety margin
     let effective_fee_bps = (current_fee_bps as u64)
         .checked_add(extra_fee_bps)
+        .ok_or(ErrorCode::MathOverflow)?
+        .checked_add(config.protocol_fee_bps as u64)
         .ok_or(ErrorCode::MathOverflow)?;
-    const MAX_EFFECTIVE_FEE_BPS: u64 = 1500; // 15% max total fee
+    const MAX_EFFECTIVE_FEE_BPS: u64 = 2500; // 25% max total fee
     require!(
         effective_fee_bps <= MAX_EFFECTIVE_FEE_BPS,
         ErrorCode::InvalidFee
     );
 
-    // Total fee (base + extra)
-    let total_fee_in_quote = base_fee_in_quote
+    // Total fee (base + extra + protocol)
+    let creator_fees = base_fee_in_quote
         .checked_add(extra_fee_in_quote)
+        .ok_or(ErrorCode::MathOverflow)?;
+
+    let total_fee_in_quote = creator_fees
+        .checked_add(protocol_fee_in_quote)
         .ok_or(ErrorCode::MathOverflow)?;
 
     // Final output to user (after total fee)
@@ -220,14 +237,26 @@ pub fn handler(
         Some(signer),
     )?;
 
-    // Transfer 3: Total fee (base + WAA) in QUOTE tokens from pool to creator
-    if total_fee_in_quote > 0 {
+    // Transfer 3: Creator fees (base + WAA) in QUOTE tokens from pool to creator
+    if creator_fees > 0 {
         trade::transfer_tokens(
             &ctx.accounts.token_program,
             &ctx.accounts.quote_vault,
             &ctx.accounts.fee_recipient_account,
             pool.to_account_info(),
-            total_fee_in_quote,
+            creator_fees,
+            Some(signer),
+        )?;
+    }
+
+    // Transfer 4: Protocol fee in QUOTE tokens from pool to protocol
+    if protocol_fee_in_quote > 0 {
+        trade::transfer_tokens(
+            &ctx.accounts.token_program,
+            &ctx.accounts.quote_vault,
+            &ctx.accounts.protocol_fee_recipient,
+            pool.to_account_info(),
+            protocol_fee_in_quote,
             Some(signer),
         )?;
     }

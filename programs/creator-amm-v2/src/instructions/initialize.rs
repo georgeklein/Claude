@@ -102,6 +102,9 @@ pub fn handler(
     config.approved_quote_tokens = approved_quote_tokens;
     config.approved_quote_count = approved_quote_count;
 
+    // Protocol fee starts disabled (0 bps), can be enabled later via update_protocol_fee
+    config.protocol_fee_bps = 0;
+
     config.bump = ctx.bumps.config;
 
     // Emit event for indexers

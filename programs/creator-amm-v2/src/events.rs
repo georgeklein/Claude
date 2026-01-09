@@ -222,3 +222,23 @@ pub struct PoolGraduationUpdated {
     /// Timestamp when update occurred
     pub timestamp: i64,
 }
+
+/// Emitted when protocol fee is updated by authority
+#[event]
+pub struct ProtocolFeeUpdated {
+    /// Old protocol fee in basis points
+    pub old_fee_bps: u16,
+
+    /// New protocol fee in basis points
+    pub new_fee_bps: u16,
+
+    /// Authority that made the change (indexed)
+    #[index]
+    pub authority: Pubkey,
+
+    /// Slot when update occurred
+    pub slot: u64,
+
+    /// Timestamp when update occurred
+    pub timestamp: i64,
+}

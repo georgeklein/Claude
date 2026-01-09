@@ -30,6 +30,11 @@ pub struct Config {
     pub approved_quote_tokens: [Pubkey; 5], // Whitelisted quote tokens (SOL, USDC, USDT, etc.)
     pub approved_quote_count: u8,           // How many slots are actually used (0-5)
 
+    /// Protocol fee in basis points (0-1000 = 0-10%)
+    /// Applied to all pools, adjustable by authority
+    /// Fee goes to fee_recipient for CRX deflation
+    pub protocol_fee_bps: u16,              // e.g., 10 = 0.1%, 0 = disabled
+
     pub bump: u8,
 }
 
@@ -45,6 +50,7 @@ impl Config {
         8 +  // oracle_max_confidence_bps
         160 + // approved_quote_tokens (32 * 5 = 160 bytes)
         1 +  // approved_quote_count
+        2 +  // protocol_fee_bps
         1;   // bump
 
     /// CRITICAL FIX: Validate CRX price freshness to prevent stale price exploitation

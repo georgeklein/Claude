@@ -97,4 +97,12 @@ pub mod creator_amm_v2 {
     ) -> Result<()> {
         instructions::update_pool_graduation::handler(ctx, new_graduation_threshold_usd)
     }
+
+    /// Update protocol fee (Authority only)
+    pub fn update_protocol_fee(
+        ctx: Context<UpdateProtocolFee>,
+        new_protocol_fee_bps: u16,
+    ) -> Result<()> {
+        instructions::update_protocol_fee::handler(ctx, new_protocol_fee_bps)
+    }
 }
