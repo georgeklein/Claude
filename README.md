@@ -27,12 +27,9 @@ const scale = new ScaleAMM(connection, wallet);
 // Create pool
 const pool = await scale.createPool({
   baseMint: tokenMint,
-  supply: 1_000_000_000,          // 1 billion tokens
+  supply: 1_000_000_000,
   initialMarketCapUsd: 10_000,
   graduationThresholdUsd: 40_000,
-  metadataUri: 'ar://TX_ID',      // Arweave/IPFS metadata URI (optional)
-  feeBps: 100,                    // Any value (basis points, default: 0)
-  disableWaa: true,               // Disable anti-dump protection (default: true)
 });
 
 // Trade
