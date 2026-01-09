@@ -70,7 +70,7 @@ solana program show <PROGRAM_ID> --url mainnet
 
 ```typescript
 import { ScaleAMM } from './sdk/ScaleAMM';
-import { Connection, Keypair } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 
 const connection = new Connection('https://api.devnet.solana.com');
 const deployerWallet = Keypair.fromSecretKey(/* your key */);
@@ -79,17 +79,20 @@ const scaleAmm = new ScaleAMM(connection, deployerWallet);
 
 await scaleAmm.initialize({
   crxMint: new PublicKey('YOUR_CRX_MINT'),
-  crxPriceOracle: new PublicKey('YOUR_PYTH_ORACLE'),
+  crxPriceOracle: PublicKey.default,  // Not used, just placeholder
   feeRecipient: deployerWallet.publicKey,
+  initialCrxPriceUsd: 2.0,  // e.g., $2.00 per CRX
 });
 
 console.log('✅ Protocol initialized!');
 ```
 
-**Required accounts:**
+**Required:**
 - CRX token mint (must exist)
-- Pyth oracle account for CRX price
+- Initial CRX price in USD (e.g., 2.0 for $2.00)
 - Fee recipient wallet
+
+**Note:** Oracle is no longer required! Pools use the CRX price set in config.
 
 ---
 
@@ -106,6 +109,25 @@ const pool = await scaleAmm.createPool({
 console.log('Pool address:', pool.address);
 console.log('Trade URL:', pool.url);
 ```
+
+---
+
+## Step 5: Update CRX Price (Optional)
+
+Update CRX price anytime to keep pools accurate:
+
+```typescript
+// Update to $2.15
+await scaleAmm.updateCrxPrice(2.15);
+
+// Can automate with cron job
+setInterval(async () => {
+  const price = await fetchCrxPriceFromAPI();
+  await scaleAmm.updateCrxPrice(price);
+}, 3600000); // Update hourly
+```
+
+**Only authority can update price.**
 
 ---
 
