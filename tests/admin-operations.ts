@@ -61,26 +61,19 @@ describe("Admin Operations", () => {
       program.programId
     );
 
-    // Initialize protocol
+    // Initialize protocol (current signature: 4 parameters)
     await program.methods
       .initialize(
-        INITIAL_CRX_PRICE,
-        300, // pre_bonding_fee_bps
-        new anchor.BN(40_000_000_000), // pre_bonding_threshold_usd
-        100, // post_bonding_fee_bps
-        new anchor.BN(85_000_000_000), // graduation_threshold_usd
-        new anchor.BN(20), // anti_sniper_window_slots
-        500, // anti_sniper_max_trade_bps
-        new anchor.BN(60), // oracle_max_age_seconds
-        new anchor.BN(100), // oracle_max_confidence_bps
+        INITIAL_CRX_PRICE,          // initial_crx_price_usd
+        new anchor.BN(60),          // oracle_max_age_seconds
         [
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
           SystemProgram.programId,
-        ],
-        0
+        ],                          // approved_quote_tokens [5]
+        0                           // approved_quote_count
       )
       .accounts({
         config,
@@ -265,12 +258,12 @@ describe("Admin Operations", () => {
       );
 
       [quoteVault] = PublicKey.findProgramAddressSync(
-        [Buffer.from("quote_vault"), baseMint.toBuffer()],
+        [Buffer.from("quote_vault"), pool.toBuffer()],
         program.programId
       );
 
       [baseVault] = PublicKey.findProgramAddressSync(
-        [Buffer.from("base_vault"), baseMint.toBuffer()],
+        [Buffer.from("base_vault"), pool.toBuffer()],
         program.programId
       );
 
@@ -292,7 +285,7 @@ describe("Admin Operations", () => {
         1_000_000_000_000_000 // 1 billion tokens (9 decimals)
       );
 
-      // Create pool
+      // Create pool (current signature: 7 parameters)
       const targetMarketCapUsd = new anchor.BN(10_000_000_000); // $10k
       const tokenSupply = new anchor.BN(1_000_000_000_000_000);
       const feeBps = 0;
@@ -306,7 +299,8 @@ describe("Admin Operations", () => {
           feeBps,
           curveType,
           graduationThresholdUsd,
-          false // disable_waa
+          true,    // disable_waa (default: true)
+          ""       // metadata_uri
         )
         .accounts({
           config,
@@ -512,12 +506,12 @@ describe("Admin Operations", () => {
       );
 
       const [quoteVault] = PublicKey.findProgramAddressSync(
-        [Buffer.from("quote_vault"), baseMint.toBuffer()],
+        [Buffer.from("quote_vault"), pool.toBuffer()],
         program.programId
       );
 
       const [baseVault] = PublicKey.findProgramAddressSync(
-        [Buffer.from("base_vault"), baseMint.toBuffer()],
+        [Buffer.from("base_vault"), pool.toBuffer()],
         program.programId
       );
 
@@ -544,7 +538,8 @@ describe("Admin Operations", () => {
           0,
           { constantProduct: {} },
           new anchor.BN(40_000_000_000),
-          false
+          true,     // disable_waa
+          ""        // metadata_uri
         )
         .accounts({
           config,
