@@ -210,13 +210,13 @@ await scale.updateWaaConfig({
   feeMinBps: 0,
 });
 
-// Enable aggressive anti-sniper (10% max fee)
+// Adjust WAA configuration (default values shown)
 await scale.updateWaaConfig({
-  tier1Slots: 75,      // 30 seconds
-  tier2Slots: 750,     // 5 minutes
-  tier3Slots: 4500,    // 30 minutes
-  feeMaxBps: 1000,     // 10%
-  feeMinBps: 100,      // 1%
+  tier1Slots: 25,      // 10 seconds
+  tier2Slots: 150,     // 1 minute
+  tier3Slots: 750,     // 5 minutes
+  feeMaxBps: 300,      // 3%
+  feeMinBps: 50,       // 0.5%
 });
 ```
 

@@ -2,21 +2,21 @@
  * COMPREHENSIVE WAA (Weighted Average Anti-Dump) TEST SUITE
  *
  * Tests all aspects of the WAA system:
- * 1. Fee decay at exact boundaries (T1=75, T2=750, T3=4500 slots)
+ * 1. Fee decay at exact boundaries (T1=25, T2=150, T3=750 slots)
  * 2. Fee decay between boundaries (linear interpolation)
  * 3. Weighted average calculation across multiple buys
  * 4. Position tracking on buy and sell
  * 5. disable_waa flag behavior
  *
  * Constants from constants.rs:
- * - WAA_TIER1_SLOTS: 75 (~30 seconds)
- * - WAA_TIER2_SLOTS: 750 (~5 minutes)
- * - WAA_TIER3_SLOTS: 4500 (~30 minutes)
- * - WAA_FEE_MAX: 1000 bps (10%)
- * - WAA_FEE_MIN: 100 bps (1%)
- * - WAA_DECAY_RANGE: 900 bps
- * - WAA_TIME_RANGE_1: 675 slots (T2 - T1)
- * - WAA_TIME_RANGE_2: 3750 slots (T3 - T2)
+ * - WAA_TIER1_SLOTS: 25 (~10 seconds)
+ * - WAA_TIER2_SLOTS: 150 (~1 minute)
+ * - WAA_TIER3_SLOTS: 750 (~5 minutes)
+ * - WAA_FEE_MAX: 300 bps (3%)
+ * - WAA_FEE_MIN: 50 bps (0.5%)
+ * - WAA_DECAY_RANGE: 250 bps
+ * - WAA_TIME_RANGE_1: 125 slots (T2 - T1)
+ * - WAA_TIME_RANGE_2: 600 slots (T3 - T2)
  */
 
 import * as anchor from "@coral-xyz/anchor";
@@ -40,14 +40,14 @@ describe("WAA Comprehensive Test Suite", () => {
   const program = anchor.workspace.CreatorAmmV2 as Program<CreatorAmmV2>;
 
   // WAA Constants (matching constants.rs)
-  const WAA_TIER1_SLOTS = 75;
-  const WAA_TIER2_SLOTS = 750;
-  const WAA_TIER3_SLOTS = 4500;
-  const WAA_FEE_MAX = 1000; // 10% in bps
-  const WAA_FEE_MIN = 100;  // 1% in bps
-  const WAA_DECAY_RANGE = 900; // 9% range
-  const WAA_TIME_RANGE_1 = 675; // T2 - T1
-  const WAA_TIME_RANGE_2 = 3750; // T3 - T2
+  const WAA_TIER1_SLOTS = 25;
+  const WAA_TIER2_SLOTS = 150;
+  const WAA_TIER3_SLOTS = 750;
+  const WAA_FEE_MAX = 300; // 3% in bps
+  const WAA_FEE_MIN = 50;  // 0.5% in bps
+  const WAA_DECAY_RANGE = 250; // 2.5% range
+  const WAA_TIME_RANGE_1 = 125; // T2 - T1
+  const WAA_TIME_RANGE_2 = 600; // T3 - T2
 
   // Global accounts
   let config: PublicKey;
@@ -186,7 +186,7 @@ describe("WAA Comprehensive Test Suite", () => {
     }
 
     if (ageSlots <= WAA_TIER3_SLOTS) {
-      // Decay from 1% to 0%: 100 * (4500 - age) / 3750
+      // Decay from 0.5% to 0%: 50 * (750 - age) / 600
       const timeRemaining = WAA_TIER3_SLOTS - ageSlots;
       const fee = Math.floor((WAA_FEE_MIN * timeRemaining) / WAA_TIME_RANGE_2);
       return fee;
@@ -252,28 +252,28 @@ describe("WAA Comprehensive Test Suite", () => {
   });
 
   describe("1. WAA Fee Decay - Exact Boundaries", () => {
-    it("Should apply 10% fee at T1 boundary (75 slots)", async () => {
-      const expectedFee = calculateExpectedWaaFee(75);
-      expect(expectedFee).to.equal(1000); // 10%
-      console.log(`  ✅ T1 boundary (75 slots): ${expectedFee} bps = 10%`);
+    it("Should apply 3% fee at T1 boundary (25 slots)", async () => {
+      const expectedFee = calculateExpectedWaaFee(25);
+      expect(expectedFee).to.equal(300); // 3%
+      console.log(`  ✅ T1 boundary (25 slots): ${expectedFee} bps = 3%`);
     });
 
-    it("Should apply 1% fee at T2 boundary (750 slots)", async () => {
+    it("Should apply 0.5% fee at T2 boundary (150 slots)", async () => {
+      const expectedFee = calculateExpectedWaaFee(150);
+      expect(expectedFee).to.equal(50); // 0.5%
+      console.log(`  ✅ T2 boundary (150 slots): ${expectedFee} bps = 0.5%`);
+    });
+
+    it("Should apply 0% fee at T3 boundary (750 slots)", async () => {
       const expectedFee = calculateExpectedWaaFee(750);
-      expect(expectedFee).to.equal(100); // 1%
-      console.log(`  ✅ T2 boundary (750 slots): ${expectedFee} bps = 1%`);
-    });
-
-    it("Should apply 0% fee at T3 boundary (4500 slots)", async () => {
-      const expectedFee = calculateExpectedWaaFee(4500);
       expect(expectedFee).to.equal(0); // 0%
-      console.log(`  ✅ T3 boundary (4500 slots): ${expectedFee} bps = 0%`);
+      console.log(`  ✅ T3 boundary (750 slots): ${expectedFee} bps = 0%`);
     });
 
-    it("Should apply 10% fee below T1 (age = 0)", async () => {
+    it("Should apply 3% fee below T1 (age = 0)", async () => {
       const expectedFee = calculateExpectedWaaFee(0);
-      expect(expectedFee).to.equal(1000);
-      console.log(`  ✅ Age 0 slots: ${expectedFee} bps = 10%`);
+      expect(expectedFee).to.equal(300);
+      console.log(`  ✅ Age 0 slots: ${expectedFee} bps = 3%`);
     });
 
     it("Should apply 0% fee above T3 (age = 5000)", async () => {
@@ -296,7 +296,7 @@ describe("WAA Comprehensive Test Suite", () => {
     });
 
     it("Should decay linearly between T2 and T3", async () => {
-      // Test midpoint: (750 + 4500) / 2 = 2625 slots
+      // Test midpoint: (150 + 750) / 2 = 450 slots
       const midpoint = Math.floor((WAA_TIER2_SLOTS + WAA_TIER3_SLOTS) / 2);
       const expectedFee = calculateExpectedWaaFee(midpoint);
 
@@ -306,33 +306,33 @@ describe("WAA Comprehensive Test Suite", () => {
       console.log(`  ✅ Midpoint T2-T3 (${midpoint} slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
     });
 
-    it("Should calculate fee at T1 + 1 slot (76 slots)", async () => {
-      const expectedFee = calculateExpectedWaaFee(76);
-      // Should be slightly less than 10%
-      // Formula: 100 + 900 * (750 - 76) / 675 = 100 + 900 * 674 / 675 = 100 + 898 = 998 bps
-      expect(expectedFee).to.equal(998);
-      console.log(`  ✅ T1+1 (76 slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
+    it("Should calculate fee at T1 + 1 slot (26 slots)", async () => {
+      const expectedFee = calculateExpectedWaaFee(26);
+      // Should be slightly less than 3%
+      // Formula: 50 + 250 * (150 - 26) / 125 = 50 + 250 * 124 / 125 = 50 + 248 = 298 bps
+      expect(expectedFee).to.equal(298);
+      console.log(`  ✅ T1+1 (26 slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
     });
 
-    it("Should calculate fee at T2 - 1 slot (749 slots)", async () => {
+    it("Should calculate fee at T2 - 1 slot (149 slots)", async () => {
+      const expectedFee = calculateExpectedWaaFee(149);
+      // Formula: 50 + 250 * (150 - 149) / 125 = 50 + 250 * 1 / 125 = 50 + 2 = 52 bps
+      expect(expectedFee).to.equal(52);
+      console.log(`  ✅ T2-1 (149 slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
+    });
+
+    it("Should calculate fee at T2 + 1 slot (151 slots)", async () => {
+      const expectedFee = calculateExpectedWaaFee(151);
+      // Formula: 50 * (750 - 151) / 600 = 50 * 599 / 600 = 49 bps
+      expect(expectedFee).to.equal(49);
+      console.log(`  ✅ T2+1 (151 slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
+    });
+
+    it("Should calculate fee at T3 - 1 slot (749 slots)", async () => {
       const expectedFee = calculateExpectedWaaFee(749);
-      // Formula: 100 + 900 * (750 - 749) / 675 = 100 + 900 * 1 / 675 = 100 + 1 = 101 bps
-      expect(expectedFee).to.equal(101);
-      console.log(`  ✅ T2-1 (749 slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
-    });
-
-    it("Should calculate fee at T2 + 1 slot (751 slots)", async () => {
-      const expectedFee = calculateExpectedWaaFee(751);
-      // Formula: 100 * (4500 - 751) / 3750 = 100 * 3749 / 3750 = 99 bps
-      expect(expectedFee).to.equal(99);
-      console.log(`  ✅ T2+1 (751 slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
-    });
-
-    it("Should calculate fee at T3 - 1 slot (4499 slots)", async () => {
-      const expectedFee = calculateExpectedWaaFee(4499);
-      // Formula: 100 * (4500 - 4499) / 3750 = 100 * 1 / 3750 = 0 bps (floor division)
+      // Formula: 50 * (750 - 749) / 600 = 50 * 1 / 600 = 0 bps (floor division)
       expect(expectedFee).to.equal(0);
-      console.log(`  ✅ T3-1 (4499 slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
+      console.log(`  ✅ T3-1 (749 slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
     });
   });
 
@@ -622,7 +622,7 @@ describe("WAA Comprehensive Test Suite", () => {
       // If it didn't, large values would overflow
 
       // The implementation uses checked_mul and checked_div, so this should not panic
-      const maxAge = 4500;
+      const maxAge = 750;
       const fee = calculateExpectedWaaFee(maxAge);
       expect(fee).to.equal(0);
 
@@ -663,10 +663,10 @@ describe("WAA Comprehensive Test Suite", () => {
       console.log("  ──────┼──────────┼───────────┼─────────┼───────────");
 
       const testPoints = [
-        0, 1, 10, 50, 75, // T1 boundary
-        76, 100, 200, 400, 749, 750, // T1-T2 decay
-        751, 1000, 2000, 3000, 4499, 4500, // T2-T3 decay
-        4501, 5000, 10000 // After T3
+        0, 1, 10, 20, 25, // T1 boundary
+        26, 50, 100, 149, 150, // T1-T2 decay
+        151, 300, 500, 749, 750, // T2-T3 decay
+        751, 1000, 5000 // After T3
       ];
 
       for (const slots of testPoints) {
