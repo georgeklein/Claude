@@ -1079,7 +1079,7 @@ export class ScaleAMM {
       // Derive UserPosition PDA
       const [positionPda] = PublicKey.findProgramAddressSync(
         [
-          Buffer.from('user_position'),
+          Buffer.from('pos'),
           pool.toBuffer(),
           user.toBuffer(),
         ],
