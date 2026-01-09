@@ -44,6 +44,12 @@ pub fn handler(
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
 
+    // Cannot update graduated pools
+    require!(
+        pool.current_phase == crate::state::CurvePhase::PreBonding,
+        ErrorCode::InvalidMarketCap
+    );
+
     // Validate new threshold is reasonable
     require!(
         new_graduation_threshold_usd >= MIN_GRADUATION_USD,
@@ -54,7 +60,16 @@ pub fn handler(
         ErrorCode::InvalidMarketCap
     );
 
-    // Validate new threshold is higher than current market cap
+    // CRITICAL: Validate new threshold is higher than CURRENT market cap (not just initial target)
+    // This prevents authority from indefinitely delaying graduation by raising threshold
+    // as the pool grows closer to graduation
+    let current_market_cap_usd = pool.get_market_cap_usd()?;
+    require!(
+        new_graduation_threshold_usd > current_market_cap_usd,
+        ErrorCode::InvalidMarketCap
+    );
+
+    // Also validate it's higher than initial target (backwards compatibility check)
     require!(
         new_graduation_threshold_usd > pool.target_market_cap_usd,
         ErrorCode::InvalidMarketCap

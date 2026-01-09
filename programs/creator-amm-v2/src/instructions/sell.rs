@@ -245,9 +245,9 @@ pub fn handler(
         &clock,
     )?;
 
-    // Validate vault balances match reserves (debug mode only, saves ~6k CU in production)
-    // Mathematical invariants + Solana runtime guarantees provide sufficient security
-    #[cfg(debug_assertions)]
+    // CRITICAL: Always validate vault balances match reserves in production
+    // This catches any token transfer failures or accounting mismatches
+    // Cost: ~6k CU, but essential for security (defense in depth)
     trade::validate_vault_balances(
         pool,
         &ctx.accounts.quote_vault,

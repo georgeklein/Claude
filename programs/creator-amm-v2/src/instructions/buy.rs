@@ -169,6 +169,14 @@ pub fn handler(
         user_position.pool = pool.key();
         user_position.user = ctx.accounts.user.key();
         user_position.bump = ctx.bumps.user_position;
+    } else {
+        // CRITICAL: Validate position belongs to this user and pool
+        // While Anchor's PDA seeds validation protects against this, explicit validation
+        // provides defense in depth and clearer error messages
+        require!(
+            user_position.pool == pool.key() && user_position.user == ctx.accounts.user.key(),
+            ErrorCode::Unauthorized
+        );
     }
 
     // Update weighted average entry slot
@@ -236,9 +244,9 @@ pub fn handler(
     // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
     // Trade execution confirmed via TradeExecuted event
 
-    // Validate vault balances match reserves (debug mode only, saves ~6k CU in production)
-    // Mathematical invariants + Solana runtime guarantees provide sufficient security
-    #[cfg(debug_assertions)]
+    // CRITICAL: Always validate vault balances match reserves in production
+    // This catches any token transfer failures or accounting mismatches
+    // Cost: ~6k CU, but essential for security (defense in depth)
     trade::validate_vault_balances(
         pool,
         &ctx.accounts.quote_vault,
