@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use crate::state::Config;
 use crate::errors::ErrorCode;
 use crate::constants::*;
+use crate::events::CrxPriceUpdated;
 
 #[derive(Accounts)]
 pub struct UpdateCrxPrice<'info> {
@@ -45,8 +46,17 @@ pub fn handler(ctx: Context<UpdateCrxPrice>, new_price_usd: u64) -> Result<()> {
         );
     }
 
+    let old_price_usd = config.crx_price_usd;
     config.crx_price_usd = new_price_usd;
     config.crx_price_last_updated = clock.unix_timestamp;
+
+    emit!(CrxPriceUpdated {
+        old_price_usd,
+        new_price_usd,
+        authority: ctx.accounts.authority.key(),
+        slot: clock.slot,
+        timestamp: clock.unix_timestamp,
+    });
 
     msg!("CRX price updated to: {} (${:.2})",
         new_price_usd,

@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use crate::state::Config;
 use crate::errors::ErrorCode;
+use crate::events::ApprovedQuotesUpdated;
 
 /// Update the approved quote token whitelist (Tier 2 - Permissioned)
 ///
@@ -36,8 +37,18 @@ pub fn handler(
     );
 
     let config = &mut ctx.accounts.config;
+    let old_quote_count = config.approved_quote_count;
     config.approved_quote_tokens = approved_quote_tokens;
     config.approved_quote_count = approved_quote_count;
+
+    emit!(ApprovedQuotesUpdated {
+        old_quote_count,
+        new_quote_count: approved_quote_count,
+        new_approved_quotes: approved_quote_tokens,
+        authority: ctx.accounts.authority.key(),
+        slot: Clock::get()?.slot,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
 
     msg!("Approved quote tokens updated by authority");
     msg!("   Active slots: {}/5", approved_quote_count);

@@ -288,3 +288,46 @@ pub struct WaaConfigUpdated {
     /// Timestamp when update occurred
     pub timestamp: i64,
 }
+
+/// Emitted when CRX price oracle value is updated
+#[event]
+pub struct CrxPriceUpdated {
+    /// Old CRX price in USD (6 decimals)
+    pub old_price_usd: u64,
+
+    /// New CRX price in USD (6 decimals)
+    pub new_price_usd: u64,
+
+    /// Authority that made the change (indexed)
+    #[index]
+    pub authority: Pubkey,
+
+    /// Slot when update occurred
+    pub slot: u64,
+
+    /// Timestamp when update occurred
+    pub timestamp: i64,
+}
+
+/// Emitted when approved quote token whitelist is updated
+#[event]
+pub struct ApprovedQuotesUpdated {
+    /// Old quote token count
+    pub old_quote_count: u8,
+
+    /// New quote token count
+    pub new_quote_count: u8,
+
+    /// New approved quote tokens (up to 5)
+    pub new_approved_quotes: [Pubkey; 5],
+
+    /// Authority that made the change (indexed)
+    #[index]
+    pub authority: Pubkey,
+
+    /// Slot when update occurred
+    pub slot: u64,
+
+    /// Timestamp when update occurred
+    pub timestamp: i64,
+}
