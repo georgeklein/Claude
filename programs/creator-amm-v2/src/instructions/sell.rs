@@ -85,10 +85,22 @@ pub fn handler(
     let pool_key = ctx.accounts.pool.key();
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
+
+    // CRITICAL FIX: Validate CRX price freshness before trading
+    config.validate_price_freshness(&clock)?;
+
+    // CRITICAL FIX: Validate protocol is not paused (emergency kill switch)
+    config.validate_not_paused()?;
+
+    // CRITICAL FIX: Prevent sells during graduation cooldown (flash loan protection)
+    require!(
+        !pool.is_in_graduation_cooldown(clock.slot),
+        ErrorCode::GraduationCooldownActive
+    );
+
     // NOTE: msg!() calls removed for CU optimization (saves ~1-2k CU)
     // Trade execution confirmed via TradeExecuted event
     // Phase transitions confirmed via PhaseTransition event
-
 
     // Shared validation: amount check
     trade::validate_trade_preconditions(base_amount)?;
@@ -247,6 +259,12 @@ pub fn handler(
         config,
         &clock,
     )?;
+
+    // CRITICAL FIX: Reload accounts after CPI to detect any state tampering
+    // Defense in depth against re-entrancy attacks
+    pool.reload()?;
+    ctx.accounts.quote_vault.reload()?;
+    ctx.accounts.base_vault.reload()?;
 
     // CRITICAL: Always validate vault balances match reserves in production
     // This catches any token transfer failures or accounting mismatches

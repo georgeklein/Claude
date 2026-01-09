@@ -120,6 +120,8 @@ pub fn handler(
     config.approved_quote_tokens = approved_quote_tokens;
     config.approved_quote_count = approved_quote_count;
 
+    config.paused = false; // Start with trading enabled
+
     config.bump = ctx.bumps.config;
 
     // Emit event for indexers

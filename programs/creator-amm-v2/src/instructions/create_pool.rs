@@ -155,10 +155,20 @@ pub fn handler(
         ErrorCode::FreezeAuthorityNotRevoked
     );
 
+    // CRITICAL FIX: Block Token-2022 to prevent transfer hook re-entrancy attacks
+    use anchor_spl::token::spl_token;
+    require!(
+        ctx.accounts.base_mint.to_account_info().owner == &spl_token::ID,
+        ErrorCode::Token2022NotSupported
+    );
+
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
 
-    // Step 1: Get CRX price from config
+    // Step 1: CRITICAL FIX - Validate CRX price freshness before using it
+    config.validate_price_freshness(&clock)?;
+
+    // Get CRX price from config
     let crx_price_usd = config.crx_price_usd;
 
     // Validate CRX price is reasonable ($0.01 to $1000)
@@ -176,11 +186,18 @@ pub fn handler(
         )?;
 
     // Step 3: Calculate dynamic graduation threshold in CRX
-    let graduation_threshold_crx = (graduation_threshold_usd as u128)
+    let graduation_threshold_crx_u128 = (graduation_threshold_usd as u128)
         .checked_mul(CRX_DECIMALS as u128)
         .ok_or(ErrorCode::MathOverflow)?
         .checked_div(crx_price_usd as u128)
-        .ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
+        .ok_or(ErrorCode::ThresholdCalculationFailed)?;
+
+    // CRITICAL FIX: Validate result fits in u64 before cast
+    require!(
+        graduation_threshold_crx_u128 <= u64::MAX as u128,
+        ErrorCode::MathOverflow
+    );
+    let graduation_threshold_crx = graduation_threshold_crx_u128 as u64;
 
     // Initialize pool state
     pool.authority = pool.key();
@@ -211,6 +228,8 @@ pub fn handler(
 
     pool.last_crx_price_usd = crx_price_usd;
     pool.last_price_update_slot = clock.slot;
+
+    pool.graduated_at_slot = 0; // Not graduated yet
 
     pool.disable_waa = disable_waa;
 

@@ -44,6 +44,9 @@ pub fn handler(
     let pool = &mut ctx.accounts.pool;
     let clock = Clock::get()?;
 
+    // CRITICAL FIX: Validate CRX price freshness before using it
+    config.validate_price_freshness(&clock)?;
+
     // Cannot update graduated pools
     require!(
         pool.current_phase == crate::state::CurvePhase::PreBonding,
@@ -79,11 +82,18 @@ pub fn handler(
     let crx_price_usd = config.crx_price_usd;
 
     // Calculate new graduation threshold in CRX
-    let new_graduation_threshold_crx = (new_graduation_threshold_usd as u128)
+    let new_graduation_threshold_crx_u128 = (new_graduation_threshold_usd as u128)
         .checked_mul(CRX_DECIMALS as u128)
         .ok_or(ErrorCode::MathOverflow)?
         .checked_div(crx_price_usd as u128)
-        .ok_or(ErrorCode::ThresholdCalculationFailed)? as u64;
+        .ok_or(ErrorCode::ThresholdCalculationFailed)?;
+
+    // CRITICAL FIX: Validate result fits in u64 before cast
+    require!(
+        new_graduation_threshold_crx_u128 <= u64::MAX as u128,
+        ErrorCode::MathOverflow
+    );
+    let new_graduation_threshold_crx = new_graduation_threshold_crx_u128 as u64;
 
     // Store old values for event
     let old_graduation_threshold_usd = pool.graduation_threshold_crx

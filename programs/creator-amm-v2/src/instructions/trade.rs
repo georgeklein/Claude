@@ -32,11 +32,18 @@ pub fn check_anti_sniper_protection(
     clock_slot: u64,
 ) -> Result<()> {
     if pool.is_anti_sniper_active(clock_slot, config.anti_sniper_window_slots) {
-        let max_trade_amount = (base_reserve as u128)
+        let max_trade_amount_u128 = (base_reserve as u128)
             .checked_mul(config.anti_sniper_max_trade_bps as u128)
             .ok_or(ErrorCode::MathOverflow)?
             .checked_div(BPS_DENOMINATOR as u128)
-            .ok_or(ErrorCode::MathOverflow)? as u64;
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        // CRITICAL FIX: Validate result fits in u64 before cast
+        require!(
+            max_trade_amount_u128 <= u64::MAX as u128,
+            ErrorCode::MathOverflow
+        );
+        let max_trade_amount = max_trade_amount_u128 as u64;
 
         require!(
             trade_amount <= max_trade_amount,
@@ -60,11 +67,15 @@ pub fn calculate_base_fee(
     }
 
     // Optimized: Use u128 for safety, but minimize operations
-    let fee = (amount as u128)
+    let fee_u128 = (amount as u128)
         .checked_mul(fee_bps as u128)
         .ok_or(ErrorCode::MathOverflow)?
         .checked_div(BPS_DENOMINATOR as u128)
-        .ok_or(ErrorCode::MathOverflow)? as u64;
+        .ok_or(ErrorCode::MathOverflow)?;
+
+    // CRITICAL FIX: Validate result fits in u64 before cast
+    require!(fee_u128 <= u64::MAX as u128, ErrorCode::MathOverflow);
+    let fee = fee_u128 as u64;
 
     // Return calculated fee (may be 0 for small amounts)
     // Respects mathematical precision - no forced minimums
@@ -209,6 +220,11 @@ pub fn handle_phase_transition(
 
     // Check for phase transition
     let transitioned = pool.check_phase_transition()?;
+
+    // CRITICAL FIX: Record graduation slot for cooldown enforcement
+    if transitioned {
+        pool.graduated_at_slot = clock.slot;
+    }
 
     // Emit events if transition occurred
     if transitioned {

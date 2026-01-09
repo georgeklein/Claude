@@ -109,4 +109,12 @@ pub mod creator_amm_v2 {
     ) -> Result<()> {
         instructions::update_pool_graduation::handler(ctx, new_graduation_threshold_usd)
     }
+
+    /// Toggle protocol pause state (Authority only)
+    pub fn update_pause(
+        ctx: Context<UpdatePause>,
+        paused: bool,
+    ) -> Result<()> {
+        instructions::update_pause::handler(ctx, paused)
+    }
 }
