@@ -88,6 +88,7 @@ pub fn handler(
     curve_type: CurveType,            // Curve: ConstantProduct, Exponential, or Custom
     graduation_threshold_usd: u64,    // e.g., 40_000_000_000 = $40k (6 decimals) - dynamic per pool
     disable_waa: bool,                // If true, pure permissionless (no WAA anti-dump fees)
+    metadata_uri: String,             // Arweave/IPFS URI for pool metadata (max 64 chars)
 ) -> Result<()> {
     let config = &ctx.accounts.config;
     let quote_mint_key = ctx.accounts.quote_mint.key();
@@ -159,6 +160,12 @@ pub fn handler(
     require!(
         base_decimals >= MIN_TOKEN_DECIMALS && base_decimals <= MAX_TOKEN_DECIMALS,
         ErrorCode::InvalidTokenDecimals
+    );
+
+    // Validate metadata URI length (max 64 chars for Arweave/IPFS URIs)
+    require!(
+        metadata_uri.len() <= 64,
+        ErrorCode::InvalidMetadata
     );
 
     // CRITICAL SECURITY: Validate mint authorities are revoked (prevents rugpull)
@@ -246,6 +253,8 @@ pub fn handler(
     pool.last_crx_price_usd = crx_price_usd;
 
     pool.disable_waa = disable_waa;
+
+    pool.metadata_uri = metadata_uri;
 
     pool.bump = ctx.bumps.pool;
 

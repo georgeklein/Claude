@@ -192,6 +192,7 @@ Create new bonding curve pool.
   supply: number,
   initialMarketCapUsd: number,
   graduationThresholdUsd: number,
+  metadataUri?: string,             // Arweave/IPFS URI (max 64 chars, default: '')
   feeBps?: number,                  // 0, 25, or 100 (default: 0)
   curveType?: 'ConstantProduct' | 'Exponential',
   disableWaa?: boolean,
@@ -207,6 +208,7 @@ const pool = await scale.createPool({
   supply: 1_000_000_000,
   initialMarketCapUsd: 10_000,
   graduationThresholdUsd: 40_000,
+  metadataUri: 'ar://TX_ID_HERE',   // Arweave URI for token metadata
   feeBps: 100,
   curveType: 'ConstantProduct',
   disableWaa: false,

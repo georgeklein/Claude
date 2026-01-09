@@ -56,6 +56,7 @@ interface PoolData {
   totalQuoteVolume: BN;
   createdAtSlot: BN;
   disableWaa: boolean;
+  metadataUri: string;
 }
 
 /** Transaction confirmation configuration */
@@ -87,6 +88,7 @@ export interface CreatePoolParams {
   supply: number;                      // Token supply (human-readable)
   initialMarketCapUsd: number;         // Launch MC in USD
   graduationThresholdUsd: number;      // Graduate at X USD
+  metadataUri?: string;                // Arweave/IPFS URI (max 64 chars, default: empty string)
 
   // Optional
   feeBps?: number;                     // Fee in basis points (default: 0, Creator uses 0/25/100 presets)
@@ -132,6 +134,8 @@ export interface PoolInfo {
 
   initialPrice: number;                // Launch price
   targetMarketCapUsd: number;          // Initial target MC
+
+  metadataUri: string;                 // Arweave/IPFS URI for pool metadata
 
   createdAt: Date;
   url: string;                         // Frontend URL to trade
@@ -740,10 +744,16 @@ export class ScaleAMM {
       const feeBps = params.feeBps ?? 0;
       const curveType = params.curveType ?? 'ConstantProduct';
       const disableWaa = params.disableWaa ?? false;
+      const metadataUri = params.metadataUri ?? '';
 
       // Validate fee
       if (![0, 25, 100].includes(feeBps)) {
         throw new ScaleError('INVALID_FEE', 'Fee must be 0, 25, or 100 bps');
+      }
+
+      // Validate metadata URI
+      if (metadataUri.length > 64) {
+        throw new ScaleError('INVALID_METADATA', 'Metadata URI must be 64 characters or less');
       }
 
       // Get token decimals
@@ -784,7 +794,8 @@ export class ScaleAMM {
           feeBps,
           curveTypeEnum,
           graduationThresholdUsd,
-          disableWaa
+          disableWaa,
+          metadataUri
         )
         .accounts({
           config: configPda,
@@ -1031,6 +1042,8 @@ export class ScaleAMM {
         initialPrice: poolData.virtualQuoteReserves.toNumber() / poolData.virtualBaseReserves.toNumber(),
         targetMarketCapUsd: poolData.targetMarketCapUsd.toNumber() / 1_000_000,
 
+        metadataUri: poolData.metadataUri,
+
         createdAt: new Date(poolData.createdAtSlot.toNumber() * 400), // ~400ms per slot
         url: `https://scale-amm.xyz/pool/${poolPda.toBase58()}`,
       };
@@ -1263,6 +1276,8 @@ export class ScaleAMM {
 
           initialPrice: poolData.virtualQuoteReserves.toNumber() / poolData.virtualBaseReserves.toNumber(),
           targetMarketCapUsd: poolData.targetMarketCapUsd.toNumber() / 1_000_000,
+
+          metadataUri: poolData.metadataUri,
 
           createdAt: new Date(poolData.createdAtSlot.toNumber() * 400),
           url: `https://scale-amm.xyz/pool/${account.publicKey.toBase58()}`,

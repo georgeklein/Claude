@@ -43,6 +43,7 @@ pub mod creator_amm_v2 {
         curve_type: state::CurveType,
         graduation_threshold_usd: u64,
         disable_waa: bool,
+        metadata_uri: String,
     ) -> Result<()> {
         instructions::create_pool::handler(
             ctx,
@@ -52,6 +53,7 @@ pub mod creator_amm_v2 {
             curve_type,
             graduation_threshold_usd,
             disable_waa,
+            metadata_uri,
         )
     }
 

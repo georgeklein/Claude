@@ -73,4 +73,7 @@ pub enum ErrorCode {
 
     #[msg("Graduation would cause excessive price jump - need more trading volume first (prevents flash loan attacks)")]
     GraduationPriceJumpTooLarge,
+
+    #[msg("Invalid metadata URI - must be 64 characters or less")]
+    InvalidMetadata,
 }
