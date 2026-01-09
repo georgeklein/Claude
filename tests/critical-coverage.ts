@@ -797,7 +797,7 @@ describe("Scale AMM - Critical Test Coverage", () => {
       const feeBalanceAfter = await getAccount(provider.connection, feeRecipientCrxAccount);
       const feeCollected = Number(feeBalanceAfter.amount) - Number(feeBalanceBefore.amount);
 
-      // Fee should be significant (base fee + WAA penalty ~10%)
+      // Fee should be significant (base fee + WAA penalty ~3%)
       expect(feeCollected).to.be.greaterThan(0);
     });
 
@@ -1142,7 +1142,7 @@ describe("Scale AMM - Critical Test Coverage", () => {
   // CATEGORY 3: ANTI-SNIPER PROTECTION (7 tests)
   // ============================================================================
   describe("3. Anti-Sniper Protection", () => {
-    it("Should enforce max trade size during anti-sniper window (first 20 slots)", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should enforce max trade size during anti-sniper window (first 20 slots)", async () => {
       const { pool, quoteVault, baseVault, baseMint } = await setupTestPool();
 
       await mintTo(
@@ -1184,7 +1184,7 @@ describe("Scale AMM - Critical Test Coverage", () => {
       }
     });
 
-    it("Should allow buys below anti-sniper threshold", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should allow buys below anti-sniper threshold", async () => {
       const { pool, quoteVault, baseVault, baseMint } = await setupTestPool();
 
       await mintTo(
@@ -1218,7 +1218,7 @@ describe("Scale AMM - Critical Test Coverage", () => {
       expect(Number(balance.amount)).to.be.greaterThan(0);
     });
 
-    it("Should apply anti-sniper to sells as well", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should apply anti-sniper to sells as well", async () => {
       const { pool, quoteVault, baseVault, baseMint } = await setupTestPool();
 
       await mintTo(
@@ -1263,7 +1263,7 @@ describe("Scale AMM - Critical Test Coverage", () => {
       );
     });
 
-    it("Should disable anti-sniper after window expires", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should disable anti-sniper after window expires", async () => {
       // This would require advancing slots beyond anti-sniper window
       // For now, verify that trades work correctly
       const { pool, quoteVault, baseVault, baseMint } = await setupTestPool();
@@ -1290,7 +1290,7 @@ describe("Scale AMM - Critical Test Coverage", () => {
       );
     });
 
-    it("Should disable anti-sniper after graduation", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should disable anti-sniper after graduation", async () => {
       const { pool, quoteVault, baseVault, baseMint } = await setupTestPool(
         5_000_000_000, // Low market cap
         10_000_000_000  // Low graduation threshold
@@ -1333,7 +1333,7 @@ describe("Scale AMM - Critical Test Coverage", () => {
       );
     });
 
-    it("Should calculate max trade size correctly (5% of supply)", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should calculate max trade size correctly (5% of supply)", async () => {
       const { pool } = await setupTestPool();
       const poolAccount = await program.account.pool.fetch(pool);
 
@@ -1345,7 +1345,7 @@ describe("Scale AMM - Critical Test Coverage", () => {
       expect(maxTrade).to.be.closeTo(expectedMax, 1_000_000);
     });
 
-    it("Should prevent anti-sniper bypass via multiple small trades", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should prevent anti-sniper bypass via multiple small trades", async () => {
       const { pool, quoteVault, baseVault, baseMint } = await setupTestPool();
 
       await mintTo(

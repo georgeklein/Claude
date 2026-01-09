@@ -1392,7 +1392,7 @@ describe("Scale AMM - Advanced Test Coverage", () => {
       expect(configAccount.oracleMaxAgeSeconds.toNumber()).to.equal(60);
     });
 
-    it("Should prevent front-running via anti-sniper", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should prevent front-running via anti-sniper", async () => {
       const { pool } = await setupTestPool();
       const poolAccount = await program.account.pool.fetch(pool);
       expect(poolAccount.createdAtSlot.toNumber()).to.be.greaterThan(0);
@@ -1771,20 +1771,8 @@ describe("Scale AMM - Advanced Test Coverage", () => {
         expect(err.toString()).to.include("Unauthorized");
       }
 
-      // Test pausing protocol
-      try {
-        await program.methods
-          .setPaused(true)
-          .accounts({
-            config,
-            authority: unauthorized.publicKey,
-          })
-          .signers([unauthorized])
-          .rpc();
-        expect.fail("Should reject unauthorized pause");
-      } catch (err) {
-        expect(err.toString()).to.include("Unauthorized");
-      }
+      // Note: setPaused feature was removed from the protocol
+      // Emergency controls are now handled through updateProtocolFee
     });
 
     it("Test 5: Users can only update their own positions", async () => {

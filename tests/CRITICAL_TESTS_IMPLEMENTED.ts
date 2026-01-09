@@ -824,8 +824,8 @@ describe("CRITICAL: Complete Test Suite", () => {
         trader1.publicKey
       )).amount;
 
-      // Should have received less due to 10% WAA fee
-      // (Base fee + 10% WAA fee = higher total fee)
+      // Should have received less due to 3% WAA fee
+      // (Base fee + 3% WAA fee = higher total fee)
       // Difficult to verify exact amount without knowing curve params
       expect(quoteBalanceAfter).to.be.greaterThan(quoteBalanceBefore);
     });
@@ -1146,7 +1146,7 @@ describe("CRITICAL: Complete Test Suite", () => {
       testBaseVault = poolAccounts.baseVault;
     });
 
-    it("Should enforce max trade size during anti-sniper window", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should enforce max trade size during anti-sniper window", async () => {
       // Anti-sniper window = 20 slots from config
       // Max trade = 5% of supply (500 bps)
       // Supply = 1M tokens → Max = 50k tokens
@@ -1169,7 +1169,7 @@ describe("CRITICAL: Complete Test Suite", () => {
       }
     });
 
-    it("Should allow trades < max size during anti-sniper window", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should allow trades < max size during anti-sniper window", async () => {
       // Buy < 5% of supply (should succeed)
       await executeBuy(
         testPool,
@@ -1192,7 +1192,7 @@ describe("CRITICAL: Complete Test Suite", () => {
       expect(balance).to.be.greaterThan(BigInt(0));
     });
 
-    it("Should apply anti-sniper limits to sells", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should apply anti-sniper limits to sells", async () => {
       // First, buy tokens (small amount to avoid anti-sniper on buy)
       await executeBuy(
         testPool,
@@ -1217,7 +1217,7 @@ describe("CRITICAL: Complete Test Suite", () => {
       // Note: This test assumes buy gave us enough tokens
     });
 
-    it("Should allow large trades after anti-sniper window expires", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should allow large trades after anti-sniper window expires", async () => {
       // Wait for anti-sniper window to expire (20 slots)
       // In test environment, simulate slot passage
       await new Promise(resolve => setTimeout(resolve, 10000)); // ~10 seconds
@@ -1243,7 +1243,7 @@ describe("CRITICAL: Complete Test Suite", () => {
       expect(balance).to.be.greaterThan(BigInt(0));
     });
 
-    it("Should disable anti-sniper after graduation", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should disable anti-sniper after graduation", async () => {
       // Graduate pool by accumulating 40k CRX
       // This requires multiple trades to reach graduation threshold
 

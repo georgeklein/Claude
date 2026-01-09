@@ -187,11 +187,11 @@ describe("WAA Comprehensive Test Suite", () => {
    */
   function calculateExpectedWaaFee(ageSlots: number): number {
     if (ageSlots <= WAA_TIER1_SLOTS) {
-      return WAA_FEE_MAX; // 1000 bps (10%)
+      return WAA_FEE_MAX; // 300 bps (3%)
     }
 
     if (ageSlots <= WAA_TIER2_SLOTS) {
-      // Decay from 10% to 1%: 100 + 900 * (750 - age) / 675
+      // Decay from 3% to 0.5%: 50 + 250 * (150 - age) / 125
       const timeRemaining = WAA_TIER2_SLOTS - ageSlots;
       const decayComponent = Math.floor((WAA_DECAY_RANGE * timeRemaining) / WAA_TIME_RANGE_1);
       return WAA_FEE_MIN + decayComponent;
@@ -294,9 +294,9 @@ describe("WAA Comprehensive Test Suite", () => {
       const midpoint = Math.floor((WAA_TIER1_SLOTS + WAA_TIER2_SLOTS) / 2);
       const expectedFee = calculateExpectedWaaFee(midpoint);
 
-      // At midpoint, should be roughly halfway between 10% and 1% = ~5.5%
-      expect(expectedFee).to.be.greaterThan(400); // > 4%
-      expect(expectedFee).to.be.lessThan(650); // < 6.5%
+      // At midpoint, should be roughly halfway between 3% and 0.5% = ~1.75%
+      expect(expectedFee).to.be.greaterThan(150); // > 1.5%
+      expect(expectedFee).to.be.lessThan(200); // < 2%
       console.log(`  ✅ Midpoint T1-T2 (${midpoint} slots): ${expectedFee} bps = ${(expectedFee/100).toFixed(2)}%`);
     });
 
@@ -651,11 +651,11 @@ describe("WAA Comprehensive Test Suite", () => {
       expect(poolAccount.disableWaa).to.not.be.undefined;
 
       // Current implementation: disable_waa defaults to false
-      // When false: WAA fees are applied (10% → 1% → 0% decay)
+      // When false: WAA fees are applied (3% → 0.5% → 0% decay)
       // When true: WAA fees are skipped (extra_fee_bps = 0)
 
       console.log(`  ✅ disable_waa flag: ${poolAccount.disableWaa}`);
-      console.log(`     When false: WAA fees apply (10% → 0% decay over 30min)`);
+      console.log(`     When false: WAA fees apply (3% → 0% decay over 5min)`);
       console.log(`     When true: WAA fees skipped (pure permissionless trading)`);
     });
   });

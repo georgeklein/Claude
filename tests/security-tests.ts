@@ -549,7 +549,7 @@ describe("Security Test Suite - Error Conditions & Attack Simulations", () => {
        * WHY IT FAILS:
        * - Constant product curve limits price impact
        * - Fees on both buy and sell
-       * - WAA penalty on immediate sell (10% extra fee)
+       * - WAA penalty on immediate sell (3% extra fee)
        *
        * SECURITY: Math prevents instant arbitrage
        */

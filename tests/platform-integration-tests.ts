@@ -372,7 +372,7 @@ describe("Platform Integration Tests", () => {
       });
     });
 
-    it("Should enforce 5% trade limit during anti-sniper window", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should enforce 5% trade limit during anti-sniper window", async () => {
       const traderScale = new ScaleAMM(
         connection,
         { publicKey: trader2.publicKey, payer: trader2 },
@@ -413,7 +413,7 @@ describe("Platform Integration Tests", () => {
       }
     });
 
-    it("Should allow small trades during anti-sniper window", async () => {
+    it.skip("DEPRECATED - Anti-sniper removed: Should allow small trades during anti-sniper window", async () => {
       const traderScale = new ScaleAMM(
         connection,
         { publicKey: trader2.publicKey, payer: trader2 },
@@ -437,7 +437,7 @@ describe("Platform Integration Tests", () => {
   // TC-031: WAA Fee Testing
   // ============================================================================
   describe("TC-031: WAA Sell Fees", () => {
-    it("Should charge 10% WAA fee for sells < 30 seconds", async () => {
+    it("Should charge 3% WAA fee for sells < 25 slots", async () => {
       // This test requires slot manipulation (devnet only)
       // In practice, would need to wait or mock clock
 
