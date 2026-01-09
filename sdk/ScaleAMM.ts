@@ -91,7 +91,7 @@ export interface CreatePoolParams {
   graduationThresholdUsd: number;      // Graduate at X USD
 
   // Optional
-  feeBps?: number;                     // 0, 25, or 100 (default: 0)
+  feeBps?: number;                     // Fee in basis points (default: 0, Creator uses 0/25/100 presets)
   curveType?: 'ConstantProduct' | 'Exponential'; // default: ConstantProduct
   disableWaa?: boolean;                // If true, skip WAA anti-dump fees (pure permissionless, default: false)
 }
