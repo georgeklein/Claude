@@ -304,6 +304,7 @@ impl Pool {
             .checked_div(base_reserves as u128)
             .ok_or(ErrorCode::MathOverflow)?;
 
+        require!(price <= u64::MAX as u128, ErrorCode::MathOverflow);
         Ok(price as u64)
     }
 
@@ -323,6 +324,7 @@ impl Pool {
             .checked_div(PRICE_PRECISION as u128)
             .ok_or(ErrorCode::MathOverflow)?;
 
+        require!(market_cap <= u64::MAX as u128, ErrorCode::MathOverflow);
         Ok(market_cap as u64)
     }
 
@@ -342,6 +344,7 @@ impl Pool {
             .checked_div(CRX_DECIMALS as u128)
             .ok_or(ErrorCode::MathOverflow)?;
 
+        require!(mc_usd <= u64::MAX as u128, ErrorCode::MathOverflow);
         Ok(mc_usd as u64)
     }
 
